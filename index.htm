@@ -53,7 +53,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .detail-hero{width:100%;border-radius:16px;margin-bottom:14px;background:#e7e2d7;max-height:420px;object-fit:cover}
 .desc{font-size:14px;color:#4f4a43;line-height:1.85;white-space:pre-wrap}
 .divider{height:1px;background:#eee;margin:14px 0}
-.category-row{display:grid;grid-template-columns:1.4fr .9fr 40px;gap:8px;align-items:end;margin-bottom:8px}
+.category-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(82px,.8fr) 38px;gap:8px;align-items:end;margin-bottom:8px}
 .icon-btn{border:none;border-radius:11px;background:#f3eeee;color:#9a3333;font-weight:900;height:43px;cursor:pointer}
 .success-box{text-align:left;font-size:14px;line-height:1.9;color:#4f4a43}
 .muted{font-size:12px;color:#888;line-height:1.6}
@@ -66,8 +66,13 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .admin-course-row{background:#fafafa;border:1px solid #eee;border-radius:14px;padding:12px;margin-bottom:10px}
 .inline-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .readonly-box{background:#f7f7f7;border:1px solid #e0e0e0;border-radius:12px;padding:12px;font-size:15px;color:#333}
+.quick-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.compact-card{padding:14px}
+#r-name{font-size:18px;font-weight:700}
+.submit-sticky{position:sticky;bottom:10px;z-index:4;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
 .hide{display:none!important}
-@media(max-width:420px){.row,.top-actions,.course-actions{grid-template-columns:1fr}.course-img{height:156px}.category-row{grid-template-columns:1fr}.icon-btn{width:100%}}
+@media(max-width:420px){.top-actions,.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.course-img{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
 </head>
 <body>
@@ -92,6 +97,9 @@ let initData = null;
 let currentCourse = null;
 let selectedLeader = '';
 let memberIndex = {};
+let registrationIndex = {};
+let isCurrentNameDuplicate = false;
+let isSubmittingRegistration = false;
 let editingCourseCode = '';
 let currentCourseData = null;
 let lookupTimer = null;
@@ -949,7 +957,10 @@ function renderRegisterForm() {
   clearMsg();
   setTitle('填寫報名');
   selectedLeader = '';
+  isCurrentNameDuplicate = false;
+  isSubmittingRegistration = false;
   memberIndex = buildMemberIndex((initData && initData.memberDirectory) || []);
+  registrationIndex = buildRegistrationIndex((initData && initData.existingRegistrants) || []);
 
   const c = currentCourse;
   const classDetails = (initData && initData.classDetails) || [];
@@ -957,36 +968,47 @@ function renderRegisterForm() {
   document.getElementById('app').innerHTML = `
     <button class="btn btn-ghost" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">← 返回活動詳情</button>
 
-    <div class="card" style="margin-top:12px">
+    <div class="card compact-card" style="margin-top:12px">
       <h2>${esc(c.eventName)}</h2>
       <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>金額：${esc(c.priceSummary || '—')}</div>
     </div>
 
-    <div class="card">
+    <div class="card compact-card">
       <h2>填寫報名資料</h2>
       <div id="registration-result" class="msg"></div>
+
       <div class="field">
         <label>姓名</label>
-        <input id="r-name" placeholder="請輸入中文姓名" oninput="autoLookupMemberLocal()">
-      </div>
-      <div id="lookup-box" style="margin-top:12px"></div>
-
-      <div class="field">
-        <label>上課類別</label>
-        <select id="r-class" onchange="updateRegistrationPrice()">
-          ${optionHtml(classDetails.map(x => x.name), '', '請選擇上課類別')}
-        </select>
+        <input id="r-name" placeholder="請輸入中文姓名" autocomplete="off" oninput="autoLookupMemberLocal()">
       </div>
 
-      <div id="price-box" class="price-box hide"></div>
+      <div id="lookup-box"></div>
+
+      <div class="quick-form-grid">
+        <div class="field">
+          <label>上課類別</label>
+          <select id="r-class" onchange="updateRegistrationPrice()">
+            ${optionHtml(classDetails.map(x => x.name), '', '請選擇')}
+          </select>
+        </div>
+        <div class="field">
+          <label>本次票價</label>
+          <div id="price-box" class="readonly-box">請先選類別</div>
+        </div>
+      </div>
 
       <div class="field">
         <label>備註，可空白</label>
         <textarea id="r-remark" placeholder="有特殊需求可填寫"></textarea>
       </div>
-      <button class="btn btn-main" onclick="submitRegister()">送出報名</button>
+      <button id="submit-register-btn" class="btn btn-main submit-sticky" onclick="submitRegister()">送出報名</button>
     </div>
   `;
+
+  setTimeout(() => {
+    const nameInput = document.getElementById('r-name');
+    if (nameInput) nameInput.focus();
+  }, 120);
 }
 
 function cleanNameLocal(input) {
@@ -1005,16 +1027,68 @@ function buildMemberIndex(list) {
   return map;
 }
 
+function buildRegistrationIndex(list) {
+  const map = {};
+  (list || []).forEach(item => {
+    const key = item.cleanName || cleanNameLocal(item.name);
+    if (!key) return;
+    map[key] = item;
+  });
+  return map;
+}
+
+function getExistingRegistration(cleanName) {
+  return registrationIndex[cleanName] || null;
+}
+
+function setRegisterButtonDisabled(disabled, text) {
+  const btn = document.getElementById('submit-register-btn');
+  if (!btn) return;
+  btn.disabled = !!disabled;
+  btn.textContent = text || '送出報名';
+}
+
+function duplicateNoticeHtml() {
+  return `
+    <div class="msg on err">
+      ⚠️ 此姓名已報名過本課程<br><br>
+      如有疑問，請洽會長調整。
+    </div>
+  `;
+}
+
 function autoLookupMemberLocal() {
   selectedLeader = '';
+  isCurrentNameDuplicate = false;
+  clearRegisterMsg();
+
   const box = document.getElementById('lookup-box');
   const name = val('r-name');
   const clean = cleanNameLocal(name);
 
   if (!clean) {
     box.innerHTML = '';
+    setRegisterButtonDisabled(false, '送出報名');
     return;
   }
+
+  const duplicate = getExistingRegistration(clean);
+  if (duplicate) {
+    isCurrentNameDuplicate = true;
+    setRegisterButtonDisabled(true, '已重複報名');
+    const matches = memberIndex[clean] || [];
+    const leaderText = matches.length === 1 ? (matches[0].leader || '') : (duplicate.leader || '');
+    box.innerHTML = `
+      <div class="msg on err">
+        ⚠️ 此姓名已報名過本課程<br>
+        ${leaderText ? '上手白金/雁群組長：' + esc(leaderText) + '<br>' : ''}
+        如有疑問，請洽會長調整。
+      </div>
+    `;
+    return;
+  }
+
+  setRegisterButtonDisabled(false, '送出報名');
 
   const matches = memberIndex[clean] || [];
   if (matches.length === 1) {
@@ -1068,12 +1142,11 @@ function getSelectedClassPrice() {
 function updateRegistrationPrice() {
   const box = document.getElementById('price-box');
   const info = getSelectedClassPrice();
+  if (!box) return;
   if (!info.classType || info.price === null) {
-    box.classList.add('hide');
-    box.innerHTML = '';
+    box.innerHTML = '請先選類別';
     return;
   }
-  box.classList.remove('hide');
   box.innerHTML = `本次票價：$${esc(info.price)}`;
 }
 
@@ -1081,8 +1154,19 @@ async function submitRegister() {
   clearMsg();
   clearRegisterMsg();
 
+  if (isSubmittingRegistration) return;
+
   const name = val('r-name');
+  const clean = cleanNameLocal(name);
   if (!name) return showRegisterMsg('請輸入姓名', 'err');
+
+  if (getExistingRegistration(clean) || isCurrentNameDuplicate) {
+    isCurrentNameDuplicate = true;
+    setRegisterButtonDisabled(true, '已重複報名');
+    const box = document.getElementById('lookup-box');
+    if (box) box.innerHTML = duplicateNoticeHtml();
+    return showRegisterMsg('此姓名已報名過本課程<br><br>如有疑問，請洽會長調整。', 'err');
+  }
 
   let leader = selectedLeader;
   const leaderField = document.getElementById('r-leader');
@@ -1093,6 +1177,8 @@ async function submitRegister() {
   const priceInfo = getSelectedClassPrice();
   if (!priceInfo.classType) return showRegisterMsg('請選擇上課類別', 'err');
 
+  isSubmittingRegistration = true;
+  setRegisterButtonDisabled(true, '送出中...');
   showRegisterMsg('送出中...', 'info');
 
   try {
@@ -1109,11 +1195,22 @@ async function submitRegister() {
     });
 
     if (res.status === 'ok') {
+      registrationIndex[clean] = {
+        name: res.name || name,
+        cleanName: clean,
+        leader: res.leader || res.flock || leader,
+        classType: res.classType || priceInfo.classType
+      };
+
+      if (currentCourse) {
+        currentCourse.currentCount = Number(currentCourse.currentCount || 0) + 1;
+      }
+
       showRegisterMsg(`
-        ✅ 報名成功：${esc(res.name)}<br>
-        上手白金/雁群組長：${esc(res.leader || res.flock || '—')}<br>
-        上課類別：${esc(res.classType || '—')}<br>
-        本次票價：$${esc(res.price || 0)}<br><br>
+        ✅ 報名成功：${esc(res.name || clean)}<br>
+        上手白金/雁群組長：${esc(res.leader || res.flock || leader || '—')}<br>
+        上課類別：${esc(res.classType || priceInfo.classType || '—')}<br>
+        本次票價：$${esc(res.price || priceInfo.price || 0)}<br><br>
         請繼續輸入下一位。
       `, 'ok');
 
@@ -1121,30 +1218,31 @@ async function submitRegister() {
       const remarkInput = document.getElementById('r-remark');
       const lookupBox = document.getElementById('lookup-box');
       selectedLeader = '';
+      isCurrentNameDuplicate = false;
       if (nameInput) nameInput.value = '';
       if (remarkInput) remarkInput.value = '';
       if (lookupBox) lookupBox.innerHTML = '';
-      setTimeout(() => { if (nameInput) nameInput.focus(); }, 80);
-
-      // 重新整理本課程人數，避免連續報名時名額狀態太舊；失敗不影響下一筆輸入。
-      post('getRegistrationInit', { eventCode: currentCourse.eventCode }).then(data => {
-        if (data && data.status === 'ok') {
-          currentCourse = data.course;
-          initData = data;
-          memberIndex = buildMemberIndex((initData && initData.memberDirectory) || []);
-        }
-      }).catch(() => {});
+      setRegisterButtonDisabled(false, '送出報名');
+      setTimeout(() => { if (nameInput) nameInput.focus(); }, 60);
 
     } else if (res.status === 'need_profile') {
       showRegisterMsg('查無名冊資料，請選擇上手白金/雁群組長', 'err');
       autoLookupMemberLocal();
     } else if (res.status === 'duplicate') {
+      registrationIndex[clean] = { name, cleanName: clean, leader };
+      isCurrentNameDuplicate = true;
+      setRegisterButtonDisabled(true, '已重複報名');
+      const box = document.getElementById('lookup-box');
+      if (box) box.innerHTML = duplicateNoticeHtml();
       showRegisterMsg('此姓名已報名過本課程<br><br>如有疑問，請洽會長調整。', 'err');
     } else {
       showRegisterMsg('⚠️ ' + esc(res.message || '報名失敗'), 'err');
     }
   } catch (err) {
     showRegisterMsg('⚠️ ' + esc(err.message || err), 'err');
+  } finally {
+    isSubmittingRegistration = false;
+    if (!isCurrentNameDuplicate) setRegisterButtonDisabled(false, '送出報名');
   }
 }
 </script>
