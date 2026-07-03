@@ -62,6 +62,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .edm-preview img{width:100%;display:block;max-height:280px;object-fit:cover}
 .edm-info{padding:10px;font-size:12px;color:#666;line-height:1.6}
 .file-input{padding:10px;background:#fff}
+.price-box{background:#edf7ee;border:1px solid #b9d8bf;color:#1f4d2c;border-radius:14px;padding:12px;font-weight:900;text-align:center;margin:10px 0}
+.admin-course-row{background:#fafafa;border:1px solid #eee;border-radius:14px;padding:12px;margin-bottom:10px}
+.inline-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.readonly-box{background:#f7f7f7;border:1px solid #e0e0e0;border-radius:12px;padding:12px;font-size:15px;color:#333}
 .hide{display:none!important}
 @media(max-width:420px){.row,.top-actions,.course-actions{grid-template-columns:1fr}.course-img{height:156px}.category-row{grid-template-columns:1fr}.icon-btn{width:100%}}
 </style>
@@ -86,7 +90,10 @@ let userId = '';
 let displayName = '';
 let initData = null;
 let currentCourse = null;
-let selectedFlock = '';
+let selectedLeader = '';
+let memberIndex = {};
+let editingCourseCode = '';
+let currentCourseData = null;
 let lookupTimer = null;
 let publicData = null;
 let selectedEdmFile = null;
@@ -297,7 +304,7 @@ async function renderCourseDetailPage(courseCode) {
     initData = data;
 
     const c = currentCourse;
-    const canRegister = c.openFlag === '是' && c.statusBadge !== '已額滿';
+    const canRegister = c.openFlag === '是' && c.statusBadge === '報名中';
     const img = c.dmUrl ? `<img class="detail-hero" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">` : '';
 
     app.innerHTML = `
@@ -356,6 +363,8 @@ async function renderSettingsPage() {
     return;
   }
 
+  editingCourseCode = '';
+  currentCourseData = null;
   selectedEdmFile = null;
   uploadedEdmUrl = '';
   uploadedEdmFileName = '';
@@ -367,78 +376,108 @@ async function renderSettingsPage() {
     </div>
 
     <div id="create-result"></div>
+    <div id="course-form-box"></div>
 
     <div class="card">
-      <h2>建立報名活動</h2>
+      <h2>已建立課程</h2>
+      <div id="admin-course-list"></div>
+    </div>
+  `;
+
+  renderCourseForm(null);
+  renderAdminCourseList(data.courses || []);
+}
+
+function renderCourseForm(course) {
+  currentCourseData = course || null;
+  editingCourseCode = course ? course.eventCode : '';
+  selectedEdmFile = null;
+  uploadedEdmUrl = '';
+  uploadedEdmFileName = '';
+
+  const data = initData || { options: { sessions: [], ticketTypes: [], classTypes: [], hours: [], minutes: [], ampm: [] } };
+  const isEdit = !!course;
+  const parsed = parseCourseDateTime(course ? course.dateTime : '');
+  const ticketTypeBase = (course && course.ticketType && course.ticketType !== '一般票') ? '其他' : (course && course.ticketType ? course.ticketType : '一般票');
+  const ticketOther = (ticketTypeBase === '其他' && course && course.ticketType !== '其他') ? course.ticketType : '';
+
+  document.getElementById('course-form-box').innerHTML = `
+    <div class="card">
+      <h2>${isEdit ? '編輯活動' : '建立報名活動'}</h2>
 
       <div class="section-title">基本資訊</div>
       <div class="row">
         <div class="field">
           <label>活動代碼</label>
-          <input id="c-code" placeholder="例如 A1，可空白自動產生">
+          <input id="c-code" placeholder="例如 A1，可空白自動產生" value="${esc(course ? course.eventCode : '')}" ${isEdit ? 'readonly' : ''}>
         </div>
         <div class="field">
           <label>上限人數</label>
-          <input id="c-max" type="number" placeholder="例如 80">
+          <input id="c-max" type="number" placeholder="例如 80" value="${esc(course ? course.maxCount : '')}">
         </div>
       </div>
 
       <div class="field">
         <label>活動名稱</label>
-        <input id="c-name" placeholder="例如 7/20 牙技行銷課">
+        <input id="c-name" placeholder="例如 7/20 牙技行銷課" value="${esc(course ? course.eventName : '')}">
       </div>
 
       <div class="field">
         <label>DM / EDM 圖片</label>
         <div class="edm-upload">
           <input id="c-edm-file" class="file-input" type="file" accept="image/*" onchange="handleEdmFileChange(event)">
-          <input id="c-dm" type="hidden">
-          <div id="edm-preview-box" class="edm-preview hide"></div>
-          <p class="muted" style="margin-top:8px">
-            手機可直接選相簿圖片。建立課程時會自動上傳到 Google Drive「CYP135_EDM」資料夾，檔名會改成「日期_活動名稱」。
-          </p>
+          <input id="c-dm" type="hidden" value="${esc(course ? course.dmUrl : '')}">
+          <div id="edm-preview-box" class="edm-preview ${course && course.dmUrl ? '' : 'hide'}">
+            ${course && course.dmUrl ? `<img src="${esc(course.dmUrl)}" alt="EDM 預覽"><div class="edm-info">目前 EDM 圖片。若重新選擇圖片，更新時會覆蓋連結。</div>` : ''}
+          </div>
+          <p class="muted" style="margin-top:8px">手機可直接選相簿圖片。建立或更新課程時會自動上傳到 Google Drive「CYP135_EDM」資料夾，檔名會改成「日期_活動名稱」。</p>
         </div>
       </div>
 
       <div class="field">
         <label>活動介紹</label>
-        <textarea id="c-desc" placeholder="輸入學員點進活動詳情時會看到的介紹"></textarea>
+        <textarea id="c-desc" placeholder="輸入學員點進活動詳情時會看到的介紹">${esc(course ? course.description : '')}</textarea>
       </div>
 
       <div class="section-title">時間與場次</div>
       <div class="field">
         <label>活動日期</label>
-        <input id="c-date" type="date">
+        <input id="c-date" type="date" value="${esc(parsed.date)}">
       </div>
 
       <div class="row">
         <div>
           <label>開始時間</label>
-          ${renderTimePicker('start')}
+          ${renderTimePicker('start', parsed.start)}
         </div>
         <div>
           <label>結束時間</label>
-          ${renderTimePicker('end')}
+          ${renderTimePicker('end', parsed.end)}
         </div>
       </div>
 
       <div class="row" style="margin-top:12px">
         <div class="field">
           <label>場次</label>
-          <select id="c-session">${optionHtml(data.options.sessions, '', '請選擇場次')}</select>
+          <select id="c-session">${optionHtml(data.options.sessions, course ? course.session : '', '請選擇場次')}</select>
         </div>
         <div class="field">
           <label>票種</label>
-          <select id="c-ticket">${optionHtml(data.options.ticketTypes, '', '請選擇票種')}</select>
+          <select id="c-ticket" onchange="toggleOtherTicket()">${optionHtml(['一般票','其他'], ticketTypeBase, '')}</select>
         </div>
+      </div>
+
+      <div id="ticket-other-box" class="field ${ticketTypeBase === '其他' ? '' : 'hide'}">
+        <label>其他票種名稱</label>
+        <input id="c-ticket-other" placeholder="請輸入票種名稱" value="${esc(ticketOther)}">
       </div>
 
       <div class="section-title">報名與價格</div>
       <div class="field">
         <label>收費模式</label>
         <select id="c-mode" onchange="togglePricingMode()">
-          <option value="白金制">白金制</option>
-          <option value="類別制">類別制</option>
+          <option value="白金制" ${!course || course.pricingMode !== '類別制' ? 'selected' : ''}>白金制</option>
+          <option value="類別制" ${course && course.pricingMode === '類別制' ? 'selected' : ''}>類別制</option>
         </select>
       </div>
 
@@ -446,16 +485,18 @@ async function renderSettingsPage() {
         <div class="row">
           <div class="field">
             <label>白金價</label>
-            <input id="c-plat" type="number" placeholder="例如 0">
+            <input id="c-plat" type="number" placeholder="例如 0" value="${esc(course ? course.platinumPrice : '')}">
           </div>
           <div class="field">
             <label>非白金價</label>
-            <input id="c-nonplat" type="number" placeholder="例如 300">
+            <input id="c-nonplat" type="number" placeholder="例如 300" value="${esc(course ? course.nonPlatinumPrice : '')}">
           </div>
         </div>
       </div>
 
       <div id="price-category" class="hide">
+        <p class="muted" style="margin-bottom:8px">類別可自行設定，例如：成人、小孩、白金。</p>
+        <datalist id="class-suggestions">${(data.options.classTypes || []).map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
         <div id="category-box"></div>
         <button class="btn btn-sub" onclick="addCategoryRow()" type="button">新增課程類別</button>
       </div>
@@ -465,15 +506,15 @@ async function renderSettingsPage() {
         <div class="field">
           <label>是否開放報名</label>
           <select id="c-open">
-            <option value="是">是</option>
-            <option value="否">否</option>
+            <option value="是" ${!course || course.openFlag === '是' ? 'selected' : ''}>是</option>
+            <option value="否" ${course && course.openFlag === '否' ? 'selected' : ''}>否</option>
           </select>
         </div>
         <div class="field">
           <label>是否啟用 QR</label>
           <select id="c-qr">
-            <option value="是">是</option>
-            <option value="否">否</option>
+            <option value="是" ${!course || course.qrFlag === '是' ? 'selected' : ''}>是</option>
+            <option value="否" ${course && course.qrFlag === '否' ? 'selected' : ''}>否</option>
           </select>
         </div>
       </div>
@@ -481,27 +522,29 @@ async function renderSettingsPage() {
       <div class="row">
         <div class="field">
           <label>報名開始時間，可空白</label>
-          <input id="c-apply-start" type="datetime-local">
+          <input id="c-apply-start" type="datetime-local" value="${esc(toDatetimeLocalValue(course ? course.applyStart : ''))}">
         </div>
         <div class="field">
           <label>報名結束時間，可空白</label>
-          <input id="c-apply-end" type="datetime-local">
+          <input id="c-apply-end" type="datetime-local" value="${esc(toDatetimeLocalValue(course ? course.applyEnd : ''))}">
         </div>
       </div>
 
-      <button class="btn btn-main" onclick="submitCreateCourse()">建立課程</button>
-    </div>
-
-    <div class="card">
-      <h2>已建立課程</h2>
-      <div id="admin-course-list"></div>
+      <button class="btn btn-main" onclick="submitCourseForm()">${isEdit ? '更新課程' : '建立課程'}</button>
+      ${isEdit ? '<button class="btn btn-ghost" onclick="renderCourseForm(null)">取消編輯 / 新增課程</button>' : ''}
     </div>
   `;
 
-  addCategoryRow();
-  renderAdminCourseList(data.courses || []);
+  if (course && course.pricingMode === '類別制') {
+    const names = csvSplit(course.categoryNames);
+    const prices = csvSplit(course.categoryPrices);
+    names.forEach((name, i) => addCategoryRow(name, prices[i] || ''));
+  } else {
+    addCategoryRow();
+  }
+  togglePricingMode();
+  toggleOtherTicket();
 }
-
 
 function handleEdmFileChange(event) {
   const file = event.target.files && event.target.files[0];
@@ -511,10 +554,10 @@ function handleEdmFileChange(event) {
   selectedEdmFile = null;
   uploadedEdmUrl = '';
   uploadedEdmFileName = '';
-  if (hidden) hidden.value = '';
+  if (hidden && !currentCourseData) hidden.value = '';
 
   if (!file) {
-    if (box) {
+    if (box && !(currentCourseData && currentCourseData.dmUrl)) {
       box.classList.add('hide');
       box.innerHTML = '';
     }
@@ -538,7 +581,7 @@ function handleEdmFileChange(event) {
       <div class="edm-info">
         已選擇：${esc(file.name)}<br>
         上傳後檔名：${esc(predictedName)}<br>
-        狀態：尚未上傳，按「建立課程」時會自動上傳。
+        狀態：尚未上傳，按「${editingCourseCode ? '更新課程' : '建立課程'}」時會自動上傳。
       </div>
     `;
   }
@@ -578,9 +621,7 @@ async function uploadEdmIfNeeded(eventName, eventDate) {
     dataUrl
   });
 
-  if (res.status !== 'ok') {
-    throw new Error(res.message || 'EDM 圖片上傳失敗');
-  }
+  if (res.status !== 'ok') throw new Error(res.message || 'EDM 圖片上傳失敗');
 
   uploadedEdmUrl = res.url || '';
   uploadedEdmFileName = res.fileName || '';
@@ -592,10 +633,7 @@ async function uploadEdmIfNeeded(eventName, eventDate) {
     box.classList.remove('hide');
     box.innerHTML = `
       <img src="${esc(uploadedEdmUrl)}" alt="EDM 預覽">
-      <div class="edm-info">
-        ✅ 已上傳到 Google Drive<br>
-        檔名：${esc(uploadedEdmFileName || '—')}
-      </div>
+      <div class="edm-info">✅ 已上傳到 Google Drive<br>檔名：${esc(uploadedEdmFileName || '—')}</div>
     `;
   }
 
@@ -612,12 +650,10 @@ function compressImageToDataUrl(file, maxWidth, quality) {
       img.onload = () => {
         let width = img.width;
         let height = img.height;
-
         if (width > maxWidth) {
           height = Math.round(height * (maxWidth / width));
           width = maxWidth;
         }
-
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
@@ -633,13 +669,14 @@ function compressImageToDataUrl(file, maxWidth, quality) {
   });
 }
 
-function renderTimePicker(prefix) {
+function renderTimePicker(prefix, selected) {
   const opt = initData && initData.options ? initData.options : {hours:[],minutes:[],ampm:[]};
+  selected = selected || {};
   return `
     <div class="row3">
-      <select id="${prefix}-hour">${optionHtml(opt.hours, '', '時')}</select>
-      <select id="${prefix}-minute">${optionHtml(opt.minutes, '00', '分')}</select>
-      <select id="${prefix}-ampm">${optionHtml(opt.ampm, prefix === 'start' ? 'PM' : 'PM', 'AM/PM')}</select>
+      <select id="${prefix}-hour">${optionHtml(opt.hours, selected.hour || '', '時')}</select>
+      <select id="${prefix}-minute">${optionHtml(opt.minutes, selected.minute || '00', '分')}</select>
+      <select id="${prefix}-ampm">${optionHtml(opt.ampm, selected.ampm || 'PM', 'AM/PM')}</select>
     </div>
   `;
 }
@@ -655,16 +692,21 @@ function togglePricingMode() {
   document.getElementById('price-category').classList.toggle('hide', mode !== '類別制');
 }
 
+function toggleOtherTicket() {
+  const box = document.getElementById('ticket-other-box');
+  if (!box) return;
+  box.classList.toggle('hide', val('c-ticket') !== '其他');
+}
+
 function addCategoryRow(name, price) {
   const box = document.getElementById('category-box');
   if (!box) return;
-  const classTypes = (initData && initData.options && initData.options.classTypes) || [];
   const row = document.createElement('div');
   row.className = 'category-row';
   row.innerHTML = `
     <div class="field">
       <label>課程類別</label>
-      <select class="cat-name">${optionHtml(classTypes, name || '', '請選擇')}</select>
+      <input class="cat-name" list="class-suggestions" placeholder="例如 成人 / 小孩 / 白金" value="${esc(name || '')}">
     </div>
     <div class="field">
       <label>價格</label>
@@ -676,12 +718,10 @@ function addCategoryRow(name, price) {
 }
 
 function collectCategoryItems() {
-  return Array.from(document.querySelectorAll('.category-row')).map(row => {
-    return {
-      name: row.querySelector('.cat-name').value.trim(),
-      price: row.querySelector('.cat-price').value.trim()
-    };
-  }).filter(item => item.name);
+  return Array.from(document.querySelectorAll('.category-row')).map(row => ({
+    name: row.querySelector('.cat-name').value.trim(),
+    price: row.querySelector('.cat-price').value.trim()
+  })).filter(item => item.name);
 }
 
 function renderAdminCourseList(courses) {
@@ -692,15 +732,19 @@ function renderAdminCourseList(courses) {
   }
 
   el.innerHTML = courses.map(c => `
-    <div class="card" style="box-shadow:none;background:#fafafa">
+    <div class="admin-course-row">
       <h2>${esc(c.eventCode)}｜${esc(c.eventName)} <span class="badge">${esc(c.statusBadge || c.statusText || '')}</span></h2>
       <div class="meta">
         日期：${esc(c.dateTime || '—')}<br>
         場次：${esc(c.session || '—')}　票種：${esc(c.ticketType || '—')}<br>
         金額：${esc(c.priceSummary || '—')}<br>
+        報名時間：${esc(c.applyStart || '—')} ～ ${esc(c.applyEnd || '—')}<br>
         名額：${c.maxCount ? esc((c.currentCount || 0) + ' / ' + c.maxCount) : '不限'}
       </div>
-      <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看報名頁</button>
+      <div class="inline-actions">
+        <button class="btn btn-main" onclick='renderCourseForm(${JSON.stringify(c).replace(/'/g, "&#39;")})'>編輯</button>
+        <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看報名頁</button>
+      </div>
     </div>
   `).join('');
 }
@@ -721,7 +765,41 @@ function to24Hour(hour, minute, ampm) {
   return String(h).padStart(2, '0') + ':' + minute;
 }
 
-async function submitCreateCourse() {
+function from24Hour(timeText) {
+  const m = String(timeText || '').match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return { hour: '', minute: '00', ampm: 'PM' };
+  let h = parseInt(m[1], 10);
+  const minute = m[2];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  if (h === 0) h = 12;
+  if (h > 12) h -= 12;
+  return { hour: String(h).padStart(2, '0'), minute, ampm };
+}
+
+function parseCourseDateTime(text) {
+  const out = { date: '', start: {}, end: {} };
+  const m = String(text || '').match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+  if (!m) return out;
+  out.date = `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  out.start = from24Hour(m[4]);
+  out.end = from24Hour(m[5]);
+  return out;
+}
+
+function toDatetimeLocalValue(text) {
+  if (!text) return '';
+  let m = String(text).match(/^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}T${String(m[4]).padStart(2,'0')}:${m[5]}`;
+  m = String(text).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(\d{1,2}):(\d{2})/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}T${String(m[4]).padStart(2,'0')}:${m[5]}`;
+  return '';
+}
+
+function csvSplit(text) {
+  return String(text || '').replace(/，/g, ',').split(',').map(x => x.trim()).filter(Boolean);
+}
+
+async function submitCourseForm() {
   clearMsg();
 
   const pricingMode = val('c-mode');
@@ -734,11 +812,11 @@ async function submitCreateCourse() {
   if (!dateTime) return showMsg('請選擇活動日期、開始時間與結束時間', 'err');
   if (!val('c-session')) return showMsg('請選擇場次', 'err');
   if (!val('c-ticket')) return showMsg('請選擇票種', 'err');
+  if (val('c-ticket') === '其他' && !val('c-ticket-other')) return showMsg('請輸入其他票種名稱', 'err');
   if (pricingMode === '類別制' && !categoryItems.length) return showMsg('請至少新增一個課程類別與價格', 'err');
 
   try {
     let dmUrl = val('c-dm');
-
     if (selectedEdmFile && !uploadedEdmUrl) {
       showMsg('EDM 圖片上傳中...', 'info');
       dmUrl = await uploadEdmIfNeeded(eventName, activityDate);
@@ -751,6 +829,7 @@ async function submitCreateCourse() {
       dateTime,
       session: val('c-session'),
       ticketType: val('c-ticket'),
+      ticketTypeOther: val('c-ticket-other'),
       maxCount: val('c-max'),
       pricingMode,
       platinumPrice: val('c-plat'),
@@ -764,23 +843,29 @@ async function submitCreateCourse() {
       applyEnd: val('c-apply-end')
     };
 
-    showMsg('建立中...', 'info');
-    const res = await post('createCourse', payload);
+    showMsg(editingCourseCode ? '更新中...' : '建立中...', 'info');
+    const res = await post(editingCourseCode ? 'updateCourse' : 'createCourse', payload);
 
     if (res.status === 'ok') {
       document.getElementById('create-result').innerHTML = `
         <div class="msg on ok">
-          ✅ 課程建立完成<br>
+          ✅ ${editingCourseCode ? '課程已更新' : '課程建立完成'}<br>
           活動代碼：${esc(res.eventCode)}
           ${uploadedEdmFileName ? '<br>EDM：' + esc(uploadedEdmFileName) : ''}
           <button class="btn btn-main" style="margin-top:10px" onclick="renderHomePage()">返回報名課程頁</button>
           <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(res.eventCode)}')">查看報名頁</button>
-          <button class="btn btn-ghost" onclick="renderSettingsPage()">繼續建立課程</button>
+          <button class="btn btn-ghost" onclick="renderSettingsPage()">返回設定</button>
         </div>
       `;
       clearMsg();
+      try {
+        const fresh = await post('getCourseAdminInit', { userId });
+        initData = fresh;
+        renderCourseForm(null);
+        renderAdminCourseList(fresh.courses || []);
+      } catch(e) {}
     } else {
-      showMsg('⚠️ ' + esc(res.message || '建立失敗'), 'err');
+      showMsg('⚠️ ' + esc(res.message || '儲存失敗'), 'err');
     }
   } catch (err) {
     showMsg('⚠️ ' + esc(err.message || err), 'err');
@@ -793,41 +878,36 @@ async function submitCreateCourse() {
 function renderRegisterForm() {
   clearMsg();
   setTitle('填寫報名');
-  selectedFlock = '';
+  selectedLeader = '';
+  memberIndex = buildMemberIndex((initData && initData.memberDirectory) || []);
 
   const c = currentCourse;
-  const classTypes = (initData && initData.classTypes) || [];
-  const platinumNames = (initData && initData.platinumNames) || [];
+  const classDetails = (initData && initData.classDetails) || [];
 
   document.getElementById('app').innerHTML = `
     <button class="btn btn-ghost" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">← 返回活動詳情</button>
 
     <div class="card" style="margin-top:12px">
       <h2>${esc(c.eventName)}</h2>
-      <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}</div>
+      <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>金額：${esc(c.priceSummary || '—')}</div>
     </div>
 
     <div class="card">
       <h2>填寫報名資料</h2>
       <div class="field">
         <label>姓名</label>
-        <input id="r-name" placeholder="請輸入中文姓名" oninput="autoLookupMemberDebounced()">
+        <input id="r-name" placeholder="請輸入中文姓名" oninput="autoLookupMemberLocal()">
       </div>
       <div id="lookup-box" style="margin-top:12px"></div>
 
       <div class="field">
-        <label>上手白金</label>
-        <select id="r-upline">
-          ${optionHtml(platinumNames, '', '請選擇上手白金')}
+        <label>上課類別</label>
+        <select id="r-class" onchange="updateRegistrationPrice()">
+          ${optionHtml(classDetails.map(x => x.name), '', '請選擇上課類別')}
         </select>
       </div>
 
-      <div class="field">
-        <label>上課類別</label>
-        <select id="r-class">
-          ${optionHtml(classTypes, '', '請選擇上課類別')}
-        </select>
-      </div>
+      <div id="price-box" class="price-box hide"></div>
 
       <div class="field">
         <label>備註，可空白</label>
@@ -838,67 +918,92 @@ function renderRegisterForm() {
   `;
 }
 
-function autoLookupMemberDebounced() {
-  selectedFlock = '';
+function cleanNameLocal(input) {
+  const m = String(input || '').match(/[\u4e00-\u9fa5]/g);
+  return m ? m.join('') : String(input || '').trim();
+}
+
+function buildMemberIndex(list) {
+  const map = {};
+  (list || []).forEach(item => {
+    const key = item.cleanName || cleanNameLocal(item.name);
+    if (!key) return;
+    if (!map[key]) map[key] = [];
+    map[key].push(item);
+  });
+  return map;
+}
+
+function autoLookupMemberLocal() {
+  selectedLeader = '';
   const box = document.getElementById('lookup-box');
   const name = val('r-name');
+  const clean = cleanNameLocal(name);
 
-  clearTimeout(lookupTimer);
-
-  if (!name) {
+  if (!clean) {
     box.innerHTML = '';
     return;
   }
 
-  box.innerHTML = '<div class="msg on info">正在查詢名冊...</div>';
-  lookupTimer = setTimeout(doLookupMember, 450);
-}
-
-async function doLookupMember() {
-  const name = val('r-name');
-  const box = document.getElementById('lookup-box');
-  if (!name) return;
-
-  try {
-    const res = await post('lookupMember', { name });
-
-    if (res.status === 'found') {
-      selectedFlock = res.member.flock || '';
-      box.innerHTML = `
-        <div class="msg on ok">
-          ✅ 已找到名冊資料<br>
-          姓名：${esc(res.member.name)}<br>
-          所屬雁群：${esc(res.member.flock || '—')}
-        </div>
-      `;
-    } else if (res.status === 'multiple') {
-      selectedFlock = '';
-      box.innerHTML = `
-        <div class="msg on info">找到多筆同名資料，請手動選擇雁群或上手白金</div>
-        ${renderFlockSelect()}
-      `;
-    } else {
-      selectedFlock = '';
-      box.innerHTML = `
-        <div class="msg on err">查無名冊資料，請手動選擇雁群或上手白金</div>
-        ${renderFlockSelect()}
-      `;
-    }
-  } catch (err) {
-    box.innerHTML = '<div class="msg on err">查詢失敗：' + esc(err.message || err) + '</div>';
+  const matches = memberIndex[clean] || [];
+  if (matches.length === 1) {
+    selectedLeader = matches[0].leader || '';
+    box.innerHTML = `
+      <div class="msg on ok">
+        ✅ 已找到名冊資料<br>
+        姓名：${esc(matches[0].name)}<br>
+        上手白金/雁群組長：${esc(selectedLeader || '—')}
+      </div>
+      <input id="r-leader" type="hidden" value="${esc(selectedLeader)}">
+    `;
+  } else if (matches.length > 1) {
+    selectedLeader = '';
+    const choices = [...new Set(matches.map(x => x.leader).filter(Boolean))];
+    box.innerHTML = `
+      <div class="msg on info">找到多筆同名資料，請選擇上手白金/雁群組長</div>
+      ${renderLeaderSelect(choices.length ? choices : getLeaderOptionsForForm())}
+    `;
+  } else {
+    selectedLeader = '';
+    box.innerHTML = `
+      <div class="msg on err">查無名冊資料，請選擇上手白金/雁群組長</div>
+      ${renderLeaderSelect(getLeaderOptionsForForm())}
+    `;
   }
 }
 
-function renderFlockSelect() {
-  const flocks = (initData && initData.flocks) || [];
+function getLeaderOptionsForForm() {
+  return (initData && (initData.leaders || initData.platinumNames)) || [];
+}
+
+function renderLeaderSelect(options) {
   return `
     <div class="field">
-      <label>所屬雁群</label>
-      <select id="r-flock">
-        ${optionHtml(flocks, '', '請選擇雁群')}
+      <label>上手白金/雁群組長</label>
+      <select id="r-leader" onchange="selectedLeader=this.value.trim()">
+        ${optionHtml(options, '', '請選擇上手白金/雁群組長')}
       </select>
     </div>
   `;
+}
+
+function getSelectedClassPrice() {
+  const classType = val('r-class');
+  const details = (initData && initData.classDetails) || [];
+  const item = details.find(x => x.name === classType);
+  return { classType, price: item ? Number(item.price || 0) : null };
+}
+
+function updateRegistrationPrice() {
+  const box = document.getElementById('price-box');
+  const info = getSelectedClassPrice();
+  if (!info.classType || info.price === null) {
+    box.classList.add('hide');
+    box.innerHTML = '';
+    return;
+  }
+  box.classList.remove('hide');
+  box.innerHTML = `本次票價：$${esc(info.price)}`;
 }
 
 async function submitRegister() {
@@ -907,18 +1012,14 @@ async function submitRegister() {
   const name = val('r-name');
   if (!name) return showMsg('請輸入姓名', 'err');
 
-  let flock = selectedFlock;
-  const flockSelect = document.getElementById('r-flock');
-  if (!flock && flockSelect) flock = flockSelect.value.trim();
+  let leader = selectedLeader;
+  const leaderField = document.getElementById('r-leader');
+  if (!leader && leaderField) leader = leaderField.value.trim();
 
-  const uplinePlatinum = val('r-upline');
-  const classType = val('r-class');
+  if (!leader) return showMsg('查無名冊資料，請選擇上手白金/雁群組長', 'err');
 
-  if (!flock && !uplinePlatinum) {
-    return showMsg('查無名冊資料，請手動選擇雁群或上手白金', 'err');
-  }
-
-  if (!classType) return showMsg('請選擇上課類別', 'err');
+  const priceInfo = getSelectedClassPrice();
+  if (!priceInfo.classType) return showMsg('請選擇上課類別', 'err');
 
   showMsg('送出中...', 'info');
 
@@ -928,9 +1029,10 @@ async function submitRegister() {
       displayName,
       eventCode: currentCourse.eventCode,
       name,
-      flock,
-      uplinePlatinum,
-      classType,
+      leader,
+      flock: leader,
+      uplinePlatinum: leader,
+      classType: priceInfo.classType,
       remark: val('r-remark')
     });
 
@@ -942,21 +1044,19 @@ async function submitRegister() {
           <div class="success-box">
             活動：${esc(res.eventName)}<br>
             姓名：${esc(res.name)}<br>
-            雁群：${esc(res.flock || '—')}<br>
-            上手白金：${esc(res.uplinePlatinum || '—')}<br>
-            上課類別：${esc(res.classType || '—')}
+            上手白金/雁群組長：${esc(res.leader || res.flock || '—')}<br>
+            上課類別：${esc(res.classType || '—')}<br>
+            應收金額：$${esc(res.price || 0)}
           </div>
           <div class="divider"></div>
-          <button class="btn btn-main" onclick="renderHomePage()">返回報名課程</button>
+          <button class="btn btn-main" onclick="renderRegisterForm()">繼續報下一位</button>
+          <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(currentCourse.eventCode)}')">返回活動詳情</button>
+          <button class="btn btn-ghost" onclick="renderHomePage()">返回報名課程</button>
         </div>
       `;
     } else if (res.status === 'need_profile') {
-      showMsg('查無名冊資料，請手動選擇雁群或上手白金', 'err');
-      doLookupMember();
-    } else if (res.status === 'duplicate') {
-      showMsg('⚠️ ' + esc(res.message), 'err');
-    } else if (res.status === 'full') {
-      showMsg('⚠️ ' + esc(res.message), 'err');
+      showMsg('查無名冊資料，請選擇上手白金/雁群組長', 'err');
+      autoLookupMemberLocal();
     } else {
       showMsg('⚠️ ' + esc(res.message || '報名失敗'), 'err');
     }
