@@ -67,14 +67,37 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .inline-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .readonly-box{background:#f7f7f7;border:1px solid #e0e0e0;border-radius:12px;padding:12px;font-size:15px;color:#333}
 .hide{display:none!important}
-@media(max-width:420px){.row,.top-actions,.course-actions{grid-template-columns:1fr}.course-img{height:156px}.category-row{grid-template-columns:1fr}.icon-btn{width:100%}}
+
+.hd{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.hd-title{min-width:0}
+.menu-btn{width:44px;height:44px;border:none;border-radius:14px;background:rgba(255,255,255,.14);color:#fff;font-size:24px;font-weight:900;cursor:pointer;line-height:1}
+.nav-menu{position:fixed;right:14px;top:72px;width:210px;background:#fff;color:#2a2620;border:1px solid rgba(45,90,61,.15);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:8px;display:none;z-index:30}
+.nav-menu.on{display:block}
+.nav-menu button{width:100%;border:none;background:#fff;text-align:left;padding:12px 14px;border-radius:12px;font-family:'Noto Sans TC',sans-serif;font-weight:900;color:#2d5a3d;cursor:pointer}
+.nav-menu button:hover{background:#edf7ee}
+.course-actions.three{grid-template-columns:1fr 1fr 1fr}
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:none;padding:14px;overflow:auto}
+.modal-mask.on{display:block}
+.modal-panel{max-width:760px;margin:18px auto 40px;background:#f5f2eb;border-radius:22px;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.25)}
+.modal-head{position:sticky;top:0;background:#2d5a3d;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;z-index:2}
+.modal-head b{font-size:17px}
+.modal-close{border:none;background:rgba(255,255,255,.16);color:#fff;border-radius:12px;width:38px;height:38px;font-size:22px;cursor:pointer}
+.modal-body{padding:14px}
+.admin-mini{margin-top:10px;padding-top:10px;border-top:1px dashed #e6e0d6}
+.admin-mini .btn{padding:10px;font-size:13px}
+
+@media(max-width:420px){.row,.top-actions,.course-actions,.course-actions.three{grid-template-columns:1fr}.course-img{height:156px}.category-row{grid-template-columns:1fr}.icon-btn{width:100%}.nav-menu{right:12px;left:12px;width:auto}}
 </style>
 </head>
 <body>
 
 <div class="hd">
-  <small>CYP135 課程系統</small>
-  <h1 id="page-title">課程報名</h1>
+  <div class="hd-title">
+    <small>CYP135 課程系統</small>
+    <h1 id="page-title">課程報名</h1>
+  </div>
+  <button class="menu-btn" onclick="toggleMenu()" aria-label="開啟選單">☰</button>
+  <div id="nav-menu" class="nav-menu"></div>
 </div>
 
 <div class="wrap">
@@ -99,6 +122,10 @@ let publicData = null;
 let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
+let registrationCache = {};
+let adminDataCache = null;
+let isAdminUser = false;
+let activePage = 'home';
 
 function showMsg(text, type) {
   const el = document.getElementById('msg');
@@ -158,9 +185,72 @@ function getParam(name) {
   return '';
 }
 
+
 function setTitle(text) {
   document.getElementById('page-title').textContent = text;
+  updateMenu();
 }
+
+function toggleMenu() {
+  const menu = document.getElementById('nav-menu');
+  if (!menu) return;
+  updateMenu();
+  menu.classList.toggle('on');
+}
+
+function closeMenu() {
+  const menu = document.getElementById('nav-menu');
+  if (menu) menu.classList.remove('on');
+}
+
+function updateMenu() {
+  const menu = document.getElementById('nav-menu');
+  if (!menu) return;
+  const admin = isAdminUser || (publicData && publicData.isAdmin) || (adminDataCache && adminDataCache.allowed);
+  menu.innerHTML = `
+    <button onclick="closeMenu(); renderHomePage()">課程列表</button>
+    ${admin ? '<button onclick="closeMenu(); openCourseEditor(\'\')">建立活動</button>' : ''}
+    ${admin ? '<button onclick="closeMenu(); renderSettingsPage()">管理活動</button>' : ''}
+  `;
+}
+
+function jsArg(value) {
+  return JSON.stringify(value === undefined || value === null ? '' : String(value));
+}
+
+async function getPublicDataCached(force) {
+  if (publicData && !force) return publicData;
+  const data = await post('getPublicInit', { userId });
+  publicData = data;
+  if (data && data.status === 'ok') isAdminUser = !!data.isAdmin;
+  updateMenu();
+  return data;
+}
+
+async function getAdminDataCached(force) {
+  if (adminDataCache && !force) return adminDataCache;
+  const data = await post('getCourseAdminInit', { userId });
+  adminDataCache = data;
+  initData = data;
+  if (data && data.allowed) isAdminUser = true;
+  updateMenu();
+  return data;
+}
+
+async function getRegistrationDataCached(courseCode, force) {
+  const code = String(courseCode || '').trim();
+  if (registrationCache[code] && !force) return registrationCache[code];
+  const data = await post('getRegistrationInit', { eventCode: code });
+  if (data && data.status === 'ok') registrationCache[code] = data;
+  return data;
+}
+
+function invalidateCourseCaches() {
+  publicData = null;
+  adminDataCache = null;
+  registrationCache = {};
+}
+
 
 async function initLiff() {
   try {
@@ -189,10 +279,13 @@ window.addEventListener('DOMContentLoaded', async function() {
   const liffStatus = await initLiff();
   if (liffStatus === 'login' || liffStatus === 'error') return;
 
+  updateMenu();
   const mode = getParam('mode');
   const courseCode = getParam('course');
 
-  if ((mode === 'detail' || mode === 'register') && courseCode) {
+  if (mode === 'register' && courseCode) {
+    renderRegisterPageByCode(courseCode);
+  } else if (mode === 'detail' && courseCode) {
     renderCourseDetailPage(courseCode);
   } else if (mode === 'admin' || mode === 'settings') {
     renderSettingsPage();
@@ -204,37 +297,30 @@ window.addEventListener('DOMContentLoaded', async function() {
 // ─────────────────────────────
 // 首頁：報名課程列表
 // ─────────────────────────────
-async function renderHomePage() {
+async function renderHomePage(force) {
   clearMsg();
+  activePage = 'home';
   setTitle('課程報名');
   const app = document.getElementById('app');
+
+  if (publicData && !force) {
+    app.innerHTML = '<div id="course-list"></div>';
+    renderPublicCourseList(publicData.courses || []);
+    return;
+  }
+
   app.innerHTML = '<div class="loading">載入課程中...</div>';
 
   try {
-    const data = await post('getPublicInit', { userId });
-    publicData = data;
+    const data = await getPublicDataCached(!!force);
 
     if (data.status !== 'ok') {
       app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(data.message || '') + '</p></div>';
       return;
     }
 
-    const adminButton = data.isAdmin
-      ? '<button class="btn btn-sub" onclick="renderSettingsPage()">設定 / 建立活動</button>'
-      : '';
-
-    const actionsClass = data.isAdmin ? 'top-actions' : 'top-actions single';
-    const courses = data.courses || [];
-
-    app.innerHTML = `
-      <div class="${actionsClass}">
-        <button class="btn btn-main" onclick="renderHomePage()">報名課程</button>
-        ${adminButton}
-      </div>
-      <div id="course-list"></div>
-    `;
-
-    renderPublicCourseList(courses);
+    app.innerHTML = '<div id="course-list"></div>';
+    renderPublicCourseList(data.courses || []);
   } catch (err) {
     app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
   }
@@ -258,6 +344,9 @@ function courseCardHtml(c) {
   const img = c.dmUrl
     ? `<img class="course-img" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">`
     : `<div class="course-img"></div>`;
+  const admin = isAdminUser || (publicData && publicData.isAdmin) || (adminDataCache && adminDataCache.allowed);
+  const canRegister = c.openFlag === '是' && c.statusBadge === '報名中';
+  const actionClass = admin ? 'course-actions three' : 'course-actions';
 
   return `
     <div class="course-card">
@@ -272,11 +361,14 @@ function courseCardHtml(c) {
           日期時間：<b>${esc(c.dateTime || '尚未設定')}</b><br>
           票種：${esc(c.ticketType || '—')}<br>
           金額：${esc(c.priceSummary || '—')}<br>
+          報名時間：${esc(c.applyStart || '—')} ～ ${esc(c.applyEnd || '—')}<br>
           名額：${c.maxCount ? esc((c.currentCount || 0) + ' / ' + c.maxCount) : '不限'}
+          ${c.needAge === '是' ? '<br>報名資料：需填年齡' : ''}
         </div>
-        <div class="course-actions">
-          <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看詳情</button>
-          <button class="btn btn-main" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">立即報名</button>
+        <div class="${actionClass}">
+          <button class="btn btn-main" ${canRegister ? `onclick='renderRegisterPageByCode(${jsArg(c.eventCode)})'` : 'disabled'}>${canRegister ? '立即報名' : '目前無法報名'}</button>
+          <button class="btn btn-sub" onclick='renderCourseDetailPage(${jsArg(c.eventCode)})'>查看詳情</button>
+          ${admin ? `<button class="btn btn-ghost" onclick='openCourseEditor(${jsArg(c.eventCode)})'>編輯</button>` : ''}
         </div>
       </div>
     </div>
@@ -288,12 +380,13 @@ function courseCardHtml(c) {
 // ─────────────────────────────
 async function renderCourseDetailPage(courseCode) {
   clearMsg();
+  activePage = 'detail';
   setTitle('活動詳情');
   const app = document.getElementById('app');
   app.innerHTML = '<div class="loading">載入活動資料中...</div>';
 
   try {
-    const data = await post('getRegistrationInit', { eventCode: courseCode });
+    const data = await getRegistrationDataCached(courseCode);
 
     if (data.status !== 'ok') {
       app.innerHTML = '<div class="card"><h2>找不到課程</h2><p class="meta">' + esc(data.message || '') + '</p><button class="btn btn-sub" onclick="renderHomePage()">返回課程列表</button></div>';
@@ -306,6 +399,7 @@ async function renderCourseDetailPage(courseCode) {
     const c = currentCourse;
     const canRegister = c.openFlag === '是' && c.statusBadge === '報名中';
     const img = c.dmUrl ? `<img class="detail-hero" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">` : '';
+    const admin = isAdminUser || (publicData && publicData.isAdmin) || (adminDataCache && adminDataCache.allowed);
 
     app.innerHTML = `
       <button class="btn btn-ghost" onclick="renderHomePage()">← 返回報名課程</button>
@@ -322,10 +416,12 @@ async function renderCourseDetailPage(courseCode) {
           金額：${esc(c.priceSummary || '—')}<br>
           報名時間：${esc(c.applyStart || '—')} ～ ${esc(c.applyEnd || '—')}<br>
           名額：${c.maxCount ? esc((c.currentCount || 0) + ' / ' + c.maxCount) : '不限'}
+          ${c.needAge === '是' ? '<br>報名資料：需填年齡' : ''}
         </div>
         ${c.description ? '<div class="divider"></div><div class="desc">' + esc(c.description) + '</div>' : ''}
         <div class="divider"></div>
         ${canRegister ? '<button class="btn btn-main" onclick="renderRegisterForm()">我要報名</button>' : '<button class="btn btn-warn" disabled>目前無法報名</button>'}
+        ${admin ? '<button class="btn btn-ghost" onclick="openCourseEditor(' + jsArg(c.eventCode).replace(/"/g,'&quot;') + ')">編輯活動</button>' : ''}
       </div>
     `;
   } catch (err) {
@@ -336,21 +432,20 @@ async function renderCourseDetailPage(courseCode) {
 // ─────────────────────────────
 // 設定頁：只限會長
 // ─────────────────────────────
-async function renderSettingsPage() {
+async function renderSettingsPage(force) {
   clearMsg();
-  setTitle('設定');
+  activePage = 'settings';
+  setTitle('管理活動');
   const app = document.getElementById('app');
-  app.innerHTML = '<div class="loading">載入設定中...</div>';
+  app.innerHTML = '<div class="loading">載入活動管理中...</div>';
 
   let data;
   try {
-    data = await post('getCourseAdminInit', { userId });
+    data = await getAdminDataCached(!!force);
   } catch (err) {
     app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
     return;
   }
-
-  initData = data;
 
   if (!data.allowed) {
     app.innerHTML = `
@@ -363,29 +458,72 @@ async function renderSettingsPage() {
     return;
   }
 
-  editingCourseCode = '';
-  currentCourseData = null;
-  selectedEdmFile = null;
-  uploadedEdmUrl = '';
-  uploadedEdmFileName = '';
-
   app.innerHTML = `
     <div class="top-actions">
       <button class="btn btn-sub" onclick="renderHomePage()">報名課程</button>
-      <button class="btn btn-main" onclick="renderSettingsPage()">設定</button>
+      <button class="btn btn-main" onclick="openCourseEditor('')">新增活動</button>
     </div>
-
-    <div id="create-result"></div>
-    <div id="course-form-box"></div>
 
     <div class="card">
       <h2>已建立課程</h2>
+      <p class="muted" style="margin-bottom:10px">編輯會以小視窗開啟，不會跳到獨立修改頁。</p>
       <div id="admin-course-list"></div>
     </div>
   `;
 
-  renderCourseForm(null);
   renderAdminCourseList(data.courses || []);
+}
+
+
+function ensureEditorModal() {
+  let modal = document.getElementById('editor-modal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'editor-modal';
+  modal.className = 'modal-mask';
+  modal.innerHTML = `
+    <div class="modal-panel">
+      <div class="modal-head">
+        <b id="editor-title">活動編輯</b>
+        <button class="modal-close" onclick="closeCourseEditor()">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="course-form-box"></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) closeCourseEditor();
+  });
+  return modal;
+}
+
+async function openCourseEditor(courseCode) {
+  clearMsg();
+  closeMenu();
+  const modal = ensureEditorModal();
+  modal.classList.add('on');
+  document.getElementById('course-form-box').innerHTML = '<div class="loading">載入編輯資料中...</div>';
+
+  try {
+    const data = await getAdminDataCached(false);
+    if (!data.allowed) {
+      document.getElementById('course-form-box').innerHTML = '<div class="card"><h2>無權限</h2><p class="meta">此功能限會長使用。</p></div>';
+      return;
+    }
+    const code = String(courseCode || '').trim();
+    const course = code ? (data.courses || []).find(c => String(c.eventCode) === code) : null;
+    document.getElementById('editor-title').textContent = code ? '編輯活動' : '新增活動';
+    renderCourseForm(course || null);
+  } catch (err) {
+    document.getElementById('course-form-box').innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+  }
+}
+
+function closeCourseEditor() {
+  const modal = document.getElementById('editor-modal');
+  if (modal) modal.classList.remove('on');
 }
 
 function renderCourseForm(course) {
@@ -476,8 +614,8 @@ function renderCourseForm(course) {
       <div class="field">
         <label>收費模式</label>
         <select id="c-mode" onchange="togglePricingMode()">
-          <option value="白金制" ${!course || course.pricingMode !== '類別制' ? 'selected' : ''}>白金制</option>
-          <option value="類別制" ${course && course.pricingMode === '類別制' ? 'selected' : ''}>類別制</option>
+          <option value="類別制" ${!course || course.pricingMode === '類別制' ? 'selected' : ''}>類別制</option>
+          <option value="白金制" ${course && course.pricingMode === '白金制' ? 'selected' : ''}>白金制</option>
         </select>
       </div>
 
@@ -495,7 +633,7 @@ function renderCourseForm(course) {
       </div>
 
       <div id="price-category" class="hide">
-        <p class="muted" style="margin-bottom:8px">類別可自行設定，例如：成人、小孩、白金。</p>
+        <p class="muted" style="margin-bottom:8px">類別可自行設定，例如：初訓、複訓、成人、小孩、白金。</p>
         <datalist id="class-suggestions">${(data.options.classTypes || []).map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
         <div id="category-box"></div>
         <button class="btn btn-sub" onclick="addCategoryRow()" type="button">新增課程類別</button>
@@ -511,13 +649,14 @@ function renderCourseForm(course) {
           </select>
         </div>
         <div class="field">
-          <label>是否啟用 QR</label>
-          <select id="c-qr">
-            <option value="是" ${!course || course.qrFlag === '是' ? 'selected' : ''}>是</option>
-            <option value="否" ${course && course.qrFlag === '否' ? 'selected' : ''}>否</option>
+          <label>是否需要填寫年齡</label>
+          <select id="c-need-age">
+            <option value="否" ${!course || course.needAge !== '是' ? 'selected' : ''}>否</option>
+            <option value="是" ${course && course.needAge === '是' ? 'selected' : ''}>是</option>
           </select>
         </div>
       </div>
+      <p class="muted" style="margin-bottom:10px">QR 報到功能預設啟用，不需要另外設定；之後仍可掃描報到。</p>
 
       <div class="row">
         <div class="field">
@@ -706,7 +845,7 @@ function addCategoryRow(name, price) {
   row.innerHTML = `
     <div class="field">
       <label>課程類別</label>
-      <input class="cat-name" list="class-suggestions" placeholder="例如 成人 / 小孩 / 白金" value="${esc(name || '')}">
+      <input class="cat-name" list="class-suggestions" placeholder="例如 初訓 / 複訓 / 成人" value="${esc(name || '')}">
     </div>
     <div class="field">
       <label>價格</label>
@@ -739,11 +878,11 @@ function renderAdminCourseList(courses) {
         場次：${esc(c.session || '—')}　票種：${esc(c.ticketType || '—')}<br>
         金額：${esc(c.priceSummary || '—')}<br>
         報名時間：${esc(c.applyStart || '—')} ～ ${esc(c.applyEnd || '—')}<br>
-        名額：${c.maxCount ? esc((c.currentCount || 0) + ' / ' + c.maxCount) : '不限'}
+        名額：${c.maxCount ? esc((c.currentCount || 0) + ' / ' + c.maxCount) : '不限'}${c.needAge === '是' ? '<br>需填年齡：是' : ''}
       </div>
       <div class="inline-actions">
-        <button class="btn btn-main" onclick='renderCourseForm(${JSON.stringify(c).replace(/'/g, "&#39;")})'>編輯</button>
-        <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看報名頁</button>
+        <button class="btn btn-main" onclick='openCourseEditor(${jsArg(c.eventCode)})'>編輯</button>
+        <button class="btn btn-sub" onclick='renderRegisterPageByCode(${jsArg(c.eventCode)})'>查看報名頁</button>
       </div>
     </div>
   `).join('');
@@ -796,7 +935,7 @@ function toDatetimeLocalValue(text) {
 }
 
 function csvSplit(text) {
-  return String(text || '').replace(/，/g, ',').split(',').map(x => x.trim()).filter(Boolean);
+  return String(text || '').replace(/，/g, ',').replace(/｜/g, '|').split(/[|,]/).map(x => x.trim()).filter(Boolean);
 }
 
 async function submitCourseForm() {
@@ -813,7 +952,11 @@ async function submitCourseForm() {
   if (!val('c-session')) return showMsg('請選擇場次', 'err');
   if (!val('c-ticket')) return showMsg('請選擇票種', 'err');
   if (val('c-ticket') === '其他' && !val('c-ticket-other')) return showMsg('請輸入其他票種名稱', 'err');
-  if (pricingMode === '類別制' && !categoryItems.length) return showMsg('請至少新增一個課程類別與價格', 'err');
+  if (pricingMode === '類別制') {
+    if (!categoryItems.length) return showMsg('請至少新增一個課程類別與價格', 'err');
+    const missingPrice = categoryItems.find(item => item.name && item.price === '');
+    if (missingPrice) return showMsg('請填寫「' + esc(missingPrice.name) + '」的價格；免費請填 0', 'err');
+  }
 
   try {
     let dmUrl = val('c-dm');
@@ -836,7 +979,8 @@ async function submitCourseForm() {
       nonPlatinumPrice: val('c-nonplat'),
       categoryItems,
       openFlag: val('c-open'),
-      qrFlag: val('c-qr'),
+      qrFlag: '是',
+      needAge: val('c-need-age'),
       dmUrl,
       description: val('c-desc'),
       applyStart: val('c-apply-start'),
@@ -847,23 +991,15 @@ async function submitCourseForm() {
     const res = await post(editingCourseCode ? 'updateCourse' : 'createCourse', payload);
 
     if (res.status === 'ok') {
-      document.getElementById('create-result').innerHTML = `
-        <div class="msg on ok">
-          ✅ ${editingCourseCode ? '課程已更新' : '課程建立完成'}<br>
-          活動代碼：${esc(res.eventCode)}
-          ${uploadedEdmFileName ? '<br>EDM：' + esc(uploadedEdmFileName) : ''}
-          <button class="btn btn-main" style="margin-top:10px" onclick="renderHomePage()">返回報名課程頁</button>
-          <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(res.eventCode)}')">查看報名頁</button>
-          <button class="btn btn-ghost" onclick="renderSettingsPage()">返回設定</button>
-        </div>
-      `;
-      clearMsg();
-      try {
-        const fresh = await post('getCourseAdminInit', { userId });
-        initData = fresh;
-        renderCourseForm(null);
-        renderAdminCourseList(fresh.courses || []);
-      } catch(e) {}
+      invalidateCourseCaches();
+      closeCourseEditor();
+      const okText = '✅ ' + (editingCourseCode ? '課程已更新' : '課程建立完成') + '<br>活動代碼：' + esc(res.eventCode) + (uploadedEdmFileName ? '<br>EDM：' + esc(uploadedEdmFileName) : '');
+      if (activePage === 'settings') {
+        await renderSettingsPage(true);
+      } else {
+        await renderHomePage(true);
+      }
+      showMsg(okText, 'ok');
     } else {
       showMsg('⚠️ ' + esc(res.message || '儲存失敗'), 'err');
     }
@@ -875,21 +1011,45 @@ async function submitCourseForm() {
 // ─────────────────────────────
 // 報名表
 // ─────────────────────────────
+
+async function renderRegisterPageByCode(courseCode) {
+  clearMsg();
+  activePage = 'register';
+  setTitle('填寫報名');
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="loading">載入報名表中...</div>';
+
+  try {
+    const data = await getRegistrationDataCached(courseCode);
+    if (data.status !== 'ok') {
+      app.innerHTML = '<div class="card"><h2>找不到課程</h2><p class="meta">' + esc(data.message || '') + '</p><button class="btn btn-sub" onclick="renderHomePage()">返回課程列表</button></div>';
+      return;
+    }
+    currentCourse = data.course;
+    initData = data;
+    renderRegisterForm();
+  } catch (err) {
+    app.innerHTML = '<div class="card"><h2>報名表載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+  }
+}
+
 function renderRegisterForm() {
   clearMsg();
+  activePage = 'register';
   setTitle('填寫報名');
   selectedLeader = '';
   memberIndex = buildMemberIndex((initData && initData.memberDirectory) || []);
 
   const c = currentCourse;
   const classDetails = (initData && initData.classDetails) || [];
+  const needAge = c && c.needAge === '是';
 
   document.getElementById('app').innerHTML = `
-    <button class="btn btn-ghost" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">← 返回活動詳情</button>
+    <button class="btn btn-ghost" onclick="renderHomePage()">← 返回報名課程</button>
 
     <div class="card" style="margin-top:12px">
       <h2>${esc(c.eventName)}</h2>
-      <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>金額：${esc(c.priceSummary || '—')}</div>
+      <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>金額：${esc(c.priceSummary || '—')}${needAge ? '<br>本活動需填寫年齡' : ''}</div>
     </div>
 
     <div class="card">
@@ -899,6 +1059,12 @@ function renderRegisterForm() {
         <input id="r-name" placeholder="請輸入中文姓名" oninput="autoLookupMemberLocal()">
       </div>
       <div id="lookup-box" style="margin-top:12px"></div>
+
+      ${needAge ? `
+      <div class="field">
+        <label>年齡</label>
+        <input id="r-age" type="number" inputmode="numeric" placeholder="請填寫年齡">
+      </div>` : ''}
 
       <div class="field">
         <label>上課類別</label>
@@ -966,7 +1132,7 @@ function autoLookupMemberLocal() {
   } else {
     selectedLeader = '';
     box.innerHTML = `
-      <div class="msg on err">查無名冊資料，請選擇上手白金/雁群組長</div>
+      <div class="msg on err">查無名冊資料，請選擇上手白金/雁群組長建立資料</div>
       ${renderLeaderSelect(getLeaderOptionsForForm())}
     `;
   }
@@ -1016,7 +1182,11 @@ async function submitRegister() {
   const leaderField = document.getElementById('r-leader');
   if (!leader && leaderField) leader = leaderField.value.trim();
 
-  if (!leader) return showMsg('查無名冊資料，請選擇上手白金/雁群組長', 'err');
+  if (!leader) return showMsg('查無名冊資料，請選擇上手白金/雁群組長建立資料', 'err');
+
+  const needAge = currentCourse && currentCourse.needAge === '是';
+  const age = needAge ? val('r-age') : '';
+  if (needAge && !age) return showMsg('請填寫年齡', 'err');
 
   const priceInfo = getSelectedClassPrice();
   if (!priceInfo.classType) return showMsg('請選擇上課類別', 'err');
@@ -1033,10 +1203,12 @@ async function submitRegister() {
       flock: leader,
       uplinePlatinum: leader,
       classType: priceInfo.classType,
+      age,
       remark: val('r-remark')
     });
 
     if (res.status === 'ok') {
+      delete registrationCache[currentCourse.eventCode];
       clearMsg();
       document.getElementById('app').innerHTML = `
         <div class="card">
@@ -1045,17 +1217,17 @@ async function submitRegister() {
             活動：${esc(res.eventName)}<br>
             姓名：${esc(res.name)}<br>
             上手白金/雁群組長：${esc(res.leader || res.flock || '—')}<br>
+            ${res.age ? '年齡：' + esc(res.age) + '<br>' : ''}
             上課類別：${esc(res.classType || '—')}<br>
             應收金額：$${esc(res.price || 0)}
           </div>
           <div class="divider"></div>
-          <button class="btn btn-main" onclick="renderRegisterForm()">繼續報下一位</button>
-          <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(currentCourse.eventCode)}')">返回活動詳情</button>
-          <button class="btn btn-ghost" onclick="renderHomePage()">返回報名課程</button>
+          <button class="btn btn-main" onclick='renderRegisterPageByCode(${jsArg(currentCourse.eventCode)})'>繼續報下一位</button>
+          <button class="btn btn-sub" onclick="renderHomePage(true)">返回報名課程</button>
         </div>
       `;
     } else if (res.status === 'need_profile') {
-      showMsg('查無名冊資料，請選擇上手白金/雁群組長', 'err');
+      showMsg('查無名冊資料，請選擇上手白金/雁群組長建立資料', 'err');
       autoLookupMemberLocal();
     } else {
       showMsg('⚠️ ' + esc(res.message || '報名失敗'), 'err');
