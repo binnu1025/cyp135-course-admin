@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V5</title>
+<title>CYP135 課程報名 V5.1</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-<style> 
+<style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans TC',sans-serif;background:#f5f2eb;color:#2a2620;min-height:100vh}
@@ -83,11 +83,30 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .tiny-meta{font-size:12px;color:#777;line-height:1.6;margin-top:4px}
 .compact-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 
+
+.menu-btn{position:absolute;right:18px;top:50%;transform:translateY(-50%);width:58px;height:58px;border:none;border-radius:18px;background:rgba(255,255,255,.16);color:#fff;font-size:34px;font-weight:900;line-height:1;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);cursor:pointer}
+.hd{padding-right:92px}
+.menu-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:20;display:none}
+.menu-backdrop.on{display:block}
+.side-menu{position:fixed;right:14px;top:86px;width:min(310px,calc(100vw - 28px));background:#fff;border-radius:20px;box-shadow:0 14px 48px rgba(0,0,0,.25);z-index:21;display:none;overflow:hidden;border:1px solid rgba(45,90,61,.12)}
+.side-menu.on{display:block}
+.menu-head{background:#f5f2eb;padding:16px;color:#2d5a3d;font-weight:900;font-size:16px;border-bottom:1px solid #ece5d8}
+.menu-list{padding:10px}
+.menu-item{width:100%;border:none;background:#fff;text-align:left;padding:14px 14px;border-radius:14px;font-family:'Noto Sans TC',sans-serif;font-size:15px;font-weight:900;color:#2d5a3d;cursor:pointer}
+.menu-item:hover,.menu-item:active{background:#edf7ee}
+.menu-note{font-size:12px;color:#777;line-height:1.6;padding:0 14px 12px}
+.class-choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.class-choice{border:1px solid #ddd;background:#fff;border-radius:15px;padding:13px 10px;text-align:center;font-family:'Noto Sans TC',sans-serif;cursor:pointer;color:#2a2620;min-height:68px}
+.class-choice.on{border-color:#2d5a3d;background:#edf7ee;color:#1f4d2c;box-shadow:0 0 0 3px rgba(45,90,61,.08)}
+.class-choice-name{font-size:16px;font-weight:900;line-height:1.35;word-break:break-word}
+.class-choice-price{font-size:13px;color:#6f6a60;margin-top:3px;font-weight:800}
+.class-choice.on .class-choice-price{color:#2d5a3d}
+
 #r-name{font-size:18px;font-weight:700}
 .submit-sticky{position:sticky;bottom:10px;z-index:4;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .btn[disabled]{opacity:.55;cursor:not-allowed}
 .hide{display:none!important}
-@media(max-width:420px){.top-actions,.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.course-img{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
+@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions,.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.course-img{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
 </head>
 <body>
@@ -95,7 +114,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 <div class="hd">
   <small>CYP135 課程系統</small>
   <h1 id="page-title">課程報名</h1>
+  <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
 </div>
+<div id="menu-backdrop" class="menu-backdrop" onclick="toggleMenu(false)"></div>
+<div id="side-menu" class="side-menu"></div>
 
 <div class="wrap">
   <div id="msg" class="msg"></div>
@@ -120,6 +142,8 @@ let currentCourseData = null;
 let lookupTimer = null;
 let publicData = null;
 let adminCourseData = [];
+let isAdminUser = false;
+let selectedClassType = '';
 let lookupCache = {};
 let lastLookupSeq = 0;
 let selectedEdmFile = null;
@@ -232,6 +256,37 @@ function setTitle(text) {
   document.getElementById('page-title').textContent = text;
 }
 
+function renderMenu() {
+  const menu = document.getElementById('side-menu');
+  if (!menu) return;
+  const currentBtn = currentCourse
+    ? `<button class="menu-item" onclick="toggleMenu(false);renderCourseDetailPage('${esc(currentCourse.eventCode || '')}')">目前活動詳情</button>`
+    : '';
+  const adminBtns = isAdminUser
+    ? `<button class="menu-item" onclick="toggleMenu(false);renderSettingsPage()">設定 / 建立活動</button>
+       <button class="menu-item" onclick="toggleMenu(false);renderSettingsPage()">已建立課程</button>`
+    : '';
+  menu.innerHTML = `
+    <div class="menu-head">CYP135 課程系統</div>
+    <div class="menu-list">
+      <button class="menu-item" onclick="toggleMenu(false);renderHomePage()">報名課程</button>
+      ${currentBtn}
+      ${adminBtns}
+      <button class="menu-item" onclick="toggleMenu(false)">關閉選單</button>
+    </div>
+    <div class="menu-note">右上角選單已固定保留，方便在報名、詳情、設定頁快速切換。</div>
+  `;
+}
+
+function toggleMenu(open) {
+  renderMenu();
+  const backdrop = document.getElementById('menu-backdrop');
+  const menu = document.getElementById('side-menu');
+  if (!backdrop || !menu) return;
+  backdrop.classList.toggle('on', !!open);
+  menu.classList.toggle('on', !!open);
+}
+
 async function initLiff() {
   try {
     await liff.init({ liffId: LIFF_ID });
@@ -258,6 +313,8 @@ async function initLiff() {
 window.addEventListener('DOMContentLoaded', async function() {
   const liffStatus = await initLiff();
   if (liffStatus === 'login' || liffStatus === 'error') return;
+
+  renderMenu();
 
   const mode = getParam('mode');
   const courseCode = getParam('course');
@@ -288,6 +345,9 @@ async function renderHomePage() {
       app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(data.message || '') + '</p></div>';
       return;
     }
+
+    isAdminUser = !!data.isAdmin;
+    renderMenu();
 
     const adminButton = data.isAdmin
       ? '<button class="btn btn-sub" onclick="renderSettingsPage()">設定 / 建立活動</button>'
@@ -359,7 +419,7 @@ function courseCardHtml(c) {
         </div>
         <div class="course-actions">
           <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看詳情</button>
-          <button class="btn btn-main" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">立即報名</button>
+          <button class="btn btn-main" onclick="renderCourseDetailPage('${esc(c.eventCode)}', true)">立即報名</button>
         </div>
       </div>
     </div>
@@ -369,14 +429,14 @@ function courseCardHtml(c) {
 // ─────────────────────────────
 // 活動詳情頁
 // ─────────────────────────────
-async function renderCourseDetailPage(courseCode) {
+async function renderCourseDetailPage(courseCode, openRegisterNow) {
   clearMsg();
   setTitle('活動詳情');
   const app = document.getElementById('app');
   app.innerHTML = '<div class="loading">載入活動資料中...</div>';
 
   try {
-    const data = await post('getRegistrationInit', { eventCode: courseCode });
+    const data = await post('getRegistrationInit', { eventCode: courseCode, userId });
 
     if (data.status !== 'ok') {
       app.innerHTML = '<div class="card"><h2>找不到課程</h2><p class="meta">' + esc(data.message || '') + '</p><button class="btn btn-sub" onclick="renderHomePage()">返回課程列表</button></div>';
@@ -385,6 +445,8 @@ async function renderCourseDetailPage(courseCode) {
 
     currentCourse = data.course;
     initData = data;
+    if (typeof data.isAdmin !== 'undefined') isAdminUser = !!data.isAdmin;
+    renderMenu();
 
     const c = currentCourse;
     const canRegister = c.openFlag === '是' && c.statusBadge === '報名中';
@@ -411,6 +473,10 @@ async function renderCourseDetailPage(courseCode) {
         ${canRegister ? '<button class="btn btn-main" onclick="renderRegisterForm()">我要報名</button>' : '<button class="btn btn-warn" disabled>目前無法報名</button>'}
       </div>
     `;
+
+    if (openRegisterNow && canRegister) {
+      renderRegisterForm();
+    }
   } catch (err) {
     app.innerHTML = '<div class="card"><h2>活動載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
   }
@@ -434,6 +500,9 @@ async function renderSettingsPage() {
   }
 
   initData = data;
+
+  isAdminUser = !!data.allowed;
+  renderMenu();
 
   if (!data.allowed) {
     app.innerHTML = `
@@ -937,7 +1006,11 @@ function toDatetimeLocalValue(text) {
 }
 
 function csvSplit(text) {
-  return String(text || '').replace(/，/g, ',').split(',').map(x => x.trim()).filter(Boolean);
+  return String(text || '')
+    .replace(/[，、｜|\n\r]/g, ',')
+    .split(',')
+    .map(x => x.trim())
+    .filter(Boolean);
 }
 
 async function submitCourseForm() {
@@ -1029,6 +1102,7 @@ function renderRegisterForm() {
 
   const c = currentCourse;
   const classDetails = (initData && initData.classDetails) || [];
+  selectedClassType = classDetails.length === 1 ? String(classDetails[0].name || '') : '';
 
   document.getElementById('app').innerHTML = `
     <button class="btn btn-ghost" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">← 返回活動詳情</button>
@@ -1049,17 +1123,13 @@ function renderRegisterForm() {
 
       <div id="lookup-box"></div>
 
-      <div class="quick-form-grid">
-        <div class="field">
-          <label>上課類別</label>
-          <select id="r-class" onchange="updateRegistrationPrice()">
-            ${optionHtml(classDetails.map(x => x.name), '', '請選擇')}
-          </select>
-        </div>
-        <div class="field">
-          <label>本次票價</label>
-          <div id="price-box" class="readonly-box">請先選類別</div>
-        </div>
+      <div class="field">
+        <label>上課類別</label>
+        ${renderClassChoiceButtons(classDetails)}
+      </div>
+      <div class="field">
+        <label>本次票價</label>
+        <div id="price-box" class="readonly-box">${selectedClassType ? '本次票價：$' + esc(getPriceByClassType(selectedClassType)) : '請先選類別'}</div>
       </div>
 
       <div class="field">
@@ -1256,10 +1326,41 @@ function renderLeaderSelect(options) {
   `;
 }
 
-function getSelectedClassPrice() {
-  const classType = val('r-class');
+
+function renderClassChoiceButtons(details) {
+  details = details || [];
+  if (!details.length) {
+    return '<div class="msg on err">此課程尚未設定上課類別，請洽票務。</div>';
+  }
+  return '<div class="class-choice-grid">' + details.map(item => {
+    const name = String(item.name || '').trim();
+    const price = Number(item.price || 0);
+    const on = name === selectedClassType ? ' on' : '';
+    return `<button type="button" class="class-choice${on}" data-class="${esc(name)}" onclick="selectRegistrationClass(this.dataset.class)">
+      <div class="class-choice-name">${esc(name)}</div>
+      <div class="class-choice-price">$${esc(price)}</div>
+    </button>`;
+  }).join('') + '</div>';
+}
+
+function getPriceByClassType(classType) {
   const details = (initData && initData.classDetails) || [];
-  const item = details.find(x => x.name === classType);
+  const item = details.find(x => String(x.name || '') === String(classType || ''));
+  return item ? Number(item.price || 0) : 0;
+}
+
+function selectRegistrationClass(classType) {
+  selectedClassType = String(classType || '').trim();
+  document.querySelectorAll('.class-choice').forEach(btn => {
+    btn.classList.toggle('on', btn.dataset.class === selectedClassType);
+  });
+  updateRegistrationPrice();
+}
+
+function getSelectedClassPrice() {
+  const classType = selectedClassType || val('r-class');
+  const details = (initData && initData.classDetails) || [];
+  const item = details.find(x => String(x.name || '') === String(classType || ''));
   return { classType, price: item ? Number(item.price || 0) : null };
 }
 
