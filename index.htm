@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-<head> 
+<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名</title>
+<title>CYP135 課程報名 V5</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -68,11 +68,26 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .readonly-box{background:#f7f7f7;border:1px solid #e0e0e0;border-radius:12px;padding:12px;font-size:15px;color:#333}
 .quick-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .compact-card{padding:14px}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+.form-grid .full{grid-column:1 / -1}
+.form-grid .field{margin-bottom:0}
+.mini-section{background:#fbfaf6;border:1px solid #eee7da;border-radius:16px;padding:12px;margin:12px 0}
+.mini-section .section-title{margin-top:0}
+.searchbar{margin-bottom:12px}
+.searchbar input{background:#fffdf8;border:1px solid #ded5c5}
+.fold{border:1px solid #eee7da;border-radius:16px;background:#fbfaf6;padding:0;margin:12px 0;overflow:hidden}
+.fold summary{list-style:none;cursor:pointer;padding:13px 14px;font-weight:900;color:#2d5a3d;background:#f7f2e8}
+.fold summary::-webkit-details-marker{display:none}
+.fold-content{padding:12px}
+.tiny-meta{font-size:12px;color:#777;line-height:1.6;margin-top:4px}
+.compact-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+
 #r-name{font-size:18px;font-weight:700}
 .submit-sticky{position:sticky;bottom:10px;z-index:4;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .btn[disabled]{opacity:.55;cursor:not-allowed}
 .hide{display:none!important}
-@media(max-width:420px){.top-actions,.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.course-img{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
+@media(max-width:420px){.top-actions,.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.course-img{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
 </head>
 <body>
@@ -104,6 +119,9 @@ let editingCourseCode = '';
 let currentCourseData = null;
 let lookupTimer = null;
 let publicData = null;
+let adminCourseData = [];
+let lookupCache = {};
+let lastLookupSeq = 0;
 let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
@@ -165,22 +183,35 @@ function esc(input) {
     .replace(/'/g, '&#39;');
 }
 
-function post(action, payload) {
+function post(action, payload, timeoutMs) {
   payload = payload || {};
   payload.action = action;
+  timeoutMs = timeoutMs || 18000;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   return fetch(GAS, {
     method: 'post',
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: controller.signal
   }).then(async r => {
+    clearTimeout(timer);
     const text = await r.text();
     try {
       return JSON.parse(text);
     } catch (e) {
       throw new Error('後端回傳非 JSON，前 200 字：' + text.slice(0, 200));
     }
+  }).catch(err => {
+    clearTimeout(timer);
+    if (err && err.name === 'AbortError') {
+      throw new Error('讀取時間過久，請重新開啟頁面或稍後再試。');
+    }
+    throw err;
   });
 }
+
 
 function getParam(name) {
   const qs = new URLSearchParams(location.search);
@@ -270,6 +301,9 @@ async function renderHomePage() {
         <button class="btn btn-main" onclick="renderHomePage()">報名課程</button>
         ${adminButton}
       </div>
+      <div class="searchbar">
+        <input id="course-search" placeholder="搜尋活動名稱 / 日期 / 場次" oninput="filterPublicCourses()">
+      </div>
       <div id="course-list"></div>
     `;
 
@@ -277,6 +311,16 @@ async function renderHomePage() {
   } catch (err) {
     app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
   }
+}
+
+function filterPublicCourses() {
+  const q = val('course-search').toLowerCase();
+  const courses = (publicData && publicData.courses) || [];
+  if (!q) return renderPublicCourseList(courses);
+  renderPublicCourseList(courses.filter(c => {
+    return [c.eventName, c.eventCode, c.dateTime, c.session, c.ticketType, c.statusBadge]
+      .join(' ').toLowerCase().includes(q);
+  }));
 }
 
 function renderPublicCourseList(courses) {
@@ -419,12 +463,14 @@ async function renderSettingsPage() {
 
     <div class="card">
       <h2>已建立課程</h2>
+      <div class="searchbar"><input id="admin-course-search" placeholder="搜尋活動名稱 / 代碼 / 場次 / 狀態" oninput="filterAdminCourses()"></div>
       <div id="admin-course-list"></div>
     </div>
   `;
 
+  adminCourseData = data.courses || [];
   renderCourseForm(null);
-  renderAdminCourseList(data.courses || []);
+  renderAdminCourseList(adminCourseData);
 }
 
 function renderCourseForm(course) {
@@ -439,90 +485,73 @@ function renderCourseForm(course) {
   const parsed = parseCourseDateTime(course ? course.dateTime : '');
   const ticketTypeBase = (course && course.ticketType && course.ticketType !== '一般票') ? '其他' : (course && course.ticketType ? course.ticketType : '一般票');
   const ticketOther = (ticketTypeBase === '其他' && course && course.ticketType !== '其他') ? course.ticketType : '';
+  const mediaOpen = isEdit && ((course && course.dmUrl) || (course && course.description)) ? 'open' : '';
 
   document.getElementById('course-form-box').innerHTML = `
     <div class="card">
       <h2>${isEdit ? '編輯活動' : '建立報名活動'}</h2>
       <div id="course-form-msg" class="msg"></div>
 
-      <div class="section-title">基本資訊</div>
-      <div class="row">
-        <div class="field">
-          <label>活動代碼</label>
-          <input id="c-code" placeholder="例如 A1，可空白自動產生" value="${esc(course ? course.eventCode : '')}" ${isEdit ? 'readonly' : ''}>
-        </div>
-        <div class="field">
-          <label>上限人數</label>
-          <input id="c-max" type="number" placeholder="例如 80" value="${esc(course ? course.maxCount : '')}">
-        </div>
-      </div>
-
-      <div class="field">
-        <label>活動名稱</label>
-        <input id="c-name" placeholder="例如 7/20 牙技行銷課" value="${esc(course ? course.eventName : '')}">
-      </div>
-
-      <div class="field">
-        <label>DM / EDM 圖片</label>
-        <div class="edm-upload">
-          <input id="c-edm-file" class="file-input" type="file" accept="image/*" onchange="handleEdmFileChange(event)">
-          <input id="c-dm" type="hidden" value="${esc(course ? course.dmUrl : '')}">
-          <div id="edm-preview-box" class="edm-preview ${course && course.dmUrl ? '' : 'hide'}">
-            ${course && course.dmUrl ? `<img src="${esc(course.dmUrl)}" alt="EDM 預覽"><div class="edm-info">目前 EDM 圖片。若重新選擇圖片，更新時會覆蓋連結。</div>` : ''}
+      <div class="mini-section">
+        <div class="section-title">基本資料</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>活動代碼</label>
+            <input id="c-code" placeholder="可空白自動產生" value="${esc(course ? course.eventCode : '')}" ${isEdit ? 'readonly' : ''}>
           </div>
-          <p class="muted" style="margin-top:8px">手機可直接選相簿圖片。建立或更新課程時會自動上傳到 Google Drive「CYP135_EDM」資料夾，檔名會改成「日期_活動名稱」。</p>
+          <div class="field">
+            <label>上限人數</label>
+            <input id="c-max" type="number" placeholder="例如 80" value="${esc(course ? course.maxCount : '')}">
+          </div>
+          <div class="field full">
+            <label>活動名稱</label>
+            <input id="c-name" placeholder="例如 7/20 牙技行銷課" value="${esc(course ? course.eventName : '')}">
+          </div>
         </div>
       </div>
 
-      <div class="field">
-        <label>活動介紹</label>
-        <textarea id="c-desc" placeholder="輸入學員點進活動詳情時會看到的介紹">${esc(course ? course.description : '')}</textarea>
-      </div>
-
-      <div class="section-title">時間與場次</div>
-      <div class="field">
-        <label>活動日期</label>
-        <input id="c-date" type="date" value="${esc(parsed.date)}">
-      </div>
-
-      <div class="row">
-        <div>
-          <label>開始時間</label>
-          ${renderTimePicker('start', parsed.start)}
-        </div>
-        <div>
-          <label>結束時間</label>
-          ${renderTimePicker('end', parsed.end)}
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:12px">
-        <div class="field">
-          <label>場次</label>
-          <select id="c-session">${optionHtml(data.options.sessions, course ? course.session : '', '請選擇場次')}</select>
-        </div>
-        <div class="field">
-          <label>票種</label>
-          <select id="c-ticket" onchange="toggleOtherTicket()">${optionHtml(['一般票','其他'], ticketTypeBase, '')}</select>
+      <div class="mini-section">
+        <div class="section-title">時間與場次</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>活動日期</label>
+            <input id="c-date" type="date" value="${esc(parsed.date)}">
+          </div>
+          <div class="field">
+            <label>場次</label>
+            <select id="c-session">${optionHtml(data.options.sessions, course ? course.session : '', '請選擇場次')}</select>
+          </div>
+          <div class="field">
+            <label>開始時間</label>
+            ${renderTimePicker('start', parsed.start)}
+          </div>
+          <div class="field">
+            <label>結束時間</label>
+            ${renderTimePicker('end', parsed.end)}
+          </div>
+          <div class="field">
+            <label>票種</label>
+            <select id="c-ticket" onchange="toggleOtherTicket()">${optionHtml(['一般票','其他'], ticketTypeBase, '')}</select>
+          </div>
+          <div id="ticket-other-box" class="field ${ticketTypeBase === '其他' ? '' : 'hide'}">
+            <label>其他票種名稱</label>
+            <input id="c-ticket-other" placeholder="請輸入票種名稱" value="${esc(ticketOther)}">
+          </div>
         </div>
       </div>
 
-      <div id="ticket-other-box" class="field ${ticketTypeBase === '其他' ? '' : 'hide'}">
-        <label>其他票種名稱</label>
-        <input id="c-ticket-other" placeholder="請輸入票種名稱" value="${esc(ticketOther)}">
-      </div>
-
-      <div class="section-title">報名與價格</div>
-      <div class="field">
-        <label>收費模式</label>
-        <select id="c-mode" onchange="togglePricingMode()">
-          <option value="白金制" ${!course || course.pricingMode !== '類別制' ? 'selected' : ''}>白金制</option>
-          <option value="類別制" ${course && course.pricingMode === '類別制' ? 'selected' : ''}>類別制</option>
-        </select>
-      </div>
-
-      <div id="price-normal">
-        <div class="row">
+      <div class="mini-section">
+        <div class="section-title">票價設定</div>
+        <div class="form-grid">
+          <div class="field full">
+            <label>收費模式</label>
+            <select id="c-mode" onchange="togglePricingMode()">
+              <option value="白金制" ${!course || course.pricingMode !== '類別制' ? 'selected' : ''}>白金制</option>
+              <option value="類別制" ${course && course.pricingMode === '類別制' ? 'selected' : ''}>類別制</option>
+            </select>
+          </div>
+        </div>
+        <div id="price-normal" class="form-grid" style="margin-top:10px">
           <div class="field">
             <label>白金價</label>
             <input id="c-plat" type="number" placeholder="例如 0" value="${esc(course ? course.platinumPrice : '')}">
@@ -532,46 +561,67 @@ function renderCourseForm(course) {
             <input id="c-nonplat" type="number" placeholder="例如 300" value="${esc(course ? course.nonPlatinumPrice : '')}">
           </div>
         </div>
-      </div>
-
-      <div id="price-category" class="hide">
-        <p class="muted" style="margin-bottom:8px">類別可自行設定，例如：成人、小孩、白金。</p>
-        <datalist id="class-suggestions">${(data.options.classTypes || []).map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
-        <div id="category-box"></div>
-        <button class="btn btn-sub" onclick="addCategoryRow()" type="button">新增課程類別</button>
-      </div>
-
-      <div class="section-title">發布設定</div>
-      <div class="row">
-        <div class="field">
-          <label>是否開放報名</label>
-          <select id="c-open">
-            <option value="是" ${!course || course.openFlag === '是' ? 'selected' : ''}>是</option>
-            <option value="否" ${course && course.openFlag === '否' ? 'selected' : ''}>否</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>是否啟用 QR</label>
-          <select id="c-qr">
-            <option value="是" ${!course || course.qrFlag === '是' ? 'selected' : ''}>是</option>
-            <option value="否" ${course && course.qrFlag === '否' ? 'selected' : ''}>否</option>
-          </select>
+        <div id="price-category" class="hide" style="margin-top:10px">
+          <p class="muted" style="margin-bottom:8px">類別可自行設定，例如：成人、小孩、白金。</p>
+          <datalist id="class-suggestions">${(data.options.classTypes || []).map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
+          <div id="category-box"></div>
+          <button class="btn btn-sub" onclick="addCategoryRow()" type="button">新增課程類別</button>
         </div>
       </div>
 
-      <div class="row">
-        <div class="field">
-          <label>報名開始時間，可空白</label>
-          <input id="c-apply-start" type="datetime-local" value="${esc(toDatetimeLocalValue(course ? course.applyStart : ''))}">
-        </div>
-        <div class="field">
-          <label>報名結束時間，可空白</label>
-          <input id="c-apply-end" type="datetime-local" value="${esc(toDatetimeLocalValue(course ? course.applyEnd : ''))}">
+      <div class="mini-section">
+        <div class="section-title">報名設定</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>開放報名</label>
+            <select id="c-open">
+              <option value="是" ${!course || course.openFlag === '是' ? 'selected' : ''}>是</option>
+              <option value="否" ${course && course.openFlag === '否' ? 'selected' : ''}>否</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>啟用 QR</label>
+            <select id="c-qr">
+              <option value="是" ${!course || course.qrFlag === '是' ? 'selected' : ''}>是</option>
+              <option value="否" ${course && course.qrFlag === '否' ? 'selected' : ''}>否</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>報名開始，可空白</label>
+            <input id="c-apply-start" type="datetime-local" value="${esc(toDatetimeLocalValue(course ? course.applyStart : ''))}">
+          </div>
+          <div class="field">
+            <label>報名結束，可空白</label>
+            <input id="c-apply-end" type="datetime-local" value="${esc(toDatetimeLocalValue(course ? course.applyEnd : ''))}">
+          </div>
         </div>
       </div>
 
-      <button class="btn btn-main" onclick="submitCourseForm()">${isEdit ? '更新課程' : '建立課程'}</button>
-      ${isEdit ? '<button class="btn btn-ghost" onclick="renderCourseForm(null)">取消編輯 / 新增課程</button>' : ''}
+      <details class="fold" ${mediaOpen}>
+        <summary>圖片與活動介紹</summary>
+        <div class="fold-content">
+          <div class="field">
+            <label>DM / EDM 圖片</label>
+            <div class="edm-upload">
+              <input id="c-edm-file" class="file-input" type="file" accept="image/*" onchange="handleEdmFileChange(event)">
+              <input id="c-dm" type="hidden" value="${esc(course ? course.dmUrl : '')}">
+              <div id="edm-preview-box" class="edm-preview ${course && course.dmUrl ? '' : 'hide'}">
+                ${course && course.dmUrl ? `<img src="${esc(course.dmUrl)}" alt="EDM 預覽"><div class="edm-info">目前 EDM 圖片。若重新選擇圖片，更新時會覆蓋連結。</div>` : ''}
+              </div>
+              <p class="muted" style="margin-top:8px">手機可直接選相簿圖片。建立或更新課程時會自動上傳到 Google Drive「CYP135_EDM」。</p>
+            </div>
+          </div>
+          <div class="field">
+            <label>活動介紹</label>
+            <textarea id="c-desc" placeholder="輸入學員點進活動詳情時會看到的介紹">${esc(course ? course.description : '')}</textarea>
+          </div>
+        </div>
+      </details>
+
+      <div class="compact-actions">
+        <button class="btn btn-main" onclick="submitCourseForm()">${isEdit ? '更新課程' : '建立課程'}</button>
+        ${isEdit ? '<button class="btn btn-ghost" onclick="renderCourseForm(null)">取消編輯</button>' : '<button class="btn btn-ghost" onclick="clearCourseFormQuick()">清空</button>'}
+      </div>
     </div>
   `;
 
@@ -584,6 +634,10 @@ function renderCourseForm(course) {
   }
   togglePricingMode();
   toggleOtherTicket();
+}
+
+function clearCourseFormQuick() {
+  renderCourseForm(null);
 }
 
 function handleEdmFileChange(event) {
@@ -764,6 +818,16 @@ function collectCategoryItems() {
   })).filter(item => item.name);
 }
 
+function filterAdminCourses() {
+  const q = val('admin-course-search').toLowerCase();
+  const courses = adminCourseData || [];
+  if (!q) return renderAdminCourseList(courses);
+  renderAdminCourseList(courses.filter(c => {
+    return [c.eventName, c.eventCode, c.dateTime, c.session, c.ticketType, c.statusBadge, c.priceSummary]
+      .join(' ').toLowerCase().includes(q);
+  }));
+}
+
 function renderAdminCourseList(courses) {
   const el = document.getElementById('admin-course-list');
   if (!courses.length) {
@@ -939,8 +1003,9 @@ async function submitCourseForm() {
       try {
         const fresh = await post('getCourseAdminInit', { userId });
         initData = fresh;
+        adminCourseData = fresh.courses || [];
         renderCourseForm(null);
-        renderAdminCourseList(fresh.courses || []);
+        renderAdminCourseList(adminCourseData);
       } catch(e) {}
     } else {
       showFormMsg('⚠️ ' + esc(res.message || '儲存失敗'), 'err');
@@ -979,7 +1044,7 @@ function renderRegisterForm() {
 
       <div class="field">
         <label>姓名</label>
-        <input id="r-name" placeholder="請輸入中文姓名" autocomplete="off" oninput="autoLookupMemberLocal()">
+        <input id="r-name" placeholder="請輸入中文姓名" autocomplete="off" oninput="autoLookupMemberDebounced()">
       </div>
 
       <div id="lookup-box"></div>
@@ -1052,12 +1117,13 @@ function duplicateNoticeHtml() {
   return `
     <div class="msg on err">
       ⚠️ 此姓名已報名過本課程<br><br>
-      如有疑問，請洽會長調整。
+      如有疑問，請洽票務調整。
     </div>
   `;
 }
 
-function autoLookupMemberLocal() {
+function autoLookupMemberDebounced() {
+  clearTimeout(lookupTimer);
   selectedLeader = '';
   isCurrentNameDuplicate = false;
   clearRegisterMsg();
@@ -1067,7 +1133,7 @@ function autoLookupMemberLocal() {
   const clean = cleanNameLocal(name);
 
   if (!clean) {
-    box.innerHTML = '';
+    if (box) box.innerHTML = '';
     setRegisterButtonDisabled(false, '送出報名');
     return;
   }
@@ -1076,34 +1142,53 @@ function autoLookupMemberLocal() {
   if (duplicate) {
     isCurrentNameDuplicate = true;
     setRegisterButtonDisabled(true, '已重複報名');
-    const matches = memberIndex[clean] || [];
-    const leaderText = matches.length === 1 ? (matches[0].leader || '') : (duplicate.leader || '');
-    box.innerHTML = `
-      <div class="msg on err">
-        ⚠️ 此姓名已報名過本課程<br>
-        ${leaderText ? '上手白金/雁群組長：' + esc(leaderText) + '<br>' : ''}
-        如有疑問，請洽會長調整。
-      </div>
-    `;
+    if (box) {
+      box.innerHTML = `
+        <div class="msg on err">
+          ⚠️ 此姓名已報名過本課程<br><br>
+          如有疑問，請洽票務調整。
+        </div>
+      `;
+    }
     return;
   }
 
   setRegisterButtonDisabled(false, '送出報名');
+  if (box) box.innerHTML = '<div class="msg on info">查詢名冊中...</div>';
+  lookupTimer = setTimeout(() => autoLookupMemberRemote(clean, name), 180);
+}
 
-  const matches = memberIndex[clean] || [];
-  if (matches.length === 1) {
-    selectedLeader = matches[0].leader || '';
+
+function renderLookupResult(res, clean, name) {
+  const box = document.getElementById('lookup-box');
+  if (!box) return;
+
+  if (res.status === 'duplicate') {
+    registrationIndex[clean] = {
+      name: (res.registration && res.registration.name) || name,
+      cleanName: clean,
+      leader: (res.registration && res.registration.leader) || ''
+    };
+    isCurrentNameDuplicate = true;
+    selectedLeader = '';
+    setRegisterButtonDisabled(true, '已重複報名');
+    box.innerHTML = duplicateNoticeHtml();
+    return;
+  }
+
+  if (res.status === 'found') {
+    selectedLeader = (res.member && (res.member.leader || res.member.flock || res.member.uplinePlatinum)) || '';
     box.innerHTML = `
       <div class="msg on ok">
         ✅ 已找到名冊資料<br>
-        姓名：${esc(matches[0].name)}<br>
+        姓名：${esc((res.member && res.member.name) || name)}<br>
         上手白金/雁群組長：${esc(selectedLeader || '—')}
       </div>
       <input id="r-leader" type="hidden" value="${esc(selectedLeader)}">
     `;
-  } else if (matches.length > 1) {
+  } else if (res.status === 'multiple') {
     selectedLeader = '';
-    const choices = [...new Set(matches.map(x => x.leader).filter(Boolean))];
+    const choices = [...new Set((res.members || []).map(x => x.leader || x.flock || x.uplinePlatinum).filter(Boolean))];
     box.innerHTML = `
       <div class="msg on info">找到多筆同名資料，請選擇上手白金/雁群組長</div>
       ${renderLeaderSelect(choices.length ? choices : getLeaderOptionsForForm())}
@@ -1115,6 +1200,45 @@ function autoLookupMemberLocal() {
       ${renderLeaderSelect(getLeaderOptionsForForm())}
     `;
   }
+}
+
+async function autoLookupMemberRemote(clean, name) {
+  const box = document.getElementById('lookup-box');
+  if (!box || clean !== cleanNameLocal(val('r-name'))) return;
+
+  // 再檢查一次重複，避免等待名冊查詢時已經變更輸入。
+  const duplicate = getExistingRegistration(clean);
+  if (duplicate) {
+    isCurrentNameDuplicate = true;
+    setRegisterButtonDisabled(true, '已重複報名');
+    box.innerHTML = duplicateNoticeHtml();
+    return;
+  }
+
+  try {
+    if (lookupCache[clean]) {
+      renderLookupResult(lookupCache[clean], clean, name);
+      return;
+    }
+
+    const seq = ++lastLookupSeq;
+    const res = await post('checkRegistrationName', { eventCode: currentCourse.eventCode, name }, 9000);
+    if (seq !== lastLookupSeq || clean !== cleanNameLocal(val('r-name'))) return;
+    lookupCache[clean] = res;
+
+    renderLookupResult(res, clean, name);
+  } catch (err) {
+    selectedLeader = '';
+    box.innerHTML = `
+      <div class="msg on err">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長</div>
+      ${renderLeaderSelect(getLeaderOptionsForForm())}
+    `;
+  }
+}
+
+function autoLookupMemberLocal() {
+  // 舊函式名稱保留相容。
+  autoLookupMemberDebounced();
 }
 
 function getLeaderOptionsForForm() {
@@ -1165,7 +1289,7 @@ async function submitRegister() {
     setRegisterButtonDisabled(true, '已重複報名');
     const box = document.getElementById('lookup-box');
     if (box) box.innerHTML = duplicateNoticeHtml();
-    return showRegisterMsg('此姓名已報名過本課程<br><br>如有疑問，請洽會長調整。', 'err');
+    return showRegisterMsg('此姓名已報名過本課程<br><br>如有疑問，請洽票務調整。', 'err');
   }
 
   let leader = selectedLeader;
@@ -1234,7 +1358,7 @@ async function submitRegister() {
       setRegisterButtonDisabled(true, '已重複報名');
       const box = document.getElementById('lookup-box');
       if (box) box.innerHTML = duplicateNoticeHtml();
-      showRegisterMsg('此姓名已報名過本課程<br><br>如有疑問，請洽會長調整。', 'err');
+      showRegisterMsg('此姓名已報名過本課程<br><br>如有疑問，請洽票務調整。', 'err');
     } else {
       showRegisterMsg('⚠️ ' + esc(res.message || '報名失敗'), 'err');
     }
