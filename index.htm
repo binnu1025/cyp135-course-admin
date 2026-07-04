@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V5.1</title>
+<title>CYP135 課程報名 V5.2</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -631,7 +631,7 @@ function renderCourseForm(course) {
           </div>
         </div>
         <div id="price-category" class="hide" style="margin-top:10px">
-          <p class="muted" style="margin-bottom:8px">類別可自行設定，例如：成人、小孩、白金。</p>
+          <p class="muted" style="margin-bottom:8px">類別可自行設定。系統會統一儲存成逗號格式，例如：初訓,複訓,旁聽 / 500,400,300。</p>
           <datalist id="class-suggestions">${(data.options.classTypes || []).map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
           <div id="category-box"></div>
           <button class="btn btn-sub" onclick="addCategoryRow()" type="button">新增課程類別</button>
@@ -833,15 +833,9 @@ function compressImageToDataUrl(file, maxWidth, quality) {
 }
 
 function renderTimePicker(prefix, selected) {
-  const opt = initData && initData.options ? initData.options : {hours:[],minutes:[],ampm:[]};
   selected = selected || {};
-  return `
-    <div class="row3">
-      <select id="${prefix}-hour">${optionHtml(opt.hours, selected.hour || '', '時')}</select>
-      <select id="${prefix}-minute">${optionHtml(opt.minutes, selected.minute || '00', '分')}</select>
-      <select id="${prefix}-ampm">${optionHtml(opt.ampm, selected.ampm || 'PM', 'AM/PM')}</select>
-    </div>
-  `;
+  const value = selected.time || to24Hour(selected.hour, selected.minute, selected.ampm) || '';
+  return `<input id="${prefix}-time" type="time" value="${esc(value)}">`;
 }
 
 function optionHtml(arr, selected, placeholder) {
@@ -884,7 +878,22 @@ function collectCategoryItems() {
   return Array.from(document.querySelectorAll('.category-row')).map(row => ({
     name: row.querySelector('.cat-name').value.trim(),
     price: row.querySelector('.cat-price').value.trim()
-  })).filter(item => item.name);
+  })).filter(item => item.name || item.price);
+}
+
+function validateCategoryItems(items) {
+  const filled = (items || []).filter(item => item.name);
+  if (!filled.length) return '請至少新增一個課程類別與價格';
+
+  for (const item of filled) {
+    if (item.price === '') return `請填寫「${item.name}」的價格`;
+    const price = Number(item.price);
+    if (!Number.isFinite(price) || price < 0) return `「${item.name}」的價格格式不正確`;
+  }
+
+  const names = filled.map(x => x.name).join(',');
+  const prices = filled.map(x => String(Number(x.price))).join(',');
+  return { items: filled, names, prices };
 }
 
 function filterAdminCourses() {
@@ -924,8 +933,8 @@ function renderAdminCourseList(courses) {
 
 function buildActivityDateTime() {
   const date = val('c-date');
-  const start = to24Hour(val('start-hour'), val('start-minute'), val('start-ampm'));
-  const end = to24Hour(val('end-hour'), val('end-minute'), val('end-ampm'));
+  const start = val('start-time') || to24Hour(val('start-hour'), val('start-minute'), val('start-ampm'));
+  const end = val('end-time') || to24Hour(val('end-hour'), val('end-minute'), val('end-ampm'));
   if (!date || !start || !end) return '';
   return date.replace(/-/g, '/') + ' ' + start + '-' + end;
 }
@@ -940,13 +949,15 @@ function to24Hour(hour, minute, ampm) {
 
 function from24Hour(timeText) {
   const m = String(timeText || '').match(/^(\d{1,2}):(\d{2})/);
-  if (!m) return { hour: '', minute: '00', ampm: 'PM' };
-  let h = parseInt(m[1], 10);
+  if (!m) return { time: '', hour: '', minute: '00', ampm: 'PM' };
+  let h24 = parseInt(m[1], 10);
   const minute = m[2];
-  const ampm = h >= 12 ? 'PM' : 'AM';
+  const time = String(h24).padStart(2, '0') + ':' + minute;
+  const ampm = h24 >= 12 ? 'PM' : 'AM';
+  let h = h24;
   if (h === 0) h = 12;
   if (h > 12) h -= 12;
-  return { hour: String(h).padStart(2, '0'), minute, ampm };
+  return { time, hour: String(h).padStart(2, '0'), minute, ampm };
 }
 
 function parseCourseDateTime(text) {
@@ -1028,7 +1039,12 @@ async function submitCourseForm() {
   if (!val('c-session')) return showFormMsg('請選擇場次', 'err');
   if (!val('c-ticket')) return showFormMsg('請選擇票種', 'err');
   if (val('c-ticket') === '其他' && !val('c-ticket-other')) return showFormMsg('請輸入其他票種名稱', 'err');
-  if (pricingMode === '類別制' && !categoryItems.length) return showFormMsg('請至少新增一個課程類別與價格', 'err');
+  let categoryNormalized = null;
+  if (pricingMode === '類別制') {
+    const checked = validateCategoryItems(categoryItems);
+    if (typeof checked === 'string') return showFormMsg(checked, 'err');
+    categoryNormalized = checked;
+  }
 
   try {
     let dmUrl = val('c-dm');
@@ -1049,7 +1065,9 @@ async function submitCourseForm() {
       pricingMode,
       platinumPrice: val('c-plat'),
       nonPlatinumPrice: val('c-nonplat'),
-      categoryItems,
+      categoryItems: categoryNormalized ? categoryNormalized.items : categoryItems,
+      categoryNames: categoryNormalized ? categoryNormalized.names : '',
+      categoryPrices: categoryNormalized ? categoryNormalized.prices : '',
       openFlag: val('c-open'),
       qrFlag: val('c-qr'),
       dmUrl,
