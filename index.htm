@@ -3,8 +3,388 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名  V5.3</title>
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<title>CYP135 課程報名 V5.4</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
+
+// ─────────────────────────────────────────────
+// V5.5 票券產生：報名總表 → QR管理 → PNG ZIP
+// ─────────────────────────────────────────────
+function loadScriptOnce(url, id) {
+  if (window[id]) return Promise.resolve();
+  const existing = document.querySelector('script[data-lib="' + id + '"]');
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener('load', resolve);
+      existing.addEventListener('error', reject);
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = url;
+    sc.async = true;
+    sc.dataset.lib = id;
+    sc.onload = resolve;
+    sc.onerror = () => reject(new Error('載入工具失敗：' + id));
+    document.head.appendChild(sc);
+  });
+}
+
+function ensureTicketScripts() {
+  if (!ticketScriptsLoading) {
+    ticketScriptsLoading = Promise.all([
+      loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', 'JSZip'),
+      loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js', 'QRCode')
+    ]);
+  }
+  return ticketScriptsLoading;
+}
+
+async function renderTicketGeneratorPage() {
+  currentView = 'ticket';
+  clearMsg();
+  setTitle('票券產生');
+  const app = document.getElementById('app');
+
+  if (!isAdminUser) {
+    app.innerHTML = `
+      <div class="card"><h2>沒有權限</h2><p class="muted">此功能限會長使用。</p></div>
+    `;
+    return;
+  }
+
+  app.innerHTML = `<div class="loading">載入票券產生工具中...</div>`;
+  try { await ensurePublicData(false); } catch(e) {}
+
+  const courses = (appState.courses || []).filter(c => c && c.eventName);
+  const options = courses.map(c => `<option value="${esc(normalizeCode(c.eventCode))}">${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`).join('');
+
+  app.innerHTML = `
+    <div class="top-actions">
+      <button class="btn btn-sub" onclick="renderHomePage({skipRefresh:true})">報名課程</button>
+      <button class="btn btn-sub" onclick="renderAdminCoursesPage()">查詢課程</button>
+      <button class="btn btn-main" onclick="renderTicketGeneratorPage()">票券產生</button>
+    </div>
+
+    <div class="card">
+      <h2>票券產生</h2>
+      <p class="muted">選活動後，系統會從報名總表同步名單到 QR管理，保留同活動舊 CODE，只幫新報名者補新 CODE。</p>
+      <div id="ticket-msg" class="msg"></div>
+      <div class="field">
+        <label>選擇活動</label>
+        <select id="ticket-course-select">
+          <option value="">請選擇活動</option>
+          ${options}
+        </select>
+      </div>
+      <div class="form-grid">
+        <div class="field full">
+          <label>票券底圖，上半部圖片，可選</label>
+          <input type="file" id="ticket-bg-file" accept="image/*" onchange="handleTicketBgUpload(this)">
+          <div class="ticket-small">不選底圖會使用內建深色設計。第一階段先下載 ZIP，不存 Google Drive。</div>
+        </div>
+      </div>
+      <div class="ticket-toolbar">
+        <button class="btn btn-main" onclick="syncTicketMembers()">同步報名名單 / 補 CODE</button>
+        <button class="btn btn-sub" onclick="renderTicketPreview()">預覽前兩張</button>
+      </div>
+      <button class="btn btn-main" style="width:100%" onclick="downloadTicketZip()">下載全部票券 ZIP</button>
+      <div class="ticket-progress" id="ticket-progress"><div id="ticket-progress-fill"></div></div>
+      <div class="ticket-member-note" id="ticket-summary">尚未同步名單。</div>
+    </div>
+
+    <div class="card" id="ticket-preview-card" style="display:none">
+      <h2>票券預覽</h2>
+      <div class="ticket-preview-wrap" id="ticket-preview-list"></div>
+    </div>
+  `;
+}
+
+function handleTicketBgUpload(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      ticketState.bgImage = img;
+      ticketState.bgName = file.name;
+      const el = document.getElementById('ticket-summary');
+      if (el) el.innerHTML = `已選票券底圖：${esc(file.name)}<br>` + (ticketState.stats ? buildTicketSummaryHtml(ticketState.stats) : '尚未同步名單。');
+      if (ticketState.members.length) renderTicketPreview();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function buildTicketSummaryHtml(stats) {
+  stats = stats || {};
+  return `
+    <div class="ticket-stat-grid">
+      <div class="ticket-stat"><strong>${Number(stats.total || 0)}</strong><span>可產生</span></div>
+      <div class="ticket-stat"><strong>${Number(stats.existingCode || 0)}</strong><span>保留 CODE</span></div>
+      <div class="ticket-stat"><strong>${Number(stats.newCode || 0)}</strong><span>新產生</span></div>
+    </div>
+    排除取消：${Number(stats.cancelled || 0)} 人<br>
+    CODE 規則：不同活動不同 CODE；同活動已存在者保留舊 CODE，新人才補新 CODE。
+  `;
+}
+
+async function syncTicketMembers() {
+  const code = normalizeCode(val('ticket-course-select'));
+  if (!code) return showBoxMsg('ticket-msg', '請先選擇活動。', 'err');
+  clearBoxMsg('ticket-msg');
+  showBoxMsg('ticket-msg', '同步中，請稍候...', 'info');
+  try {
+    const data = await post('syncTicketQrFromRegistrations', { userId, eventCode: code }, 30000);
+    if (!data || data.status !== 'ok') throw new Error((data && data.message) || '同步失敗');
+    ticketState.course = data.course || null;
+    ticketState.members = data.members || [];
+    ticketState.stats = data.stats || {};
+    mergeCourseToState(data.course);
+    clearBoxMsg('ticket-msg');
+    document.getElementById('ticket-summary').innerHTML = buildTicketSummaryHtml(ticketState.stats);
+    await renderTicketPreview();
+  } catch(e) {
+    showBoxMsg('ticket-msg', e.message || '同步失敗', 'err');
+  }
+}
+
+function ticketSafeName(text) {
+  return String(text || '')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, '')
+    .trim() || '未命名';
+}
+
+function ticketInfo() {
+  const c = ticketState.course || {};
+  return {
+    eventName: c.eventName || '活動名稱',
+    session: c.session || '',
+    ticketType: c.ticketType || '',
+    displayDate: c.dateTime || c.displayDate || ''
+  };
+}
+
+function drawTicketBuiltinBg(ctx, W, topH) {
+  ctx.fillStyle = '#1a3a5c';
+  ctx.fillRect(0, 0, W, topH);
+  ctx.save();
+  ctx.globalAlpha = .07;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(W*.1, topH*.35, 160, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W*.75, topH*1.15, 210, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = .04;
+  for (let i=0; i<14; i++) ctx.fillRect(W*.28+i*28, -20, 14, topH+40);
+  ctx.restore();
+}
+
+function ticketRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+}
+
+function ticketWrapText(ctx, text, x, y, maxW, lh, maxLines) {
+  const chars = String(text || '').split('');
+  let line = '', lines = [];
+  chars.forEach(c => {
+    const t = line + c;
+    if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = c; }
+    else line = t;
+  });
+  if (line) lines.push(line);
+  lines.slice(0, maxLines || 2).forEach((l,i) => ctx.fillText(l, x, y+i*lh));
+}
+
+function ticketQrImage(code) {
+  return new Promise(resolve => {
+    const container = document.createElement('div');
+    container.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+    document.body.appendChild(container);
+    try {
+      new QRCode(container, { text: String(code || ''), width: 260, height: 260, colorDark:'#000000', colorLight:'#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      const el = container.querySelector('canvas') || container.querySelector('img');
+      if (!el) { document.body.removeChild(container); resolve(null); return; }
+      if (el.tagName === 'CANVAS') {
+        const img = new Image();
+        img.onload = () => { document.body.removeChild(container); resolve(img); };
+        img.src = el.toDataURL();
+      } else {
+        if (el.complete) { document.body.removeChild(container); resolve(el); }
+        else { el.onload = () => { document.body.removeChild(container); resolve(el); }; el.onerror = () => { document.body.removeChild(container); resolve(null); }; }
+      }
+    } catch(e) { document.body.removeChild(container); resolve(null); }
+  });
+}
+
+async function drawTicketCanvas(canvas, person, info) {
+  await ensureTicketScripts();
+  const W = 560, H = 1080, topH = 360, px = 40;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#0d1f33';
+  ctx.fillRect(0, 0, W, topH);
+  if (ticketState.bgImage) {
+    const img = ticketState.bgImage;
+    const scale = Math.min(W / img.width, topH / img.height);
+    const dw = img.width * scale, dh = img.height * scale;
+    ctx.drawImage(img, 0, 0, img.width, img.height, (W-dw)/2, (topH-dh)/2, dw, dh);
+    const grad = ctx.createLinearGradient(0, topH*.45, 0, topH);
+    grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,.62)');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, topH);
+  } else {
+    drawTicketBuiltinBg(ctx, W, topH);
+  }
+
+  ctx.textAlign = 'left';
+  ctx.font = '700 15px "Noto Sans TC", sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,.62)';
+  ctx.fillText('CYP135', px, 38);
+
+  ctx.font = '900 48px "Noto Sans TC", sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ticketWrapText(ctx, info.eventName, px, topH - 140, W - px*2, 58, 2);
+
+  if (info.displayDate) {
+    ctx.font = '500 18px "Noto Sans TC", sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.82)';
+    ctx.fillText(info.displayDate, px, topH - 78);
+  }
+  const sub = [info.session, info.ticketType].filter(Boolean).join('  ·  ');
+  if (sub) {
+    ctx.font = '500 16px "Noto Sans TC", sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.62)';
+    ctx.fillText(sub, px, topH - 50);
+  }
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, topH, W, H-topH);
+  ctx.fillStyle = '#1a3a5c';
+  ctx.fillRect(px, topH + 24, W - px*2, 3);
+
+  const qrSize = Math.round(W * 0.70);
+  const qrX = Math.round((W - qrSize) / 2);
+  const qrY = topH + 44;
+  ctx.fillStyle = '#f7f7f7';
+  ticketRoundRect(ctx, qrX-8, qrY-8, qrSize+16, qrSize+16, 12);
+  ctx.fill();
+  ctx.strokeStyle = '#ebebeb'; ctx.lineWidth = 1;
+  ticketRoundRect(ctx, qrX-8, qrY-8, qrSize+16, qrSize+16, 12);
+  ctx.stroke();
+  const qrImg = await ticketQrImage(person.code);
+  if (qrImg) ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+  const codeBaseY = qrY + qrSize + 28;
+  ctx.font = '700 36px "Courier New", monospace';
+  ctx.fillStyle = '#1a1a2e';
+  ctx.textAlign = 'center';
+  ctx.fillText(String(person.code || '').toUpperCase(), W/2, codeBaseY + 32);
+
+  ctx.strokeStyle = '#eeeeee'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(px*2, codeBaseY + 50); ctx.lineTo(W - px*2, codeBaseY + 50); ctx.stroke();
+
+  const nameY = codeBaseY + 100;
+  ctx.font = '900 46px "Noto Sans TC", sans-serif';
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillText(person.name || '', W/2, nameY);
+
+  const flockLabel = '小組：' + (person.flock || '—');
+  ctx.font = '700 20px "Noto Sans TC", sans-serif';
+  const fpw = ctx.measureText(flockLabel).width + 48, fph = 42, fpx = (W - fpw) / 2, fpy = nameY + 20;
+  ctx.fillStyle = 'rgba(26,58,92,.09)'; ctx.strokeStyle = 'rgba(26,58,92,.20)'; ctx.lineWidth = 1.5;
+  ticketRoundRect(ctx, fpx, fpy, fpw, fph, 21); ctx.fill(); ticketRoundRect(ctx, fpx, fpy, fpw, fph, 21); ctx.stroke();
+  ctx.fillStyle = '#1a3a5c';
+  ctx.fillText(flockLabel, W/2, fpy + 28);
+
+  if (person.group) {
+    const groupLabel = String(person.group || '').trim();
+    ctx.font = '700 20px "Noto Sans TC", sans-serif';
+    const gpw = ctx.measureText(groupLabel).width + 48, gph = 42, gpx = (W - gpw) / 2, gpy = fpy + fph + 16;
+    ctx.fillStyle = 'rgba(26,58,92,.09)'; ctx.strokeStyle = 'rgba(26,58,92,.20)';
+    ticketRoundRect(ctx, gpx, gpy, gpw, gph, 21); ctx.fill(); ticketRoundRect(ctx, gpx, gpy, gpw, gph, 21); ctx.stroke();
+    ctx.fillStyle = '#1a3a5c';
+    ctx.fillText(groupLabel, W/2, gpy + 28);
+  }
+}
+
+async function renderTicketPreview() {
+  if (!ticketState.members.length) {
+    return showBoxMsg('ticket-msg', '請先同步報名名單。', 'err');
+  }
+  await ensureTicketScripts();
+  const holder = document.getElementById('ticket-preview-list');
+  const card = document.getElementById('ticket-preview-card');
+  if (!holder || !card) return;
+  holder.innerHTML = '';
+  card.style.display = 'block';
+  const info = ticketInfo();
+  const sample = ticketState.members.slice(0,2);
+  for (const m of sample) {
+    const wrap = document.createElement('div');
+    wrap.className = 'ticket-preview-card';
+    const canvas = document.createElement('canvas');
+    wrap.appendChild(canvas);
+    holder.appendChild(wrap);
+    await drawTicketCanvas(canvas, m, info);
+  }
+}
+
+async function downloadTicketZip() {
+  if (!ticketState.members.length) return showBoxMsg('ticket-msg', '請先同步報名名單。', 'err');
+  await ensureTicketScripts();
+  const progress = document.getElementById('ticket-progress');
+  const fill = document.getElementById('ticket-progress-fill');
+  progress.classList.add('on'); fill.style.width = '0%';
+  clearBoxMsg('ticket-msg');
+  showBoxMsg('ticket-msg', '正在產生票券...', 'info');
+
+  try {
+    const zip = new JSZip();
+    const canvas = document.createElement('canvas');
+    const info = ticketInfo();
+    const used = {};
+
+    for (let i = 0; i < ticketState.members.length; i++) {
+      const m = ticketState.members[i];
+      await drawTicketCanvas(canvas, m, info);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      let base = ticketSafeName(m.flock || '雁群') + '_' + ticketSafeName(m.name || '姓名');
+      let fname = base + '.png';
+      if (used[fname]) {
+        used[fname]++;
+        fname = base + '_' + used[fname] + '.png';
+      } else {
+        used[fname] = 1;
+      }
+      zip.file(fname, blob);
+      fill.style.width = Math.round((i+1)/ticketState.members.length*100) + '%';
+      await new Promise(r => setTimeout(r, 8));
+    }
+
+    const content = await zip.generateAsync({ type: 'blob' });
+    const zipName = '雁群票券_' + ticketSafeName(info.eventName) + (info.session ? '_' + ticketSafeName(info.session) : '') + '.zip';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(content);
+    a.download = zipName;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showBoxMsg('ticket-msg', '票券 ZIP 已產生。', 'ok');
+  } catch(e) {
+    showBoxMsg('ticket-msg', e.message || '產生失敗', 'err');
+  } finally {
+    progress.classList.remove('on');
+    fill.style.width = '0%';
+  }
+}
+
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -106,6 +486,22 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .submit-sticky{position:sticky;bottom:10px;z-index:4;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .btn[disabled]{opacity:.55;cursor:not-allowed}
 .hide{display:none!important}
+
+.ticket-toolbar{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.ticket-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.ticket-stat{background:#f5f2eb;border:1px solid #eadfce;border-radius:14px;padding:10px;text-align:center}
+.ticket-stat strong{display:block;color:#2d5a3d;font-size:20px;line-height:1.1}
+.ticket-stat span{font-size:11px;color:#777}
+.ticket-preview-wrap{display:grid;grid-template-columns:1fr;gap:14px;margin-top:12px}
+.ticket-preview-card{background:#f7f4ed;border:1px solid #eadfce;border-radius:16px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.08)}
+.ticket-preview-card canvas{display:block;width:100%;height:auto}
+.ticket-member-note{font-size:12px;color:#777;line-height:1.7;background:#faf8f3;border:1px solid #eee3d4;border-radius:14px;padding:10px;margin-top:8px}
+.ticket-progress{display:none;margin-top:10px;background:#f5f2eb;border-radius:999px;height:8px;overflow:hidden}
+.ticket-progress.on{display:block}
+.ticket-progress > div{height:100%;width:0;background:#2d5a3d;transition:width .15s}
+.ticket-small{font-size:12px;color:#777;line-height:1.7}
+@media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
+
 @media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions,.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.course-img{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
 </head>
@@ -150,7 +546,10 @@ let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v53';
+let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
+let ticketScriptsLoading = null;
+
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v55';
 let currentView = '';
 let appState = {
   courses: [],
@@ -384,22 +783,23 @@ function setTitle(text) {
 function renderMenu() {
   const menu = document.getElementById('side-menu');
   if (!menu) return;
-  const currentBtn = currentCourse
-    ? `<button class="menu-item" onclick="toggleMenu(false);renderCourseDetailPage('${esc(currentCourse.eventCode || '')}')">目前活動詳情</button>`
-    : '';
+
   const adminBtns = isAdminUser
-    ? `<button class="menu-item" onclick="toggleMenu(false);renderSettingsPage()">設定 / 建立活動</button>
-       <button class="menu-item" onclick="toggleMenu(false);renderSettingsPage()">已建立課程</button>`
+    ? `
+      <button class="menu-item" onclick="toggleMenu(false);renderAdminCoursesPage()">查詢課程</button>
+      <button class="menu-item" onclick="toggleMenu(false);renderCreateCoursePage()">建立課程</button>
+      <button class="menu-item" onclick="toggleMenu(false);renderTicketGeneratorPage()">票券產生</button>
+    `
     : '';
+
   menu.innerHTML = `
     <div class="menu-head">CYP135 課程系統</div>
     <div class="menu-list">
-      <button class="menu-item" onclick="toggleMenu(false);renderHomePage()">報名課程</button>
-      ${currentBtn}
+      <button class="menu-item" onclick="toggleMenu(false);renderHomePage({skipRefresh:true})">報名課程</button>
       ${adminBtns}
       <button class="menu-item" onclick="toggleMenu(false)">關閉選單</button>
     </div>
-    <div class="menu-note">右上角選單已固定保留，方便在報名、詳情、設定頁快速切換。</div>
+    <div class="menu-note">報名、查詢、建立三個入口分開；切換時盡量使用前端快取，不重複載入。</div>
   `;
 }
 
@@ -448,8 +848,11 @@ window.addEventListener('DOMContentLoaded', async function() {
   if ((mode === 'detail' || mode === 'register') && courseCode) {
     renderCourseDetailPage(courseCode, mode === 'register');
     ensurePublicData(true).catch(() => {});
-  } else if (mode === 'admin' || mode === 'settings') {
-    renderSettingsPage();
+  } else if (mode === 'admin' || mode === 'settings' || mode === 'create') {
+    renderCreateCoursePage();
+    ensurePublicData(true).catch(() => {});
+  } else if (mode === 'courses' || mode === 'manage') {
+    renderAdminCoursesPage();
     ensurePublicData(true).catch(() => {});
   } else {
     renderHomePage();
@@ -489,17 +892,15 @@ function renderHomePage(options) {
 
 function renderHomeShell(courses) {
   const app = document.getElementById('app');
-  const adminButton = isAdminUser
-    ? '<button class="btn btn-sub" onclick="renderSettingsPage()">設定 / 建立活動</button>'
+  const adminTools = isAdminUser
+    ? `<div class="top-actions">
+        <button class="btn btn-sub" onclick="renderAdminCoursesPage()">查詢課程</button>
+        <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
+      </div>`
     : '';
 
-  const actionsClass = isAdminUser ? 'top-actions' : 'top-actions single';
-
   app.innerHTML = `
-    <div class="${actionsClass}">
-      <button class="btn btn-main" onclick="renderHomePage({skipRefresh:true})">報名課程</button>
-      ${adminButton}
-    </div>
+    ${adminTools}
     <div class="searchbar">
       <input id="course-search" placeholder="搜尋活動名稱 / 日期 / 場次" oninput="filterPublicCourses()">
     </div>
@@ -642,63 +1043,154 @@ function getCountText(c) {
 }
 
 // ─────────────────────────────
-// 設定頁：只限會長
+// 管理頁：查詢課程 / 建立課程分開
 // ─────────────────────────────
-async function renderSettingsPage() {
+function getCachedAdminData_() {
+  if (initData && initData.allowed && Array.isArray(initData.courses)) return Promise.resolve(initData);
+  return post('getCourseAdminInit', { userId }).then(data => {
+    initData = data || {};
+    isAdminUser = !!(data && data.allowed);
+    adminCourseData = (data && data.courses) || [];
+    if (adminCourseData.length) {
+      adminCourseData.forEach(mergeCourseToState);
+    }
+    renderMenu();
+    return initData;
+  });
+}
+
+function renderNoAdminPage() {
+  document.getElementById('app').innerHTML = `
+    <button class="btn btn-ghost" onclick="renderHomePage({skipRefresh:true})">← 返回報名課程</button>
+    <div class="card" style="margin-top:12px">
+      <h2>無權限進入設定頁</h2>
+      <p class="meta">此功能限 LINE權限表角色為「會長」的人使用。</p>
+    </div>
+  `;
+}
+
+async function renderAdminCoursesPage() {
+  currentView = 'adminCourses';
   clearMsg();
-  setTitle('設定');
+  setTitle('查詢課程');
   const app = document.getElementById('app');
-  app.innerHTML = '<div class="loading">載入設定中...</div>';
+
+  if (initData && initData.allowed && Array.isArray(adminCourseData)) {
+    renderAdminCoursesShell(adminCourseData);
+  } else {
+    app.innerHTML = '<div class="loading">載入課程清單中...</div>';
+  }
 
   let data;
   try {
-    data = await post('getCourseAdminInit', { userId });
+    data = await getCachedAdminData_();
   } catch (err) {
     app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
     return;
   }
 
-  initData = data;
+  if (!data.allowed) return renderNoAdminPage();
+  renderAdminCoursesShell(data.courses || []);
+}
 
-  isAdminUser = !!data.allowed;
-  renderMenu();
+function renderAdminCoursesShell(courses) {
+  adminCourseData = courses || [];
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="top-actions">
+      <button class="btn btn-main" onclick="renderAdminCoursesPage()">查詢課程</button>
+      <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
+    </div>
 
-  if (!data.allowed) {
-    app.innerHTML = `
-      <button class="btn btn-ghost" onclick="renderHomePage()">← 返回報名課程</button>
-      <div class="card" style="margin-top:12px">
-        <h2>無權限進入設定頁</h2>
-        <p class="meta">此功能限 LINE權限表角色為「會長」的人使用。</p>
-      </div>
-    `;
+    <div class="card">
+      <h2>查詢課程</h2>
+      <p class="muted" style="margin-bottom:10px">這裡只查詢與管理已建立課程，不會顯示建立表單。</p>
+      <div class="searchbar"><input id="admin-course-search" placeholder="搜尋活動名稱 / 代碼 / 場次 / 狀態" oninput="filterAdminCourses()"></div>
+      <div id="admin-course-list"></div>
+    </div>
+  `;
+  renderAdminCourseList(adminCourseData);
+}
+
+async function renderCreateCoursePage() {
+  currentView = 'createCourse';
+  clearMsg();
+  setTitle('建立課程');
+  const app = document.getElementById('app');
+
+  // 先顯示表單骨架，資料載入完成後會補上選項。
+  if (initData && initData.allowed) {
+    renderCreateCourseShell();
+  } else {
+    app.innerHTML = '<div class="loading">載入建立課程中...</div>';
+  }
+
+  let data;
+  try {
+    data = await getCachedAdminData_();
+  } catch (err) {
+    app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
     return;
   }
 
+  if (!data.allowed) return renderNoAdminPage();
+  renderCreateCourseShell();
+}
+
+function renderCreateCourseShell() {
   editingCourseCode = '';
   currentCourseData = null;
   selectedEdmFile = null;
   uploadedEdmUrl = '';
   uploadedEdmFileName = '';
 
+  const app = document.getElementById('app');
   app.innerHTML = `
     <div class="top-actions">
-      <button class="btn btn-sub" onclick="renderHomePage()">報名課程</button>
-      <button class="btn btn-main" onclick="renderSettingsPage()">設定</button>
+      <button class="btn btn-sub" onclick="renderAdminCoursesPage()">查詢課程</button>
+      <button class="btn btn-main" onclick="renderCreateCoursePage()">建立課程</button>
     </div>
-
     <div id="create-result"></div>
     <div id="course-form-box"></div>
-
-    <div class="card">
-      <h2>已建立課程</h2>
-      <div class="searchbar"><input id="admin-course-search" placeholder="搜尋活動名稱 / 代碼 / 場次 / 狀態" oninput="filterAdminCourses()"></div>
-      <div id="admin-course-list"></div>
-    </div>
   `;
-
-  adminCourseData = data.courses || [];
   renderCourseForm(null);
-  renderAdminCourseList(adminCourseData);
+}
+
+function renderEditCoursePageByCode(code) {
+  const c = (adminCourseData || []).find(x => String(x.eventCode || '') === String(code || '')) || getCourseFromState(code);
+  if (!c) {
+    showMsg('找不到要編輯的課程，請重新整理課程清單。', 'err');
+    return;
+  }
+  renderEditCoursePage(c);
+}
+
+async function renderEditCoursePage(course) {
+  currentView = 'editCourse';
+  clearMsg();
+  setTitle('編輯課程');
+
+  if (!initData || !initData.allowed) {
+    document.getElementById('app').innerHTML = '<div class="loading">載入編輯資料中...</div>';
+    const data = await getCachedAdminData_().catch(err => ({ status:'err', message: err.message || err }));
+    if (!data.allowed) return renderNoAdminPage();
+  }
+
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="top-actions">
+      <button class="btn btn-sub" onclick="renderAdminCoursesPage()">← 查詢課程</button>
+      <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
+    </div>
+    <div id="create-result"></div>
+    <div id="course-form-box"></div>
+  `;
+  renderCourseForm(course);
+}
+
+// 舊函式保留相容；但選單不再使用「設定 / 已建立課程」混合頁。
+function renderSettingsPage() {
+  return renderCreateCoursePage();
 }
 
 function renderCourseForm(course) {
@@ -717,7 +1209,7 @@ function renderCourseForm(course) {
 
   document.getElementById('course-form-box').innerHTML = `
     <div class="card">
-      <h2>${isEdit ? '編輯活動' : '建立報名活動'}</h2>
+      <h2>${isEdit ? '編輯課程' : '建立課程'}</h2>
       <div id="course-form-msg" class="msg"></div>
 
       <div class="mini-section">
@@ -1083,7 +1575,7 @@ function renderAdminCourseList(courses) {
         名額：${getCountText(c)}
       </div>
       <div class="inline-actions">
-        <button class="btn btn-main" onclick='renderCourseForm(${JSON.stringify(c).replace(/'/g, "&#39;")})'>編輯</button>
+        <button class="btn btn-main" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>
         <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看報名頁</button>
       </div>
     </div>
@@ -1246,7 +1738,7 @@ async function submitCourseForm() {
           ${uploadedEdmFileName ? '<br>EDM：' + esc(uploadedEdmFileName) : ''}
           <button class="btn btn-main" style="margin-top:10px" onclick="renderHomePage()">返回報名課程頁</button>
           <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(res.eventCode)}')">查看報名頁</button>
-          <button class="btn btn-ghost" onclick="renderSettingsPage()">返回設定</button>
+          <button class="btn btn-ghost" onclick="renderCreateCoursePage()">返回設定</button>
         </div>
       `;
       clearMsg();
@@ -1688,6 +2180,386 @@ async function submitRegister() {
     if (!isCurrentNameDuplicate) setRegisterButtonDisabled(false, '送出報名');
   }
 }
+
+
+// ─────────────────────────────────────────────
+// V5.5 票券產生：報名總表 → QR管理 → PNG ZIP
+// ─────────────────────────────────────────────
+function loadScriptOnce(url, id) {
+  if (window[id]) return Promise.resolve();
+  const existing = document.querySelector('script[data-lib="' + id + '"]');
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener('load', resolve);
+      existing.addEventListener('error', reject);
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = url;
+    sc.async = true;
+    sc.dataset.lib = id;
+    sc.onload = resolve;
+    sc.onerror = () => reject(new Error('載入工具失敗：' + id));
+    document.head.appendChild(sc);
+  });
+}
+
+function ensureTicketScripts() {
+  if (!ticketScriptsLoading) {
+    ticketScriptsLoading = Promise.all([
+      loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', 'JSZip'),
+      loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js', 'QRCode')
+    ]);
+  }
+  return ticketScriptsLoading;
+}
+
+async function renderTicketGeneratorPage() {
+  currentView = 'ticket';
+  clearMsg();
+  setTitle('票券產生');
+  const app = document.getElementById('app');
+
+  if (!isAdminUser) {
+    app.innerHTML = `
+      <div class="card"><h2>沒有權限</h2><p class="muted">此功能限會長使用。</p></div>
+    `;
+    return;
+  }
+
+  app.innerHTML = `<div class="loading">載入票券產生工具中...</div>`;
+  try { await ensurePublicData(false); } catch(e) {}
+
+  const courses = (appState.courses || []).filter(c => c && c.eventName);
+  const options = courses.map(c => `<option value="${esc(normalizeCode(c.eventCode))}">${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`).join('');
+
+  app.innerHTML = `
+    <div class="top-actions">
+      <button class="btn btn-sub" onclick="renderHomePage({skipRefresh:true})">報名課程</button>
+      <button class="btn btn-sub" onclick="renderAdminCoursesPage()">查詢課程</button>
+      <button class="btn btn-main" onclick="renderTicketGeneratorPage()">票券產生</button>
+    </div>
+
+    <div class="card">
+      <h2>票券產生</h2>
+      <p class="muted">選活動後，系統會從報名總表同步名單到 QR管理，保留同活動舊 CODE，只幫新報名者補新 CODE。</p>
+      <div id="ticket-msg" class="msg"></div>
+      <div class="field">
+        <label>選擇活動</label>
+        <select id="ticket-course-select">
+          <option value="">請選擇活動</option>
+          ${options}
+        </select>
+      </div>
+      <div class="form-grid">
+        <div class="field full">
+          <label>票券底圖，上半部圖片，可選</label>
+          <input type="file" id="ticket-bg-file" accept="image/*" onchange="handleTicketBgUpload(this)">
+          <div class="ticket-small">不選底圖會使用內建深色設計。第一階段先下載 ZIP，不存 Google Drive。</div>
+        </div>
+      </div>
+      <div class="ticket-toolbar">
+        <button class="btn btn-main" onclick="syncTicketMembers()">同步報名名單 / 補 CODE</button>
+        <button class="btn btn-sub" onclick="renderTicketPreview()">預覽前兩張</button>
+      </div>
+      <button class="btn btn-main" style="width:100%" onclick="downloadTicketZip()">下載全部票券 ZIP</button>
+      <div class="ticket-progress" id="ticket-progress"><div id="ticket-progress-fill"></div></div>
+      <div class="ticket-member-note" id="ticket-summary">尚未同步名單。</div>
+    </div>
+
+    <div class="card" id="ticket-preview-card" style="display:none">
+      <h2>票券預覽</h2>
+      <div class="ticket-preview-wrap" id="ticket-preview-list"></div>
+    </div>
+  `;
+}
+
+function handleTicketBgUpload(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      ticketState.bgImage = img;
+      ticketState.bgName = file.name;
+      const el = document.getElementById('ticket-summary');
+      if (el) el.innerHTML = `已選票券底圖：${esc(file.name)}<br>` + (ticketState.stats ? buildTicketSummaryHtml(ticketState.stats) : '尚未同步名單。');
+      if (ticketState.members.length) renderTicketPreview();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function buildTicketSummaryHtml(stats) {
+  stats = stats || {};
+  return `
+    <div class="ticket-stat-grid">
+      <div class="ticket-stat"><strong>${Number(stats.total || 0)}</strong><span>可產生</span></div>
+      <div class="ticket-stat"><strong>${Number(stats.existingCode || 0)}</strong><span>保留 CODE</span></div>
+      <div class="ticket-stat"><strong>${Number(stats.newCode || 0)}</strong><span>新產生</span></div>
+    </div>
+    排除取消：${Number(stats.cancelled || 0)} 人<br>
+    CODE 規則：不同活動不同 CODE；同活動已存在者保留舊 CODE，新人才補新 CODE。
+  `;
+}
+
+async function syncTicketMembers() {
+  const code = normalizeCode(val('ticket-course-select'));
+  if (!code) return showBoxMsg('ticket-msg', '請先選擇活動。', 'err');
+  clearBoxMsg('ticket-msg');
+  showBoxMsg('ticket-msg', '同步中，請稍候...', 'info');
+  try {
+    const data = await post('syncTicketQrFromRegistrations', { userId, eventCode: code }, 30000);
+    if (!data || data.status !== 'ok') throw new Error((data && data.message) || '同步失敗');
+    ticketState.course = data.course || null;
+    ticketState.members = data.members || [];
+    ticketState.stats = data.stats || {};
+    mergeCourseToState(data.course);
+    clearBoxMsg('ticket-msg');
+    document.getElementById('ticket-summary').innerHTML = buildTicketSummaryHtml(ticketState.stats);
+    await renderTicketPreview();
+  } catch(e) {
+    showBoxMsg('ticket-msg', e.message || '同步失敗', 'err');
+  }
+}
+
+function ticketSafeName(text) {
+  return String(text || '')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, '')
+    .trim() || '未命名';
+}
+
+function ticketInfo() {
+  const c = ticketState.course || {};
+  return {
+    eventName: c.eventName || '活動名稱',
+    session: c.session || '',
+    ticketType: c.ticketType || '',
+    displayDate: c.dateTime || c.displayDate || ''
+  };
+}
+
+function drawTicketBuiltinBg(ctx, W, topH) {
+  ctx.fillStyle = '#1a3a5c';
+  ctx.fillRect(0, 0, W, topH);
+  ctx.save();
+  ctx.globalAlpha = .07;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(W*.1, topH*.35, 160, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W*.75, topH*1.15, 210, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = .04;
+  for (let i=0; i<14; i++) ctx.fillRect(W*.28+i*28, -20, 14, topH+40);
+  ctx.restore();
+}
+
+function ticketRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+}
+
+function ticketWrapText(ctx, text, x, y, maxW, lh, maxLines) {
+  const chars = String(text || '').split('');
+  let line = '', lines = [];
+  chars.forEach(c => {
+    const t = line + c;
+    if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = c; }
+    else line = t;
+  });
+  if (line) lines.push(line);
+  lines.slice(0, maxLines || 2).forEach((l,i) => ctx.fillText(l, x, y+i*lh));
+}
+
+function ticketQrImage(code) {
+  return new Promise(resolve => {
+    const container = document.createElement('div');
+    container.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+    document.body.appendChild(container);
+    try {
+      new QRCode(container, { text: String(code || ''), width: 260, height: 260, colorDark:'#000000', colorLight:'#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      const el = container.querySelector('canvas') || container.querySelector('img');
+      if (!el) { document.body.removeChild(container); resolve(null); return; }
+      if (el.tagName === 'CANVAS') {
+        const img = new Image();
+        img.onload = () => { document.body.removeChild(container); resolve(img); };
+        img.src = el.toDataURL();
+      } else {
+        if (el.complete) { document.body.removeChild(container); resolve(el); }
+        else { el.onload = () => { document.body.removeChild(container); resolve(el); }; el.onerror = () => { document.body.removeChild(container); resolve(null); }; }
+      }
+    } catch(e) { document.body.removeChild(container); resolve(null); }
+  });
+}
+
+async function drawTicketCanvas(canvas, person, info) {
+  await ensureTicketScripts();
+  const W = 560, H = 1080, topH = 360, px = 40;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#0d1f33';
+  ctx.fillRect(0, 0, W, topH);
+  if (ticketState.bgImage) {
+    const img = ticketState.bgImage;
+    const scale = Math.min(W / img.width, topH / img.height);
+    const dw = img.width * scale, dh = img.height * scale;
+    ctx.drawImage(img, 0, 0, img.width, img.height, (W-dw)/2, (topH-dh)/2, dw, dh);
+    const grad = ctx.createLinearGradient(0, topH*.45, 0, topH);
+    grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,.62)');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, topH);
+  } else {
+    drawTicketBuiltinBg(ctx, W, topH);
+  }
+
+  ctx.textAlign = 'left';
+  ctx.font = '700 15px "Noto Sans TC", sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,.62)';
+  ctx.fillText('CYP135', px, 38);
+
+  ctx.font = '900 48px "Noto Sans TC", sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ticketWrapText(ctx, info.eventName, px, topH - 140, W - px*2, 58, 2);
+
+  if (info.displayDate) {
+    ctx.font = '500 18px "Noto Sans TC", sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.82)';
+    ctx.fillText(info.displayDate, px, topH - 78);
+  }
+  const sub = [info.session, info.ticketType].filter(Boolean).join('  ·  ');
+  if (sub) {
+    ctx.font = '500 16px "Noto Sans TC", sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.62)';
+    ctx.fillText(sub, px, topH - 50);
+  }
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, topH, W, H-topH);
+  ctx.fillStyle = '#1a3a5c';
+  ctx.fillRect(px, topH + 24, W - px*2, 3);
+
+  const qrSize = Math.round(W * 0.70);
+  const qrX = Math.round((W - qrSize) / 2);
+  const qrY = topH + 44;
+  ctx.fillStyle = '#f7f7f7';
+  ticketRoundRect(ctx, qrX-8, qrY-8, qrSize+16, qrSize+16, 12);
+  ctx.fill();
+  ctx.strokeStyle = '#ebebeb'; ctx.lineWidth = 1;
+  ticketRoundRect(ctx, qrX-8, qrY-8, qrSize+16, qrSize+16, 12);
+  ctx.stroke();
+  const qrImg = await ticketQrImage(person.code);
+  if (qrImg) ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+  const codeBaseY = qrY + qrSize + 28;
+  ctx.font = '700 36px "Courier New", monospace';
+  ctx.fillStyle = '#1a1a2e';
+  ctx.textAlign = 'center';
+  ctx.fillText(String(person.code || '').toUpperCase(), W/2, codeBaseY + 32);
+
+  ctx.strokeStyle = '#eeeeee'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(px*2, codeBaseY + 50); ctx.lineTo(W - px*2, codeBaseY + 50); ctx.stroke();
+
+  const nameY = codeBaseY + 100;
+  ctx.font = '900 46px "Noto Sans TC", sans-serif';
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillText(person.name || '', W/2, nameY);
+
+  const flockLabel = '小組：' + (person.flock || '—');
+  ctx.font = '700 20px "Noto Sans TC", sans-serif';
+  const fpw = ctx.measureText(flockLabel).width + 48, fph = 42, fpx = (W - fpw) / 2, fpy = nameY + 20;
+  ctx.fillStyle = 'rgba(26,58,92,.09)'; ctx.strokeStyle = 'rgba(26,58,92,.20)'; ctx.lineWidth = 1.5;
+  ticketRoundRect(ctx, fpx, fpy, fpw, fph, 21); ctx.fill(); ticketRoundRect(ctx, fpx, fpy, fpw, fph, 21); ctx.stroke();
+  ctx.fillStyle = '#1a3a5c';
+  ctx.fillText(flockLabel, W/2, fpy + 28);
+
+  if (person.group) {
+    const groupLabel = String(person.group || '').trim();
+    ctx.font = '700 20px "Noto Sans TC", sans-serif';
+    const gpw = ctx.measureText(groupLabel).width + 48, gph = 42, gpx = (W - gpw) / 2, gpy = fpy + fph + 16;
+    ctx.fillStyle = 'rgba(26,58,92,.09)'; ctx.strokeStyle = 'rgba(26,58,92,.20)';
+    ticketRoundRect(ctx, gpx, gpy, gpw, gph, 21); ctx.fill(); ticketRoundRect(ctx, gpx, gpy, gpw, gph, 21); ctx.stroke();
+    ctx.fillStyle = '#1a3a5c';
+    ctx.fillText(groupLabel, W/2, gpy + 28);
+  }
+}
+
+async function renderTicketPreview() {
+  if (!ticketState.members.length) {
+    return showBoxMsg('ticket-msg', '請先同步報名名單。', 'err');
+  }
+  await ensureTicketScripts();
+  const holder = document.getElementById('ticket-preview-list');
+  const card = document.getElementById('ticket-preview-card');
+  if (!holder || !card) return;
+  holder.innerHTML = '';
+  card.style.display = 'block';
+  const info = ticketInfo();
+  const sample = ticketState.members.slice(0,2);
+  for (const m of sample) {
+    const wrap = document.createElement('div');
+    wrap.className = 'ticket-preview-card';
+    const canvas = document.createElement('canvas');
+    wrap.appendChild(canvas);
+    holder.appendChild(wrap);
+    await drawTicketCanvas(canvas, m, info);
+  }
+}
+
+async function downloadTicketZip() {
+  if (!ticketState.members.length) return showBoxMsg('ticket-msg', '請先同步報名名單。', 'err');
+  await ensureTicketScripts();
+  const progress = document.getElementById('ticket-progress');
+  const fill = document.getElementById('ticket-progress-fill');
+  progress.classList.add('on'); fill.style.width = '0%';
+  clearBoxMsg('ticket-msg');
+  showBoxMsg('ticket-msg', '正在產生票券...', 'info');
+
+  try {
+    const zip = new JSZip();
+    const canvas = document.createElement('canvas');
+    const info = ticketInfo();
+    const used = {};
+
+    for (let i = 0; i < ticketState.members.length; i++) {
+      const m = ticketState.members[i];
+      await drawTicketCanvas(canvas, m, info);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      let base = ticketSafeName(m.flock || '雁群') + '_' + ticketSafeName(m.name || '姓名');
+      let fname = base + '.png';
+      if (used[fname]) {
+        used[fname]++;
+        fname = base + '_' + used[fname] + '.png';
+      } else {
+        used[fname] = 1;
+      }
+      zip.file(fname, blob);
+      fill.style.width = Math.round((i+1)/ticketState.members.length*100) + '%';
+      await new Promise(r => setTimeout(r, 8));
+    }
+
+    const content = await zip.generateAsync({ type: 'blob' });
+    const zipName = '雁群票券_' + ticketSafeName(info.eventName) + (info.session ? '_' + ticketSafeName(info.session) : '') + '.zip';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(content);
+    a.download = zipName;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showBoxMsg('ticket-msg', '票券 ZIP 已產生。', 'ok');
+  } catch(e) {
+    showBoxMsg('ticket-msg', e.message || '產生失敗', 'err');
+  } finally {
+    progress.classList.remove('on');
+    fill.style.width = '0%';
+  }
+}
+
 </script>
 </body>
 </html>
