@@ -1643,7 +1643,7 @@ async function renderExternalImportPage(courseCode) {
 
     <div class="card">
       <h2>外部名單匯入</h2>
-      <p class="muted">可以先上傳 Excel 讀取活動名稱；選定課程後才會預覽檢查，不會直接寫入報名總表。欄位以表頭判斷，找不到時使用 B 姓名、H 上手、J 套組。</p>
+      <p class="muted">初次匯入可以先建立課程，也可以先上傳 Excel 讀取活動名稱；選定課程後才會預覽檢查，不會直接寫入報名總表。</p>
       <div id="external-import-msg" class="msg"></div>
       <div class="form-grid">
         <div class="field">
@@ -1658,7 +1658,11 @@ async function renderExternalImportPage(courseCode) {
           <input type="file" id="external-excel-file" accept=".xlsx,.xls" onchange="handleExternalExcelFile(this)">
         </div>
       </div>
-      <div class="ticket-small">會寫入報名總表 A~O；報名來源固定標記為「外部Excel」。LINE Bot 查詢主線不會修改。</div>
+      <div class="compact-actions" style="margin-top:10px">
+        <button class="btn btn-sub" onclick="createCourseFromImportSuggestion()">用 Excel 建議名稱建立課程</button>
+        <button class="btn btn-ghost" onclick="renderCreateCoursePage()">空白建立課程</button>
+      </div>
+      <div class="ticket-small">前 10 行只是欄位設定預覽；正式檢查會讀取整份 Excel。會寫入報名總表 A~O；報名來源固定標記為「外部Excel」。LINE Bot 查詢主線不會修改。</div>
       <div id="external-import-suggest"></div>
     </div>
 
@@ -1914,38 +1918,39 @@ function renderExternalColumnMapper() {
   return `
     <div class="card" style="margin-top:12px">
       <h2>欄位對應</h2>
-      <p class="muted">若外部 Excel 欄位順序跑掉，請在這裡指定要讀哪一欄。下方先顯示前十行方便核對。</p>
+      <p class="muted">這裡是在設定「Excel 哪一欄」要寫到「報名總表哪一欄」。下方只顯示前 10 行讓你核對欄位，不代表只匯入 10 筆。</p>
       <div class="form-grid">
         <div class="field full">
           <label>表頭在哪一列</label>
           <select id="import-header-row" onchange="refreshExternalColumnMapperFromHeader()">${rowOptions}</select>
         </div>
         <div class="field">
-          <label>姓名欄位</label>
+          <label>報名總表 A 姓名</label>
           <select id="import-col-name">${colOptions(columns.name)}</select>
         </div>
         <div class="field">
-          <label>上手白金欄位</label>
+          <label>報名總表 B 上手白金/組長</label>
           <select id="import-col-leader">${colOptions(columns.leader)}</select>
         </div>
         <div class="field">
-          <label>套組 / 活動欄位</label>
+          <label>報名總表 C 所屬活動</label>
           <select id="import-col-package">${colOptions(columns.packageName)}</select>
         </div>
         <div class="field">
-          <label>會員類型欄位，可選</label>
+          <label>輔助判斷白金/非白金，可選</label>
           <select id="import-col-member">${colOptions(columns.memberType, true)}</select>
         </div>
         <div class="field">
-          <label>報名時間欄位，可選</label>
+          <label>報名總表 M 報名時間，可選</label>
           <select id="import-col-time">${colOptions(columns.registeredAt, true)}</select>
         </div>
         <div class="field">
-          <label>備註欄位，可選</label>
+          <label>報名總表 G 備註，可選</label>
           <select id="import-col-remark">${colOptions(columns.remark, true)}</select>
         </div>
       </div>
       <button class="btn btn-main" onclick="applyExternalColumnMapping()">套用欄位並預覽</button>
+      <div class="ticket-small" style="margin-top:8px">報名總表 H 上課類別、N 應收金額會依你選的課程管理金額設定自動判斷，不在這裡手動寫死。</div>
       <div class="import-table-wrap">
         <table class="import-table">
           <tbody>${renderExternalFirstRows(grid, maxCols)}</tbody>
@@ -2039,7 +2044,10 @@ async function applyExternalColumnMapping() {
 function createCourseFromImportSuggestion() {
   const meta = externalImportState.meta || {};
   const name = meta.suggestedEventName || '';
-  if (!name) return showBoxMsg('external-import-msg', '目前讀不到可帶入的課程名稱。', 'err');
+  if (!name) {
+    coursePrefillFromImport = null;
+    return renderCreateCoursePage();
+  }
   coursePrefillFromImport = {
     eventName: name,
     categoryNames: (meta.packages || []).join(','),
@@ -2103,7 +2111,7 @@ function renderExternalImportPreview(data) {
         <div class="import-stat"><strong>${Number(summary.error || 0)}</strong><span>需處理</span></div>
       </div>
       <button class="btn btn-main" ${canCommit ? '' : 'disabled'} onclick="commitExternalImport()">確認匯入可匯入資料</button>
-      <div class="ticket-small" style="margin-top:8px">最多先顯示前 200 筆預覽；確認匯入只會寫入狀態為可匯入的資料。</div>
+      <div class="ticket-small" style="margin-top:8px">畫面最多顯示前 200 筆方便檢查；確認匯入會處理全部「可匯入」資料，不只匯入畫面看到的資料。</div>
       <div class="import-table-wrap">
         <table class="import-table">
           <thead>
