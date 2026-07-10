@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V5.5</title>
+<title>CYP135 課程報名 V5.6</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -2210,6 +2210,8 @@ function renderExternalImportPreview(data) {
   const okCount = Number(summary.ok || 0);
   const canCommit = okCount > 0;
   const sample = rows.slice(0, 200);
+  const committed = !!data.committed;
+  const canSyncMaster = committed && data.firstWrittenRow && data.lastWrittenRow;
 
   box.innerHTML = `
     <div class="card">
@@ -2225,9 +2227,10 @@ function renderExternalImportPreview(data) {
         <div class="import-stat"><strong>${Number(summary.error || 0)}</strong><span>需處理</span></div>
       </div>
       <div class="compact-actions">
-        <button class="btn btn-ghost" onclick="externalImportBack()">上一步修改欄位</button>
-        <button class="btn btn-main" ${canCommit ? '' : 'disabled'} onclick="commitExternalImport()">確認匯入可匯入資料</button>
+        ${committed ? '<button class="btn btn-ghost" onclick="renderExternalImportPage()">返回匯入頁</button>' : '<button class="btn btn-ghost" onclick="externalImportBack()">上一步修改欄位</button>'}
+        ${committed ? `<button class="btn btn-main" ${canSyncMaster ? '' : 'disabled'} onclick="syncImportedRowsFromMaster()">立即同步母版</button>` : `<button class="btn btn-main" ${canCommit ? '' : 'disabled'} onclick="commitExternalImport()">確認匯入可匯入資料</button>`}
       </div>
+      <div id="external-sync-msg" class="msg"></div>
       <div class="ticket-small" style="margin-top:8px">畫面最多顯示前 200 筆方便檢查；確認匯入會處理全部「可匯入」資料，不只匯入畫面看到的資料。</div>
       <div class="import-table-wrap">
         <table class="import-table">
@@ -2293,6 +2296,32 @@ async function commitExternalImport() {
     renderExternalImportPreview(data);
   } catch (err) {
     showBoxMsg('external-import-msg', esc(err.message || err), 'err');
+  }
+}
+
+async function syncImportedRowsFromMaster() {
+  const data = externalImportState.preview || {};
+  const startRow = Number(data.firstWrittenRow || 0);
+  const endRow = Number(data.lastWrittenRow || 0);
+  if (!startRow || !endRow) {
+    return showBoxMsg('external-sync-msg', '找不到剛匯入的列號，無法同步母版。', 'err');
+  }
+
+  try {
+    showBoxMsg('external-sync-msg', '同步母版中...', 'info');
+    const res = await post('syncImportedRowsFromMaster', {
+      userId,
+      startRow,
+      endRow
+    }, 60000);
+
+    if (!res || res.status !== 'ok') {
+      return showBoxMsg('external-sync-msg', esc((res && res.message) || '同步失敗'), 'err');
+    }
+
+    showBoxMsg('external-sync-msg', esc(res.message || '同步完成'), 'ok');
+  } catch (err) {
+    showBoxMsg('external-sync-msg', esc(err.message || err), 'err');
   }
 }
 
