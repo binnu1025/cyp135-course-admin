@@ -500,7 +500,18 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .ticket-progress.on{display:block}
 .ticket-progress > div{height:100%;width:0;background:#2d5a3d;transition:width .15s}
 .ticket-small{font-size:12px;color:#777;line-height:1.7}
+.import-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
+.import-stat{background:#f7f4ed;border:1px solid #eadfce;border-radius:12px;padding:10px;text-align:center}
+.import-stat strong{display:block;color:#2d5a3d;font-size:20px;line-height:1.1}
+.import-stat span{font-size:11px;color:#777}
+.import-table-wrap{overflow:auto;margin-top:12px;border:1px solid #eee;border-radius:12px}
+.import-table{width:100%;border-collapse:collapse;font-size:12px;min-width:760px}
+.import-table th,.import-table td{padding:9px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}
+.import-table th{background:#faf8f3;color:#555;font-weight:700}
+.import-status-ok{color:#2d7d46;font-weight:700}
+.import-status-duplicate,.import-status-error{color:#b23b3b;font-weight:700}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:420px){.import-summary{grid-template-columns:repeat(2,1fr)}}
 
 @media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions,.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.course-img{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
@@ -545,6 +556,8 @@ let lastLookupSeq = 0;
 let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
+let externalImportState = { rows: [], preview: null, fileName: '', eventCode: '' };
+let excelParserLoading = null;
 
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
@@ -788,6 +801,7 @@ function renderMenu() {
     ? `
       <button class="menu-item" onclick="toggleMenu(false);renderAdminCoursesPage()">查詢課程</button>
       <button class="menu-item" onclick="toggleMenu(false);renderCreateCoursePage()">建立課程</button>
+      <button class="menu-item" onclick="toggleMenu(false);renderExternalImportPage()">外部名單匯入</button>
       <button class="menu-item" onclick="toggleMenu(false);renderTicketGeneratorPage()">票券產生</button>
     `
     : '';
@@ -854,6 +868,9 @@ window.addEventListener('DOMContentLoaded', async function() {
   } else if (mode === 'courses' || mode === 'manage') {
     renderAdminCoursesPage();
     ensurePublicData(true).catch(() => {});
+  } else if (mode === 'import') {
+    renderExternalImportPage(courseCode);
+    ensurePublicData(true).catch(() => {});
   } else {
     renderHomePage();
   }
@@ -896,6 +913,7 @@ function renderHomeShell(courses) {
     ? `<div class="top-actions">
         <button class="btn btn-sub" onclick="renderAdminCoursesPage()">查詢課程</button>
         <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
+        <button class="btn btn-sub" onclick="renderExternalImportPage()">外部名單匯入</button>
       </div>`
     : '';
 
@@ -1100,6 +1118,7 @@ function renderAdminCoursesShell(courses) {
     <div class="top-actions">
       <button class="btn btn-main" onclick="renderAdminCoursesPage()">查詢課程</button>
       <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
+      <button class="btn btn-sub" onclick="renderExternalImportPage()">外部名單匯入</button>
     </div>
 
     <div class="card">
@@ -1577,9 +1596,291 @@ function renderAdminCourseList(courses) {
       <div class="inline-actions">
         <button class="btn btn-main" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>
         <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看報名頁</button>
+        <button class="btn btn-sub" onclick="renderExternalImportPage('${esc(c.eventCode)}')">匯入名單</button>
       </div>
     </div>
   `).join('');
+}
+
+async function renderExternalImportPage(courseCode) {
+  currentView = 'externalImport';
+  clearMsg();
+  setTitle('外部名單匯入');
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="loading">載入匯入工具中...</div>';
+
+  let data;
+  try {
+    data = await getCachedAdminData_();
+  } catch (err) {
+    app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+    return;
+  }
+
+  if (!data.allowed) return renderNoAdminPage();
+
+  const selectedCode = normalizeCode(courseCode || '');
+  const courses = adminCourseData || [];
+  const options = courses.map(c => {
+    const code = normalizeCode(c.eventCode);
+    const selected = code === selectedCode ? 'selected' : '';
+    return `<option value="${esc(code)}" ${selected}>${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`;
+  }).join('');
+
+  externalImportState = { rows: [], preview: null, fileName: '', eventCode: selectedCode };
+  app.innerHTML = `
+    <div class="top-actions">
+      <button class="btn btn-sub" onclick="renderAdminCoursesPage()">查詢課程</button>
+      <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
+      <button class="btn btn-main" onclick="renderExternalImportPage()">外部名單匯入</button>
+    </div>
+
+    <div class="card">
+      <h2>外部名單匯入</h2>
+      <p class="muted">上傳 Excel 後會先預覽檢查，不會直接寫入報名總表。欄位以表頭判斷，找不到時使用 B 姓名、H 上手、J 套組。</p>
+      <div id="external-import-msg" class="msg"></div>
+      <div class="form-grid">
+        <div class="field">
+          <label>匯入到哪一堂課</label>
+          <select id="external-course-select" onchange="resetExternalImportPreview()">
+            <option value="">請選擇課程</option>
+            ${options}
+          </select>
+        </div>
+        <div class="field">
+          <label>Excel 檔案</label>
+          <input type="file" id="external-excel-file" accept=".xlsx,.xls" onchange="handleExternalExcelFile(this)">
+        </div>
+      </div>
+      <div class="ticket-small">會寫入報名總表 A~O；報名來源固定標記為「外部Excel」。LINE Bot 查詢主線不會修改。</div>
+    </div>
+
+    <div id="external-import-preview"></div>
+  `;
+}
+
+function resetExternalImportPreview() {
+  externalImportState = { rows: [], preview: null, fileName: '', eventCode: normalizeCode(val('external-course-select')) };
+  const preview = document.getElementById('external-import-preview');
+  if (preview) preview.innerHTML = '';
+  clearBoxMsg('external-import-msg');
+}
+
+function ensureExcelParser() {
+  if (window.XLSX) return Promise.resolve();
+  if (excelParserLoading) return excelParserLoading;
+
+  excelParserLoading = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    script.onload = () => window.XLSX ? resolve() : reject(new Error('Excel 解析工具載入失敗'));
+    script.onerror = () => reject(new Error('Excel 解析工具載入失敗，請確認網路後重試。'));
+    document.head.appendChild(script);
+  });
+
+  return excelParserLoading;
+}
+
+async function handleExternalExcelFile(input) {
+  const file = input && input.files && input.files[0];
+  const eventCode = normalizeCode(val('external-course-select'));
+  const preview = document.getElementById('external-import-preview');
+  if (preview) preview.innerHTML = '';
+
+  if (!eventCode) {
+    if (input) input.value = '';
+    return showBoxMsg('external-import-msg', '請先選擇要匯入的課程。', 'err');
+  }
+  if (!file) return;
+
+  try {
+    showBoxMsg('external-import-msg', '讀取 Excel 中...', 'info');
+    await ensureExcelParser();
+    const rows = await parseExternalExcelRows(file);
+    if (!rows.length) {
+      externalImportState = { rows: [], preview: null, fileName: file.name, eventCode };
+      return showBoxMsg('external-import-msg', 'Excel 沒有可匯入資料。', 'err');
+    }
+
+    externalImportState = { rows, preview: null, fileName: file.name, eventCode };
+    showBoxMsg('external-import-msg', '檢查匯入資料中...', 'info');
+    const data = await post('previewExternalImport', { userId, eventCode, fileName: file.name, rows }, 60000);
+    if (!data || data.status !== 'ok') {
+      return showBoxMsg('external-import-msg', esc((data && data.message) || '預覽失敗'), 'err');
+    }
+
+    externalImportState.preview = data;
+    clearBoxMsg('external-import-msg');
+    renderExternalImportPreview(data);
+  } catch (err) {
+    showBoxMsg('external-import-msg', esc(err.message || err), 'err');
+  }
+}
+
+function parseExternalExcelRows(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('讀取檔案失敗'));
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+        resolve(extractExternalImportRows(grid));
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function extractExternalImportRows(grid) {
+  const headerIndex = findExternalHeaderRow(grid);
+  const headers = grid[headerIndex] || [];
+  const col = {
+    name: findImportColumn(headers, ['姓名','學員姓名','報名者','會員姓名'], 1),
+    leader: findImportColumn(headers, ['上手','上手白金','推薦人','雁群組長'], 7),
+    packageName: findImportColumn(headers, ['套組','所屬活動','活動名稱','課程','課程類別'], 9),
+    memberType: findImportColumn(headers, ['會員/非會員','會員非會員','會員類型'], 4),
+    registeredAt: findImportColumn(headers, ['報名時間','建立時間','時間戳記'], 16),
+    sourceChannel: findImportColumn(headers, ['報名管道','來源'], 18),
+    remark: findImportColumn(headers, ['備註','重要歷程'], 20)
+  };
+
+  return grid.slice(headerIndex + 1).map((row, i) => {
+    const item = {
+      rowNumber: headerIndex + i + 2,
+      name: cellText(row[col.name]),
+      leader: cellText(row[col.leader]),
+      packageName: cellText(row[col.packageName]),
+      memberType: cellText(row[col.memberType]),
+      registeredAt: cellText(row[col.registeredAt]),
+      sourceChannel: cellText(row[col.sourceChannel]),
+      remark: cellText(row[col.remark])
+    };
+    return item;
+  }).filter(item => item.name || item.leader || item.packageName);
+}
+
+function findExternalHeaderRow(grid) {
+  const max = Math.min(grid.length, 20);
+  for (let i = 0; i < max; i++) {
+    const rowText = (grid[i] || []).map(cellText).join('|');
+    if (rowText.includes('姓名') && (rowText.includes('上手') || rowText.includes('推薦人')) && rowText.includes('套組')) {
+      return i;
+    }
+  }
+  return grid.length > 1 ? 1 : 0;
+}
+
+function findImportColumn(headers, aliases, fallbackIndex) {
+  const normalizedAliases = aliases.map(normalizeHeader);
+  for (let i = 0; i < headers.length; i++) {
+    const h = normalizeHeader(headers[i]);
+    if (normalizedAliases.includes(h)) return i;
+  }
+  for (let i = 0; i < headers.length; i++) {
+    const h = normalizeHeader(headers[i]);
+    if (!h) continue;
+    if (normalizedAliases.some(a => h.includes(a) || a.includes(h))) return i;
+  }
+  return fallbackIndex;
+}
+
+function normalizeHeader(text) {
+  return cellText(text).replace(/\s+/g, '').replace(/[()（）_]/g, '').toLowerCase();
+}
+
+function cellText(value) {
+  return value === undefined || value === null ? '' : String(value).trim();
+}
+
+function renderExternalImportPreview(data) {
+  const box = document.getElementById('external-import-preview');
+  const summary = data.summary || {};
+  const rows = data.rows || [];
+  const okCount = Number(summary.ok || 0);
+  const canCommit = okCount > 0;
+  const sample = rows.slice(0, 200);
+
+  box.innerHTML = `
+    <div class="card">
+      <h2>匯入預覽</h2>
+      <div class="meta">
+        檔案：${esc(data.fileName || externalImportState.fileName || '—')}<br>
+        課程：${esc((data.course && data.course.eventName) || '—')}｜${esc((data.course && data.course.priceSummary) || '—')}
+      </div>
+      <div class="import-summary">
+        <div class="import-stat"><strong>${Number(summary.total || 0)}</strong><span>總筆數</span></div>
+        <div class="import-stat"><strong>${okCount}</strong><span>可匯入</span></div>
+        <div class="import-stat"><strong>${Number(summary.duplicate || 0)}</strong><span>已重複</span></div>
+        <div class="import-stat"><strong>${Number(summary.error || 0)}</strong><span>需處理</span></div>
+      </div>
+      <button class="btn btn-main" ${canCommit ? '' : 'disabled'} onclick="commitExternalImport()">確認匯入可匯入資料</button>
+      <div class="ticket-small" style="margin-top:8px">最多先顯示前 200 筆預覽；確認匯入只會寫入狀態為可匯入的資料。</div>
+      <div class="import-table-wrap">
+        <table class="import-table">
+          <thead>
+            <tr>
+              <th>Excel列</th><th>狀態</th><th>姓名</th><th>上手</th><th>所屬活動</th><th>上課類別</th><th>金額</th><th>訊息</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sample.map(importPreviewRowHtml).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function importPreviewRowHtml(row) {
+  const statusText = row.status === 'ok' ? '可匯入' : (row.status === 'duplicate' ? '重複' : '錯誤');
+  const cls = row.status === 'ok' ? 'import-status-ok' : (row.status === 'duplicate' ? 'import-status-duplicate' : 'import-status-error');
+  return `
+    <tr>
+      <td>${esc(row.rowNumber || '')}</td>
+      <td class="${cls}">${esc(statusText)}</td>
+      <td>${esc(row.name || '')}</td>
+      <td>${esc(row.leader || '')}</td>
+      <td>${esc(row.activityName || '')}</td>
+      <td>${esc(row.classType || '')}</td>
+      <td>${esc(row.price === undefined || row.price === null ? '' : row.price)}</td>
+      <td>${esc((row.messages || []).join('；'))}</td>
+    </tr>
+  `;
+}
+
+async function commitExternalImport() {
+  const state = externalImportState || {};
+  if (!state.rows || !state.rows.length || !state.preview) {
+    return showBoxMsg('external-import-msg', '請先上傳 Excel 並完成預覽。', 'err');
+  }
+
+  const okCount = Number((state.preview.summary && state.preview.summary.ok) || 0);
+  if (!okCount) return showBoxMsg('external-import-msg', '目前沒有可匯入資料。', 'err');
+  if (!confirm('確認匯入 ' + okCount + ' 筆可匯入資料到報名總表？')) return;
+
+  try {
+    showBoxMsg('external-import-msg', '匯入中，請不要關閉頁面...', 'info');
+    const data = await post('commitExternalImport', {
+      userId,
+      eventCode: state.eventCode,
+      fileName: state.fileName,
+      rows: state.rows
+    }, 90000);
+
+    if (!data || data.status !== 'ok') {
+      return showBoxMsg('external-import-msg', esc((data && data.message) || '匯入失敗'), 'err');
+    }
+
+    externalImportState.preview = data;
+    showBoxMsg('external-import-msg', esc(data.message || '匯入完成'), 'ok');
+    renderExternalImportPreview(data);
+  } catch (err) {
+    showBoxMsg('external-import-msg', esc(err.message || err), 'err');
+  }
 }
 
 function buildActivityDateTime() {
