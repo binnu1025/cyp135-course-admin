@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V5.4</title>
+<title>CYP135 課程報名 V5.5</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -556,7 +556,7 @@ let lastLookupSeq = 0;
 let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
-let externalImportState = { rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
+let externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
 let excelParserLoading = null;
 let coursePrefillFromImport = null;
 
@@ -1239,7 +1239,7 @@ function renderCourseForm(course) {
         <div class="form-grid">
           <div class="field">
             <label>活動代碼</label>
-            <input id="c-code" placeholder="可空白自動產生" value="${esc(course ? course.eventCode : '')}" ${isEdit ? 'readonly' : ''}>
+            <input id="c-code" placeholder="可空白，自動產生 A0001 連號" value="${esc(course ? course.eventCode : '')}" ${isEdit ? 'readonly' : ''}>
           </div>
           <div class="field">
             <label>上限人數</label>
@@ -1633,7 +1633,7 @@ async function renderExternalImportPage(courseCode) {
     return `<option value="${esc(code)}" ${selected}>${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`;
   }).join('');
 
-  externalImportState = { rows: [], preview: null, fileName: '', eventCode: selectedCode, meta: null, grid: null, columns: null };
+  externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: selectedCode, meta: null, grid: null, columns: null };
   app.innerHTML = `
     <div class="top-actions">
       <button class="btn btn-sub" onclick="renderAdminCoursesPage()">查詢課程</button>
@@ -1644,6 +1644,7 @@ async function renderExternalImportPage(courseCode) {
     <div class="card">
       <h2>外部名單匯入</h2>
       <p class="muted">初次匯入可以先建立課程，也可以先上傳 Excel 讀取活動名稱；選定課程後才會預覽檢查，不會直接寫入報名總表。</p>
+      ${renderExternalImportSteps()}
       <div id="external-import-msg" class="msg"></div>
       <div class="form-grid">
         <div class="field">
@@ -1684,8 +1685,54 @@ function getExternalImportData_() {
   });
 }
 
+function renderExternalImportSteps() {
+  const current = Number(externalImportState.step || 1);
+  const steps = [
+    '選課程',
+    '上傳 Excel',
+    '確認欄位',
+    '預覽匯入',
+    '完成'
+  ];
+  return `
+    <div class="ticket-small" id="external-import-steps" style="margin:8px 0 14px">
+      ${steps.map((label, idx) => {
+        const n = idx + 1;
+        const mark = n === current ? '●' : (n < current ? '✓' : '○');
+        return `<span style="display:inline-block;margin:0 10px 6px 0;font-weight:${n === current ? '900' : '700'}">${mark} ${n}. ${esc(label)}</span>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+function updateExternalImportSteps(step) {
+  externalImportState.step = step;
+  const el = document.getElementById('external-import-steps');
+  if (el) el.outerHTML = renderExternalImportSteps();
+}
+
+function externalImportBack() {
+  const preview = document.getElementById('external-import-preview');
+  clearBoxMsg('external-import-msg');
+  if (externalImportState.preview) {
+    externalImportState.preview = null;
+    if (preview) preview.innerHTML = '';
+    updateExternalImportSteps(3);
+    renderExternalImportSuggestion();
+    return;
+  }
+  if (externalImportState.grid && externalImportState.grid.length) {
+    externalImportState.rows = [];
+    if (preview) preview.innerHTML = '';
+    updateExternalImportSteps(2);
+    renderExternalImportSuggestion();
+    return;
+  }
+  renderExternalImportPage(externalImportState.eventCode || '');
+}
+
 function resetExternalImportPreview() {
-  externalImportState = { rows: [], preview: null, fileName: '', eventCode: normalizeCode(val('external-course-select')), meta: null, grid: null, columns: null };
+  externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: normalizeCode(val('external-course-select')), meta: null, grid: null, columns: null };
   const preview = document.getElementById('external-import-preview');
   if (preview) preview.innerHTML = '';
   const suggest = document.getElementById('external-import-suggest');
@@ -1697,6 +1744,7 @@ function handleExternalCourseChange() {
   const eventCode = normalizeCode(val('external-course-select'));
   externalImportState.eventCode = eventCode;
   externalImportState.preview = null;
+  if (eventCode && (!externalImportState.grid || !externalImportState.grid.length)) updateExternalImportSteps(2);
   const preview = document.getElementById('external-import-preview');
   if (preview) preview.innerHTML = '';
   clearBoxMsg('external-import-msg');
@@ -1741,6 +1789,7 @@ async function handleExternalExcelFile(input) {
     const rows = parsed.rows || [];
     if (!rows.length) {
       externalImportState = {
+        step: 2,
         rows: [],
         preview: null,
         fileName: file.name,
@@ -1753,6 +1802,7 @@ async function handleExternalExcelFile(input) {
     }
 
     externalImportState = {
+      step: 3,
       rows: [],
       preview: null,
       fileName: file.name,
@@ -1762,6 +1812,7 @@ async function handleExternalExcelFile(input) {
       columns: parsed.columns || null
     };
     renderExternalImportSuggestion();
+    updateExternalImportSteps(eventCode ? 3 : 2);
     if (eventCode && getExternalDefaultClassType()) {
       await applyExternalColumnMapping();
     } else if (eventCode) {
@@ -1800,6 +1851,7 @@ async function previewExternalImportRows() {
   externalImportState.eventCode = eventCode;
   externalImportState.preview = data;
   clearBoxMsg('external-import-msg');
+  updateExternalImportSteps(4);
   renderExternalImportPreview(data);
 }
 
@@ -1975,7 +2027,10 @@ function renderExternalColumnMapper() {
           <select id="import-col-remark">${colOptions(columns.remark, true)}</select>
         </div>
       </div>
-      <button class="btn btn-main" onclick="applyExternalColumnMapping()">套用欄位並預覽</button>
+      <div class="compact-actions">
+        <button class="btn btn-ghost" onclick="externalImportBack()">上一步</button>
+        <button class="btn btn-main" onclick="applyExternalColumnMapping()">套用欄位並預覽</button>
+      </div>
       <div class="ticket-small" style="margin-top:8px">J 欄會寫入報名總表 C 所屬活動；H 上課類別可固定使用課程類別，N 應收金額會依課程管理金額設定計算。</div>
       <div class="import-table-wrap">
         <table class="import-table">
@@ -2169,13 +2224,16 @@ function renderExternalImportPreview(data) {
         <div class="import-stat"><strong>${Number(summary.duplicate || 0)}</strong><span>已重複</span></div>
         <div class="import-stat"><strong>${Number(summary.error || 0)}</strong><span>需處理</span></div>
       </div>
-      <button class="btn btn-main" ${canCommit ? '' : 'disabled'} onclick="commitExternalImport()">確認匯入可匯入資料</button>
+      <div class="compact-actions">
+        <button class="btn btn-ghost" onclick="externalImportBack()">上一步修改欄位</button>
+        <button class="btn btn-main" ${canCommit ? '' : 'disabled'} onclick="commitExternalImport()">確認匯入可匯入資料</button>
+      </div>
       <div class="ticket-small" style="margin-top:8px">畫面最多顯示前 200 筆方便檢查；確認匯入會處理全部「可匯入」資料，不只匯入畫面看到的資料。</div>
       <div class="import-table-wrap">
         <table class="import-table">
           <thead>
             <tr>
-              <th>Excel列</th><th>狀態</th><th>姓名</th><th>上手</th><th>所屬活動</th><th>上課類別</th><th>金額</th><th>訊息</th>
+              <th>Excel列</th><th>狀態</th><th>姓名</th><th>B 上手</th><th>E 歸屬雁群</th><th>所屬活動</th><th>上課類別</th><th>金額</th><th>訊息</th>
             </tr>
           </thead>
           <tbody>
@@ -2196,6 +2254,7 @@ function importPreviewRowHtml(row) {
       <td class="${cls}">${esc(statusText)}</td>
       <td>${esc(row.name || '')}</td>
       <td>${esc(row.leader || '')}</td>
+      <td>${esc(row.flock || '')}</td>
       <td>${esc(row.activityName || '')}</td>
       <td>${esc(row.classType || '')}</td>
       <td>${esc(row.price === undefined || row.price === null ? '' : row.price)}</td>
@@ -2229,6 +2288,7 @@ async function commitExternalImport() {
     }
 
     externalImportState.preview = data;
+    updateExternalImportSteps(5);
     showBoxMsg('external-import-msg', esc(data.message || '匯入完成'), 'ok');
     renderExternalImportPreview(data);
   } catch (err) {
