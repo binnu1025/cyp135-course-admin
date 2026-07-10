@@ -556,8 +556,9 @@ let lastLookupSeq = 0;
 let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
-let externalImportState = { rows: [], preview: null, fileName: '', eventCode: '' };
+let externalImportState = { rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
 let excelParserLoading = null;
+let coursePrefillFromImport = null;
 
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
@@ -1221,6 +1222,8 @@ function renderCourseForm(course) {
 
   const data = initData || { options: { sessions: [], ticketTypes: [], classTypes: [], hours: [], minutes: [], ampm: [] } };
   const isEdit = !!course;
+  const prefill = !isEdit && coursePrefillFromImport ? coursePrefillFromImport : {};
+  const pricingModeValue = isEdit ? course.pricingMode : (prefill.pricingMode || '白金制');
   const parsed = parseCourseDateTime(course ? course.dateTime : '');
   const ticketTypeBase = (course && course.ticketType && course.ticketType !== '一般票') ? '其他' : (course && course.ticketType ? course.ticketType : '一般票');
   const ticketOther = (ticketTypeBase === '其他' && course && course.ticketType !== '其他') ? course.ticketType : '';
@@ -1244,7 +1247,7 @@ function renderCourseForm(course) {
           </div>
           <div class="field full">
             <label>活動名稱</label>
-            <input id="c-name" placeholder="例如 7/20 牙技行銷課" value="${esc(course ? course.eventName : '')}">
+            <input id="c-name" placeholder="例如 7/20 牙技行銷課" value="${esc(course ? course.eventName : (prefill.eventName || ''))}">
           </div>
         </div>
       </div>
@@ -1285,8 +1288,8 @@ function renderCourseForm(course) {
           <div class="field full">
             <label>收費模式</label>
             <select id="c-mode" onchange="togglePricingMode()">
-              <option value="白金制" ${!course || course.pricingMode !== '類別制' ? 'selected' : ''}>白金制</option>
-              <option value="類別制" ${course && course.pricingMode === '類別制' ? 'selected' : ''}>類別制</option>
+              <option value="白金制" ${pricingModeValue !== '類別制' ? 'selected' : ''}>白金制</option>
+              <option value="類別制" ${pricingModeValue === '類別制' ? 'selected' : ''}>類別制</option>
             </select>
           </div>
         </div>
@@ -1368,11 +1371,14 @@ function renderCourseForm(course) {
     const names = csvSplit(course.categoryNames);
     const prices = csvSplit(course.categoryPrices);
     names.forEach((name, i) => addCategoryRow(name, prices[i] || ''));
+  } else if (!course && prefill.categoryNames) {
+    csvSplit(prefill.categoryNames).forEach(name => addCategoryRow(name, ''));
   } else {
     addCategoryRow();
   }
   togglePricingMode();
   toggleOtherTicket();
+  if (!isEdit && coursePrefillFromImport) coursePrefillFromImport = null;
 }
 
 function clearCourseFormQuick() {
@@ -1627,7 +1633,7 @@ async function renderExternalImportPage(courseCode) {
     return `<option value="${esc(code)}" ${selected}>${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`;
   }).join('');
 
-  externalImportState = { rows: [], preview: null, fileName: '', eventCode: selectedCode };
+  externalImportState = { rows: [], preview: null, fileName: '', eventCode: selectedCode, meta: null, grid: null, columns: null };
   app.innerHTML = `
     <div class="top-actions">
       <button class="btn btn-sub" onclick="renderAdminCoursesPage()">查詢課程</button>
@@ -1637,12 +1643,12 @@ async function renderExternalImportPage(courseCode) {
 
     <div class="card">
       <h2>外部名單匯入</h2>
-      <p class="muted">上傳 Excel 後會先預覽檢查，不會直接寫入報名總表。欄位以表頭判斷，找不到時使用 B 姓名、H 上手、J 套組。</p>
+      <p class="muted">可以先上傳 Excel 讀取活動名稱；選定課程後才會預覽檢查，不會直接寫入報名總表。欄位以表頭判斷，找不到時使用 B 姓名、H 上手、J 套組。</p>
       <div id="external-import-msg" class="msg"></div>
       <div class="form-grid">
         <div class="field">
           <label>匯入到哪一堂課</label>
-          <select id="external-course-select" onchange="resetExternalImportPreview()">
+          <select id="external-course-select" onchange="handleExternalCourseChange()">
             <option value="">請選擇課程</option>
             ${options}
           </select>
@@ -1653,6 +1659,7 @@ async function renderExternalImportPage(courseCode) {
         </div>
       </div>
       <div class="ticket-small">會寫入報名總表 A~O；報名來源固定標記為「外部Excel」。LINE Bot 查詢主線不會修改。</div>
+      <div id="external-import-suggest"></div>
     </div>
 
     <div id="external-import-preview"></div>
@@ -1660,10 +1667,30 @@ async function renderExternalImportPage(courseCode) {
 }
 
 function resetExternalImportPreview() {
-  externalImportState = { rows: [], preview: null, fileName: '', eventCode: normalizeCode(val('external-course-select')) };
+  externalImportState = { rows: [], preview: null, fileName: '', eventCode: normalizeCode(val('external-course-select')), meta: null, grid: null, columns: null };
+  const preview = document.getElementById('external-import-preview');
+  if (preview) preview.innerHTML = '';
+  const suggest = document.getElementById('external-import-suggest');
+  if (suggest) suggest.innerHTML = '';
+  clearBoxMsg('external-import-msg');
+}
+
+function handleExternalCourseChange() {
+  const eventCode = normalizeCode(val('external-course-select'));
+  externalImportState.eventCode = eventCode;
+  externalImportState.preview = null;
   const preview = document.getElementById('external-import-preview');
   if (preview) preview.innerHTML = '';
   clearBoxMsg('external-import-msg');
+
+  if (externalImportState.grid && externalImportState.grid.length) {
+    renderExternalImportSuggestion();
+    if (eventCode && externalImportState.rows && externalImportState.rows.length) previewExternalImportRows();
+    else if (eventCode) showBoxMsg('external-import-msg', '請先確認欄位對應，再預覽匯入。', 'info');
+  } else if (externalImportState.rows && externalImportState.rows.length) {
+    if (eventCode) previewExternalImportRows();
+    else renderExternalImportSuggestion();
+  }
 }
 
 function ensureExcelParser() {
@@ -1687,37 +1714,71 @@ async function handleExternalExcelFile(input) {
   const preview = document.getElementById('external-import-preview');
   if (preview) preview.innerHTML = '';
 
-  if (!eventCode) {
-    if (input) input.value = '';
-    return showBoxMsg('external-import-msg', '請先選擇要匯入的課程。', 'err');
-  }
   if (!file) return;
 
   try {
     showBoxMsg('external-import-msg', '讀取 Excel 中...', 'info');
     await ensureExcelParser();
-    const rows = await parseExternalExcelRows(file);
+    const parsed = await parseExternalExcelFile(file);
+    const rows = parsed.rows || [];
     if (!rows.length) {
-      externalImportState = { rows: [], preview: null, fileName: file.name, eventCode };
+      externalImportState = {
+        rows: [],
+        preview: null,
+        fileName: file.name,
+        eventCode,
+        meta: parsed.meta || null,
+        grid: parsed.grid || null,
+        columns: parsed.columns || null
+      };
       return showBoxMsg('external-import-msg', 'Excel 沒有可匯入資料。', 'err');
     }
 
-    externalImportState = { rows, preview: null, fileName: file.name, eventCode };
-    showBoxMsg('external-import-msg', '檢查匯入資料中...', 'info');
-    const data = await post('previewExternalImport', { userId, eventCode, fileName: file.name, rows }, 60000);
-    if (!data || data.status !== 'ok') {
-      return showBoxMsg('external-import-msg', esc((data && data.message) || '預覽失敗'), 'err');
-    }
-
-    externalImportState.preview = data;
-    clearBoxMsg('external-import-msg');
-    renderExternalImportPreview(data);
+    externalImportState = {
+      rows: [],
+      preview: null,
+      fileName: file.name,
+      eventCode,
+      meta: parsed.meta || null,
+      grid: parsed.grid || null,
+      columns: parsed.columns || null
+    };
+    renderExternalImportSuggestion();
+    showBoxMsg('external-import-msg', '已讀取 Excel，請確認欄位對應後再預覽。', 'info');
   } catch (err) {
     showBoxMsg('external-import-msg', esc(err.message || err), 'err');
   }
 }
 
-function parseExternalExcelRows(file) {
+async function previewExternalImportRows() {
+  const state = externalImportState || {};
+  const eventCode = normalizeCode(state.eventCode || val('external-course-select'));
+  if (!eventCode) {
+    renderExternalImportSuggestion();
+    return showBoxMsg('external-import-msg', '請先選擇要匯入的課程。', 'err');
+  }
+  if (!state.rows || !state.rows.length) {
+    return showBoxMsg('external-import-msg', '請先上傳 Excel。', 'err');
+  }
+
+  showBoxMsg('external-import-msg', '檢查匯入資料中...', 'info');
+  const data = await post('previewExternalImport', {
+    userId,
+    eventCode,
+    fileName: state.fileName,
+    rows: state.rows
+  }, 60000);
+  if (!data || data.status !== 'ok') {
+    return showBoxMsg('external-import-msg', esc((data && data.message) || '預覽失敗'), 'err');
+  }
+
+  externalImportState.eventCode = eventCode;
+  externalImportState.preview = data;
+  clearBoxMsg('external-import-msg');
+  renderExternalImportPreview(data);
+}
+
+function parseExternalExcelFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('讀取檔案失敗'));
@@ -1726,7 +1787,14 @@ function parseExternalExcelRows(file) {
         const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
-        resolve(extractExternalImportRows(grid));
+        const headerIndex = findExternalHeaderRow(grid);
+        const columns = getDefaultExternalImportColumns(grid, headerIndex);
+        resolve({
+          rows: extractExternalImportRows(grid, columns),
+          meta: extractExternalImportMeta(grid, columns),
+          grid,
+          columns
+        });
       } catch (err) {
         reject(err);
       }
@@ -1735,10 +1803,11 @@ function parseExternalExcelRows(file) {
   });
 }
 
-function extractExternalImportRows(grid) {
-  const headerIndex = findExternalHeaderRow(grid);
+function getDefaultExternalImportColumns(grid, headerIndex) {
+  headerIndex = Number.isFinite(headerIndex) ? headerIndex : findExternalHeaderRow(grid);
   const headers = grid[headerIndex] || [];
-  const col = {
+  return {
+    headerIndex,
     name: findImportColumn(headers, ['姓名','學員姓名','報名者','會員姓名'], 1),
     leader: findImportColumn(headers, ['上手','上手白金','推薦人','雁群組長'], 7),
     packageName: findImportColumn(headers, ['套組','所屬活動','活動名稱','課程','課程類別'], 9),
@@ -1747,6 +1816,11 @@ function extractExternalImportRows(grid) {
     sourceChannel: findImportColumn(headers, ['報名管道','來源'], 18),
     remark: findImportColumn(headers, ['備註','重要歷程'], 20)
   };
+}
+
+function extractExternalImportRows(grid, columns) {
+  const col = columns || getDefaultExternalImportColumns(grid);
+  const headerIndex = Number(col.headerIndex) || 0;
 
   return grid.slice(headerIndex + 1).map((row, i) => {
     const item = {
@@ -1761,6 +1835,217 @@ function extractExternalImportRows(grid) {
     };
     return item;
   }).filter(item => item.name || item.leader || item.packageName);
+}
+
+function extractExternalImportMeta(grid, columns) {
+  const col = columns || getDefaultExternalImportColumns(grid);
+  const headerIndex = Number(col.headerIndex) || 0;
+  const title = (grid[0] || []).map(cellText).filter(Boolean).join(' ');
+  const packageCol = Number(col.packageName);
+  const packageCounts = {};
+
+  grid.slice(headerIndex + 1).forEach(row => {
+    const name = cellText(row[packageCol]);
+    if (!name) return;
+    packageCounts[name] = (packageCounts[name] || 0) + 1;
+  });
+
+  const packages = Object.keys(packageCounts).sort((a, b) => packageCounts[b] - packageCounts[a]);
+  return {
+    headerRow: headerIndex + 1,
+    title,
+    packages,
+    suggestedEventName: packages[0] || guessEventNameFromTitle(title)
+  };
+}
+
+function guessEventNameFromTitle(title) {
+  const text = cellText(title);
+  if (!text) return '';
+  const m = text.match(/[<＜]([^>＞]+)[>＞]([^_]+)_報名資訊/);
+  if (m) return (m[1] + m[2]).trim();
+  const parts = text.split('_').map(x => x.trim()).filter(Boolean);
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (parts[i] && !parts[i].includes('報名資訊') && !/^\d{4}[-/]/.test(parts[i])) return parts[i].replace(/[<＞>＜]/g, '');
+  }
+  return text;
+}
+
+function renderExternalImportSuggestion() {
+  const box = document.getElementById('external-import-suggest');
+  if (!box) return;
+  const meta = externalImportState.meta || {};
+  const hasGrid = externalImportState.grid && externalImportState.grid.length;
+  if ((!externalImportState.rows || !externalImportState.rows.length) && !hasGrid) {
+    box.innerHTML = '';
+    return;
+  }
+
+  const suggested = meta.suggestedEventName || '';
+  const packages = (meta.packages || []).slice(0, 5);
+  const estimatedRows = (externalImportState.rows && externalImportState.rows.length)
+    ? externalImportState.rows.length
+    : extractExternalImportRows(externalImportState.grid || [], externalImportState.columns || null).length;
+  box.innerHTML = `
+    <div class="ticket-member-note">
+      <strong>Excel 已讀取：</strong>${Number(estimatedRows || 0)} 筆<br>
+      <strong>建議課程名稱：</strong>${esc(suggested || '未判斷')}<br>
+      ${meta.title ? '<strong>Excel 標題：</strong>' + esc(meta.title) + '<br>' : ''}
+      ${packages.length ? '<strong>J 欄套組：</strong>' + esc(packages.join('、')) + '<br>' : ''}
+      <button class="btn btn-sub" style="margin-top:10px" onclick="createCourseFromImportSuggestion()">用建議名稱建立課程</button>
+    </div>
+    ${renderExternalColumnMapper()}
+  `;
+}
+
+function renderExternalColumnMapper() {
+  const grid = externalImportState.grid || [];
+  const columns = externalImportState.columns || {};
+  if (!grid.length) return '';
+
+  const headerIndex = Number(columns.headerIndex) || findExternalHeaderRow(grid);
+  const maxCols = getExternalGridMaxCols(grid.slice(0, Math.min(grid.length, 10)));
+  const colOptions = buildExternalColumnOptions(grid, maxCols);
+  const rowOptions = grid.slice(0, Math.min(grid.length, 10)).map((row, idx) => {
+    const selected = idx === headerIndex ? 'selected' : '';
+    return `<option value="${idx}" ${selected}>第 ${idx + 1} 列：${esc((row || []).map(cellText).filter(Boolean).slice(0, 4).join(' / ') || '空白列')}</option>`;
+  }).join('');
+
+  return `
+    <div class="card" style="margin-top:12px">
+      <h2>欄位對應</h2>
+      <p class="muted">若外部 Excel 欄位順序跑掉，請在這裡指定要讀哪一欄。下方先顯示前十行方便核對。</p>
+      <div class="form-grid">
+        <div class="field full">
+          <label>表頭在哪一列</label>
+          <select id="import-header-row" onchange="refreshExternalColumnMapperFromHeader()">${rowOptions}</select>
+        </div>
+        <div class="field">
+          <label>姓名欄位</label>
+          <select id="import-col-name">${colOptions(columns.name)}</select>
+        </div>
+        <div class="field">
+          <label>上手白金欄位</label>
+          <select id="import-col-leader">${colOptions(columns.leader)}</select>
+        </div>
+        <div class="field">
+          <label>套組 / 活動欄位</label>
+          <select id="import-col-package">${colOptions(columns.packageName)}</select>
+        </div>
+        <div class="field">
+          <label>會員類型欄位，可選</label>
+          <select id="import-col-member">${colOptions(columns.memberType, true)}</select>
+        </div>
+        <div class="field">
+          <label>報名時間欄位，可選</label>
+          <select id="import-col-time">${colOptions(columns.registeredAt, true)}</select>
+        </div>
+        <div class="field">
+          <label>備註欄位，可選</label>
+          <select id="import-col-remark">${colOptions(columns.remark, true)}</select>
+        </div>
+      </div>
+      <button class="btn btn-main" onclick="applyExternalColumnMapping()">套用欄位並預覽</button>
+      <div class="import-table-wrap">
+        <table class="import-table">
+          <tbody>${renderExternalFirstRows(grid, maxCols)}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function refreshExternalColumnMapperFromHeader() {
+  const grid = externalImportState.grid || [];
+  if (!grid.length) return;
+  const headerIndex = Number(val('import-header-row'));
+  const columns = getDefaultExternalImportColumns(grid, headerIndex);
+  externalImportState.columns = columns;
+  externalImportState.meta = extractExternalImportMeta(grid, columns);
+  externalImportState.rows = [];
+  externalImportState.preview = null;
+  const preview = document.getElementById('external-import-preview');
+  if (preview) preview.innerHTML = '';
+  renderExternalImportSuggestion();
+}
+
+function buildExternalColumnOptions(grid, maxCols) {
+  return function(selectedIndex, allowBlank) {
+    let html = allowBlank ? '<option value="-1">不匯入</option>' : '';
+    for (let i = 0; i < maxCols; i++) {
+      const selected = Number(selectedIndex) === i ? 'selected' : '';
+      html += `<option value="${i}" ${selected}>${excelColumnName(i)} 欄</option>`;
+    }
+    return html;
+  };
+}
+
+function renderExternalFirstRows(grid, maxCols) {
+  const rows = grid.slice(0, Math.min(grid.length, 10));
+  const head = `<tr><th>列</th>${Array.from({length:maxCols}, (_, i) => `<th>${excelColumnName(i)}</th>`).join('')}</tr>`;
+  const body = rows.map((row, idx) => {
+    return `<tr><td>${idx + 1}</td>${Array.from({length:maxCols}, (_, i) => `<td>${esc(cellText((row || [])[i]))}</td>`).join('')}</tr>`;
+  }).join('');
+  return head + body;
+}
+
+function getExternalGridMaxCols(rows) {
+  return Math.max(1, Math.min(26, rows.reduce((max, row) => Math.max(max, (row || []).length), 0)));
+}
+
+function excelColumnName(index) {
+  let n = Number(index) + 1;
+  let s = '';
+  while (n > 0) {
+    const r = (n - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+async function applyExternalColumnMapping() {
+  const grid = externalImportState.grid || [];
+  if (!grid.length) return showBoxMsg('external-import-msg', '請先上傳 Excel。', 'err');
+
+  const columns = {
+    headerIndex: Number(val('import-header-row')),
+    name: Number(val('import-col-name')),
+    leader: Number(val('import-col-leader')),
+    packageName: Number(val('import-col-package')),
+    memberType: Number(val('import-col-member')),
+    registeredAt: Number(val('import-col-time')),
+    sourceChannel: -1,
+    remark: Number(val('import-col-remark'))
+  };
+
+  if (columns.name < 0 || columns.leader < 0 || columns.packageName < 0) {
+    return showBoxMsg('external-import-msg', '姓名、上手白金、套組 / 活動欄位都必須指定。', 'err');
+  }
+
+  const rows = extractExternalImportRows(grid, columns);
+  if (!rows.length) return showBoxMsg('external-import-msg', '套用欄位後沒有可匯入資料，請重新檢查欄位。', 'err');
+
+  externalImportState.columns = columns;
+  externalImportState.rows = rows;
+  externalImportState.meta = extractExternalImportMeta(grid, columns);
+  externalImportState.preview = null;
+  renderExternalImportSuggestion();
+  const eventCode = normalizeCode(externalImportState.eventCode || val('external-course-select'));
+  if (eventCode) await previewExternalImportRows();
+  else showBoxMsg('external-import-msg', '欄位已套用，請選擇既有課程，或用建議名稱建立新課程。', 'info');
+}
+
+function createCourseFromImportSuggestion() {
+  const meta = externalImportState.meta || {};
+  const name = meta.suggestedEventName || '';
+  if (!name) return showBoxMsg('external-import-msg', '目前讀不到可帶入的課程名稱。', 'err');
+  coursePrefillFromImport = {
+    eventName: name,
+    categoryNames: (meta.packages || []).join(','),
+    pricingMode: (meta.packages && meta.packages.length) ? '類別制' : '白金制'
+  };
+  renderCreateCoursePage();
 }
 
 function findExternalHeaderRow(grid) {
