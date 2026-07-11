@@ -416,8 +416,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .msg.err{background:#fdf0f0;color:#7a2020;border:1px solid #d4a0a0}
 .msg.info{background:#f6f3ea;color:#6a5a30;border:1px solid #e2d7b4}
 .loading{padding:42px 16px;text-align:center;color:#777;font-size:14px}
-.top-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-.top-actions.single{grid-template-columns:1fr}
+.top-actions{display:flex;flex-wrap:nowrap;gap:8px;margin-bottom:14px;align-items:stretch}
+.top-actions .btn{width:auto;flex:1 1 0;min-width:0;padding:10px 8px;font-size:13px;border-radius:12px;white-space:nowrap}
+.top-actions .btn + .btn{margin-top:0}
+.top-actions.single .btn{max-width:100%}
 .course-card{background:#fff;border:1px solid rgba(45,90,61,.12);border-radius:18px;overflow:hidden;margin-bottom:14px;box-shadow:0 3px 12px rgba(0,0,0,.045)}
 .course-img{width:100%;height:178px;background:#e7e2d7;object-fit:cover;display:block}
 .course-body{padding:14px}
@@ -513,13 +515,13 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:420px){.import-summary{grid-template-columns:repeat(2,1fr)}}
 
-@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions,.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.course-img{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
+@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.course-img{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
 </head>
 <body>
 
 <div class="hd">
-  <small>CYP135 課程系統</small>
+  <small>CYP135 課程系統 V5.6</small>
   <h1 id="page-title">課程報名</h1>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
 </div>
@@ -1119,7 +1121,6 @@ function renderAdminCoursesShell(courses) {
     <div class="top-actions">
       <button class="btn btn-main" onclick="renderAdminCoursesPage()">查詢課程</button>
       <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
-      <button class="btn btn-sub" onclick="renderExternalImportPage()">外部名單匯入</button>
     </div>
 
     <div class="card">
@@ -1602,7 +1603,6 @@ function renderAdminCourseList(courses) {
       <div class="inline-actions">
         <button class="btn btn-main" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>
         <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看報名頁</button>
-        <button class="btn btn-sub" onclick="renderExternalImportPage('${esc(c.eventCode)}')">匯入名單</button>
       </div>
     </div>
   `).join('');
@@ -1613,35 +1613,64 @@ async function renderExternalImportPage(courseCode) {
   clearMsg();
   setTitle('外部名單匯入');
   const app = document.getElementById('app');
-  app.innerHTML = '<div class="loading">載入匯入工具中...</div>';
-
-  let data;
-  try {
-    data = await getExternalImportData_();
-  } catch (err) {
-    app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
-    return;
-  }
-
-  if (!data.allowed) return renderNoAdminPage();
 
   const selectedCode = normalizeCode(courseCode || '');
+  externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: selectedCode, meta: null, grid: null, columns: null };
+  if (initData && initData.allowed) {
+    renderExternalImportShell(selectedCode, true);
+  } else {
+    app.innerHTML = '<div class="loading">檢查外部名單匯入權限中...</div>';
+  }
+
+  getExternalImportData_()
+    .then(data => {
+      if (!data.allowed) return renderNoAdminPage();
+      if (!externalImportState.grid || !externalImportState.grid.length) {
+        renderExternalImportShell(selectedCode, false);
+      } else {
+        refreshExternalCourseOptions(selectedCode);
+        clearBoxMsg('external-import-msg');
+      }
+    })
+    .catch(err => {
+      const select = document.getElementById('external-course-select');
+      if (select) select.innerHTML = '<option value="">課程載入失敗</option>';
+      showBoxMsg('external-import-msg', '課程清單載入失敗：' + esc(err.message || err) + '<br><button class="btn btn-sub" style="margin-top:10px" onclick="renderExternalImportPage()">重新載入</button>', 'err');
+    });
+}
+
+function refreshExternalCourseOptions(selectedCode) {
+  const select = document.getElementById('external-course-select');
+  if (!select) return;
+  const current = normalizeCode(select.value || selectedCode || externalImportState.eventCode || '');
+  const options = (adminCourseData || []).map(c => {
+    const code = normalizeCode(c.eventCode);
+    const selected = code === current ? 'selected' : '';
+    return `<option value="${esc(code)}" ${selected}>${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`;
+  }).join('');
+  select.innerHTML = '<option value="">請選擇課程</option>' + options;
+  externalImportState.eventCode = current;
+}
+
+function renderExternalImportShell(selectedCode, loadingCourses) {
+  const app = document.getElementById('app');
   const courses = adminCourseData || [];
   const options = courses.map(c => {
     const code = normalizeCode(c.eventCode);
     const selected = code === selectedCode ? 'selected' : '';
     return `<option value="${esc(code)}" ${selected}>${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`;
   }).join('');
+  const courseOptions = loadingCourses
+    ? '<option value="">課程載入中，可先選 Excel</option>'
+    : '<option value="">請選擇課程</option>' + options;
 
-  externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: selectedCode, meta: null, grid: null, columns: null };
   app.innerHTML = `
     <div class="top-actions">
-      <button class="btn btn-sub" onclick="renderAdminCoursesPage()">查詢課程</button>
-      <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
       <button class="btn btn-main" onclick="renderExternalImportPage()">外部名單匯入</button>
+      <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
     </div>
 
-    <div class="card">
+    <div class="card" id="external-import-form-card">
       <h2>外部名單匯入</h2>
       <p class="muted">初次匯入可以先建立課程，也可以先上傳 Excel 讀取活動名稱；選定課程後才會預覽檢查，不會直接寫入報名總表。</p>
       ${renderExternalImportSteps()}
@@ -1650,8 +1679,7 @@ async function renderExternalImportPage(courseCode) {
         <div class="field">
           <label>匯入到哪一堂課</label>
           <select id="external-course-select" onchange="handleExternalCourseChange()">
-            <option value="">請選擇課程</option>
-            ${options}
+            ${courseOptions}
           </select>
         </div>
         <div class="field">
@@ -1672,7 +1700,7 @@ async function renderExternalImportPage(courseCode) {
 }
 
 function getExternalImportData_() {
-  return post('getExternalImportInit', { userId }, 9000).then(data => {
+  return post('getExternalImportInit', { userId }, 6000).then(data => {
     initData = Object.assign({}, initData || {}, {
       allowed: !!(data && data.allowed),
       role: (data && data.role) || ''
@@ -2212,10 +2240,20 @@ function renderExternalImportPreview(data) {
   const sample = rows.slice(0, 200);
   const committed = !!data.committed;
   const canSyncMaster = committed && data.firstWrittenRow && data.lastWrittenRow;
+  const formCard = document.getElementById('external-import-form-card');
+  if (formCard) formCard.style.display = committed ? 'none' : '';
+  const suggest = document.getElementById('external-import-suggest');
+  if (committed && suggest) suggest.innerHTML = '';
+  const doneMessage = data.message || (
+    canSyncMaster
+      ? `已匯入資料，寫入報名總表第 ${data.firstWrittenRow} 到 ${data.lastWrittenRow} 列。`
+      : '已匯入資料。'
+  );
 
   box.innerHTML = `
     <div class="card">
-      <h2>匯入預覽</h2>
+      <h2>${committed ? '匯入完成' : '匯入預覽'}</h2>
+      ${committed ? `<div class="msg ok on">${esc(doneMessage)}</div>` : ''}
       <div class="meta">
         檔案：${esc(data.fileName || externalImportState.fileName || '—')}<br>
         課程：${esc((data.course && data.course.eventName) || '—')}｜${esc((data.course && data.course.priceSummary) || '—')}
@@ -2227,8 +2265,9 @@ function renderExternalImportPreview(data) {
         <div class="import-stat"><strong>${Number(summary.error || 0)}</strong><span>需處理</span></div>
       </div>
       <div class="compact-actions">
-        ${committed ? '<button class="btn btn-ghost" onclick="renderExternalImportPage()">返回匯入頁</button>' : '<button class="btn btn-ghost" onclick="externalImportBack()">上一步修改欄位</button>'}
+        ${committed ? '<button class="btn btn-ghost" onclick="renderExternalImportPage()">匯入另一份</button>' : '<button class="btn btn-ghost" onclick="externalImportBack()">上一步修改欄位</button>'}
         ${committed ? `<button class="btn btn-main" ${canSyncMaster ? '' : 'disabled'} onclick="syncImportedRowsFromMaster()">立即同步母版</button>` : `<button class="btn btn-main" ${canCommit ? '' : 'disabled'} onclick="commitExternalImport()">確認匯入可匯入資料</button>`}
+        ${committed ? '<button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>' : ''}
       </div>
       <div id="external-sync-msg" class="msg"></div>
       <div class="ticket-small" style="margin-top:8px">畫面最多顯示前 200 筆方便檢查；確認匯入會處理全部「可匯入」資料，不只匯入畫面看到的資料。</div>
