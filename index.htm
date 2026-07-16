@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V5.7</title>
+<title>CYP135 課程報名 V5.8</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -521,7 +521,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 <body>
 
 <div class="hd">
-  <small>CYP135 課程系統 V5.7</small>
+  <small>CYP135 課程系統 V5.8</small>
   <h1 id="page-title">課程報名</h1>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
 </div>
@@ -565,7 +565,7 @@ let coursePrefillFromImport = null;
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v57';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v58';
 let currentView = '';
 let appState = {
   courses: [],
@@ -960,7 +960,11 @@ function renderPublicCourseList(courses) {
 function courseCardHtml(c) {
   const full = c.statusBadge === '已額滿';
   const closed = c.statusBadge === '尚未開放';
-  const badgeClass = full ? 'red' : (closed ? 'gray' : '');
+  const canRegister = canCourseRegister(c);
+  const badgeClass = full ? 'red' : (closed || !canRegister ? 'gray' : '');
+  const registerButton = canRegister
+    ? `<button class="btn btn-main" onclick="renderCourseDetailPage('${esc(c.eventCode)}', true)">立即報名</button>`
+    : '<button class="btn btn-warn" disabled>目前無法報名</button>';
   const img = c.dmUrl
     ? `<img class="course-img" loading="lazy" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">`
     : `<div class="course-img"></div>`;
@@ -982,7 +986,7 @@ function courseCardHtml(c) {
         </div>
         <div class="course-actions ${isAdminUser ? 'admin' : ''}">
           <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看詳情</button>
-          <button class="btn btn-main" onclick="renderCourseDetailPage('${esc(c.eventCode)}', true)">立即報名</button>
+          ${registerButton}
           ${isAdminUser ? `<button class="btn btn-ghost" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>` : ''}
         </div>
       </div>
@@ -993,39 +997,46 @@ function courseCardHtml(c) {
 // ─────────────────────────────
 // 活動詳情頁
 // ─────────────────────────────
-function renderCourseDetailPage(courseCode, openRegisterNow) {
+async function renderCourseDetailPage(courseCode, openRegisterNow) {
   currentView = openRegisterNow ? 'register' : 'detail';
   setWideLayout(false);
   clearMsg();
   setTitle(openRegisterNow ? '填寫報名' : '活動詳情');
 
   const localCourse = getCourseFromState(courseCode);
-  if (localCourse) {
+  if (localCourse && !openRegisterNow) {
     currentCourse = localCourse;
     renderMenu();
-    if (openRegisterNow) {
-      renderRegisterForm();
-    } else {
-      renderCourseDetailContent(localCourse);
-    }
+    renderCourseDetailContent(localCourse);
     return;
   }
 
   const app = document.getElementById('app');
   app.innerHTML = '<div class="loading">載入活動資料中...</div>';
 
-  ensureRegistrationData(courseCode)
-    .then(data => {
-      if (!data || data.status !== 'ok') {
-        app.innerHTML = '<div class="card"><h2>找不到課程</h2><p class="meta">' + esc((data && data.message) || '') + '</p><button class="btn btn-sub" onclick="renderHomePage()">返回課程列表</button></div>';
-        return;
-      }
-      if (openRegisterNow) renderRegisterForm();
-      else renderCourseDetailContent(data.course);
-    })
-    .catch(err => {
-      app.innerHTML = '<div class="card"><h2>活動載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
-    });
+  try {
+    const data = await ensureRegistrationData(courseCode);
+    if (!data || data.status !== 'ok') {
+      app.innerHTML = '<div class="card"><h2>找不到課程</h2><p class="meta">' + esc((data && data.message) || '') + '</p><button class="btn btn-sub" onclick="renderHomePage()">返回課程列表</button></div>';
+      return;
+    }
+
+    currentCourse = data.course;
+    mergeCourseToState(data.course);
+
+    if (openRegisterNow && canCourseRegister(data.course)) {
+      renderRegisterForm();
+    } else {
+      renderCourseDetailContent(data.course);
+    }
+  } catch (err) {
+    app.innerHTML = '<div class="card"><h2>活動載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+  }
+}
+
+function canCourseRegister(c) {
+  if (!c) return false;
+  return c.openFlag === '是' && (c.statusBadge || '報名中') === '報名中';
 }
 
 function renderCourseDetailContent(c) {
@@ -1035,7 +1046,7 @@ function renderCourseDetailContent(c) {
   renderMenu();
 
   const app = document.getElementById('app');
-  const canRegister = c.openFlag === '是' && (c.statusBadge || '報名中') === '報名中';
+  const canRegister = canCourseRegister(c);
   const img = c.dmUrl ? `<img class="detail-hero" loading="lazy" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">` : '';
   const countText = getCountText(c);
 
