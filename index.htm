@@ -561,7 +561,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V5.11</small>
+    <small>CYP135 課程系統 V5.12</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -609,7 +609,7 @@ let uploadedEdmFileName = '';
 let externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
 let excelParserLoading = null;
 let coursePrefillFromImport = null;
-let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grouped', query: '', classDetails: [], leaders: [] };
+let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grouped', query: '', classDetails: [], leaders: [], canManage: false };
 
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
@@ -1178,6 +1178,7 @@ function applyRosterData(data) {
   rosterState.stats = data.stats || {};
   rosterState.classDetails = data.classDetails || [];
   rosterState.leaders = data.leaders || [];
+  if (typeof data.canManage !== 'undefined') rosterState.canManage = !!data.canManage;
   if (rosterState.course) {
     currentCourse = rosterState.course;
     mergeCourseToState(rosterState.course);
@@ -1206,6 +1207,7 @@ function renderRosterContent() {
       </div>
       <div id="roster-msg" class="msg"></div>
       ${renderRosterAddForm()}
+      ${renderRosterFillAction()}
       <div class="divider"></div>
       <div class="searchbar"><input id="roster-search" placeholder="搜尋姓名 / 雁群 / 類別 / 狀態" value="${esc(rosterState.query || '')}" oninput="filterRosterList()"></div>
       <div class="roster-tabs">
@@ -1220,6 +1222,9 @@ function renderRosterContent() {
 }
 
 function renderRosterAddForm() {
+  if (!rosterState.canManage) {
+    return '<div class="readonly-box">目前是名單查看模式；需 LINE權限表 E 欄包含「管理權限」才可加報、取消或恢復。</div>';
+  }
   const c = rosterState.course || {};
   const classDetails = rosterState.classDetails || [];
   const needsClass = c.pricingMode === '類別制' && classDetails.length > 1;
@@ -1255,6 +1260,18 @@ function renderRosterAddForm() {
   `;
 }
 
+function renderRosterFillAction() {
+  if (!rosterState.canManage) return '';
+  const needsFill = (rosterState.rows || []).some(row => row.rawStatus !== '取消' && row.needsFill);
+  if (!needsFill) return '';
+  return `
+    <div class="readonly-box" style="margin-top:10px">
+      有部分名單缺少上課類別或金額，畫面已先依課程管理與名冊資料推算。
+      <button class="btn btn-sub" style="margin-top:10px" onclick="fillRosterDerivedData()">補齊本課名單資料</button>
+    </div>
+  `;
+}
+
 function filterRosterList() {
   rosterState.query = val('roster-search');
   renderRosterList();
@@ -1270,7 +1287,7 @@ function getFilteredRosterRows() {
   let rows = (rosterState.rows || []).slice();
   if (rosterState.view === 'cancelled') rows = rows.filter(row => row.rawStatus === '取消');
   if (q) {
-    rows = rows.filter(row => [row.name, row.cleanName, row.leader, row.flock, row.classType, row.status, row.source]
+    rows = rows.filter(row => [row.name, row.cleanName, row.leader, row.flock, row.classType, row.displayClassType, row.status, row.source]
       .join(' ').toLowerCase().includes(q));
   }
   return rows;
@@ -1317,14 +1334,20 @@ function groupRosterRowsClient(rows) {
 function renderRosterRow(row) {
   const cancelled = row.rawStatus === '取消';
   const statusClass = cancelled ? 'gray' : (row.rawStatus === '加報' ? 'yellow' : '');
-  const action = cancelled
+  const action = !rosterState.canManage
+    ? ''
+    : cancelled
     ? `<button class="btn btn-sub" onclick="updateRosterStatus(${Number(row.rowNumber)}, '')">恢復</button>`
-    : `<button class="btn btn-warn" onclick="updateRosterStatus(${Number(row.rowNumber)}, '取消')">取消</button>`;
+    : `<button class="btn btn-warn" onclick="updateRosterStatus(${Number(row.rowNumber)}, '取消')">取消報名</button>`;
+  const classText = row.displayClassType || row.classType || '—';
+  const priceValue = row.displayPrice !== undefined && row.displayPrice !== '' ? row.displayPrice : row.price;
+  const priceText = priceValue === '' ? '—' : priceValue;
+  const inferredText = row.classTypeInferred || row.priceInferred ? '<span class="badge yellow">推算</span>' : '';
   return `
     <div class="roster-row ${cancelled ? 'cancelled' : ''}">
       <div>
         <div class="roster-name">${esc(row.name || row.cleanName || '未命名')}</div>
-        <div class="roster-meta">${esc(row.flock || row.leader || '未分組')}｜${esc(row.classType || '—')}｜$${esc(row.price === '' ? '—' : row.price)}</div>
+        <div class="roster-meta">${esc(row.flock || row.leader || '未分組')}｜${esc(classText)}｜$${esc(priceText)} ${inferredText}</div>
       </div>
       <div class="roster-meta">
         <span class="badge ${statusClass}">${esc(row.status || '正常')}</span><br>
@@ -1356,6 +1379,24 @@ async function updateRosterStatus(rowNumber, status) {
     applyRosterData(res);
     renderRosterContent();
     showBoxMsg('roster-msg', esc(res.message || '已更新'), 'ok');
+  } catch (err) {
+    showBoxMsg('roster-msg', esc(err.message || err), 'err');
+  }
+}
+
+async function fillRosterDerivedData() {
+  if (!rosterState.course) return;
+  if (!confirm('確認要把畫面推算出的上課類別與金額寫回報名總表？')) return;
+  showBoxMsg('roster-msg', '補齊資料中...', 'info');
+  try {
+    const res = await post('fillCourseRosterDerivedData', {
+      userId,
+      eventCode: rosterState.course.eventCode
+    }, 30000);
+    if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '補齊失敗'), 'err');
+    applyRosterData(res);
+    renderRosterContent();
+    showBoxMsg('roster-msg', esc(res.message || '已補齊資料'), 'ok');
   } catch (err) {
     showBoxMsg('roster-msg', esc(err.message || err), 'err');
   }
