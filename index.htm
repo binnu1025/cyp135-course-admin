@@ -2090,10 +2090,8 @@ async function handleExternalExcelFile(input) {
     };
     renderExternalImportSuggestion();
     updateExternalImportSteps(eventCode ? 3 : 2);
-    if (eventCode && getExternalDefaultClassType()) {
+    if (eventCode) {
       await applyExternalColumnMapping();
-    } else if (eventCode) {
-      showBoxMsg('external-import-msg', '已讀取 Excel，請選擇上課類別後按「套用欄位並預覽」。', 'info');
     } else {
       showBoxMsg('external-import-msg', '已讀取 Excel，請選擇課程或建立新課程。', 'info');
     }
@@ -2118,8 +2116,7 @@ async function previewExternalImportRows() {
     userId,
     eventCode,
     fileName: state.fileName,
-    rows: state.rows,
-    defaultClassType: getExternalDefaultClassType()
+    rows: state.rows
   }, 60000);
   if (!data || data.status !== 'ok') {
     return showBoxMsg('external-import-msg', esc((data && data.message) || '預覽失敗'), 'err');
@@ -2260,7 +2257,6 @@ function renderExternalColumnMapper() {
   const headerIndex = Number(columns.headerIndex) || findExternalHeaderRow(grid);
   const maxCols = getExternalGridMaxCols(grid.slice(0, Math.min(grid.length, 10)));
   const colOptions = buildExternalColumnOptions(grid, maxCols);
-  const classOptions = buildExternalClassTypeOptions();
   const rowOptions = grid.slice(0, Math.min(grid.length, 10)).map((row, idx) => {
     const selected = idx === headerIndex ? 'selected' : '';
     return `<option value="${idx}" ${selected}>第 ${idx + 1} 列：${esc((row || []).map(cellText).filter(Boolean).slice(0, 4).join(' / ') || '空白列')}</option>`;
@@ -2288,10 +2284,6 @@ function renderExternalColumnMapper() {
           <select id="import-col-package">${colOptions(columns.packageName)}</select>
         </div>
         <div class="field">
-          <label>報名總表 H 上課類別</label>
-          <select id="import-default-class">${classOptions}</select>
-        </div>
-        <div class="field">
           <label>輔助判斷白金/非白金，可選</label>
           <select id="import-col-member">${colOptions(columns.memberType, true)}</select>
         </div>
@@ -2308,7 +2300,7 @@ function renderExternalColumnMapper() {
         <button class="btn btn-ghost" onclick="externalImportBack()">上一步</button>
         <button class="btn btn-main" onclick="applyExternalColumnMapping()">套用欄位並預覽</button>
       </div>
-      <div class="ticket-small" style="margin-top:8px">J 欄會寫入報名總表 C 所屬活動；H 上課類別可固定使用課程類別，N 應收金額會依課程管理金額設定計算。</div>
+      <div class="ticket-small" style="margin-top:8px">H 上課類別與 N 應收金額會依「所選課程」的收費模式與金額設定自動計算；白金制會優先依名冊或輔助欄判斷。</div>
       <div class="import-table-wrap">
         <table class="import-table">
           <tbody>${renderExternalFirstRows(grid, maxCols)}</tbody>
@@ -2346,39 +2338,6 @@ function buildExternalColumnOptions(grid, maxCols) {
 function getExternalSelectedCourse() {
   const code = normalizeCode(externalImportState.eventCode || val('external-course-select'));
   return (adminCourseData || []).find(c => normalizeCode(c.eventCode) === code) || getCourseFromState(code) || null;
-}
-
-function buildExternalClassTypeOptions() {
-  const course = getExternalSelectedCourse();
-  let details = course && Array.isArray(course.classDetails) ? course.classDetails : [];
-  details = details
-    .map(item => ({ name: String((item && item.name) || '').trim() }))
-    .filter(item => item.name);
-  if (!details.length && course) {
-    if (course.pricingMode === '類別制') {
-      details = csvSplit(course.categoryNames || '')
-        .map(name => ({ name: String(name || '').trim() }))
-        .filter(item => item.name);
-    } else {
-      details = [{ name: '白金' }, { name: '非白金' }];
-    }
-  }
-
-  if (!course) return '<option value="">請先選擇課程</option>';
-  if (!details.length) return '<option value="">此課程尚未設定類別</option>';
-
-  const selected = details.length === 1 ? details[0].name : '';
-  let html = details.length === 1 ? '' : '<option value="">請選擇類別</option>';
-  html += details.map(item => {
-    const name = item && item.name ? item.name : '';
-    return `<option value="${esc(name)}" ${name === selected ? 'selected' : ''}>${esc(name)}</option>`;
-  }).join('');
-  return html;
-}
-
-function getExternalDefaultClassType() {
-  const el = document.getElementById('import-default-class');
-  return el ? el.value.trim() : '';
 }
 
 function renderExternalFirstRows(grid, maxCols) {
@@ -2423,10 +2382,6 @@ async function applyExternalColumnMapping() {
   if (columns.name < 0 || columns.leader < 0 || columns.packageName < 0) {
     return showBoxMsg('external-import-msg', '姓名、上手白金、套組 / 活動欄位都必須指定。', 'err');
   }
-  if (!getExternalDefaultClassType()) {
-    return showBoxMsg('external-import-msg', '請選擇報名總表 H 上課類別。', 'err');
-  }
-
   const rows = extractExternalImportRows(grid, columns);
   if (!rows.length) return showBoxMsg('external-import-msg', '套用欄位後沒有可匯入資料，請重新檢查欄位。', 'err');
 
@@ -2584,8 +2539,7 @@ async function commitExternalImport() {
       userId,
       eventCode: state.eventCode,
       fileName: state.fileName,
-      rows: state.rows,
-      defaultClassType: getExternalDefaultClassType()
+      rows: state.rows
     }, 90000);
 
     if (!data || data.status !== 'ok') {
