@@ -417,9 +417,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .top-actions .btn{width:auto;flex:1 1 0;min-width:0;padding:10px 8px;font-size:13px;border-radius:12px;white-space:nowrap}
 .top-actions .btn + .btn{margin-top:0}
 .top-actions.single .btn{max-width:100%}
-.course-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;align-items:stretch}
+.course-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,380px));gap:14px;align-items:start;justify-content:start}
 .course-card{background:#fff;border:1px solid rgba(45,90,61,.12);border-radius:18px;overflow:hidden;box-shadow:0 3px 12px rgba(0,0,0,.045);display:flex;flex-direction:column;min-height:100%}
-.course-img{width:100%;height:168px;background:#e7e2d7;object-fit:cover;display:block}
+.course-img{width:100%;height:auto;max-height:none;background:#f7f4ed;object-fit:contain;display:block}
+.course-img.placeholder{height:180px}
 .course-body{padding:14px;display:flex;flex-direction:column;flex:1}
 .course-title{font-size:18px;font-weight:900;color:#2d5a3d;line-height:1.35;margin-bottom:8px;min-height:48px}
 .meta{font-size:13px;color:#666;line-height:1.75}
@@ -480,6 +481,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .class-choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
 .class-choice{border:1px solid #ddd;background:#fff;border-radius:15px;padding:13px 10px;text-align:center;font-family:'Noto Sans TC',sans-serif;cursor:pointer;color:#2a2620;min-height:68px}
 .class-choice.on{border-color:#2d5a3d;background:#edf7ee;color:#1f4d2c;box-shadow:0 0 0 3px rgba(45,90,61,.08)}
+.class-choice.locked,.class-choice[disabled]{opacity:.45;cursor:not-allowed}
 .class-choice-name{font-size:16px;font-weight:900;line-height:1.35;word-break:break-word}
 .class-choice-price{font-size:13px;color:#6f6a60;margin-top:3px;font-weight:800}
 .class-choice.on .class-choice-price{color:#2d5a3d}
@@ -515,13 +517,13 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:420px){.import-summary{grid-template-columns:repeat(2,1fr)}}
 
-@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.course-img{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
+@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
 </head>
 <body>
 
 <div class="hd">
-  <small>CYP135 課程系統 V5.8</small>
+  <small>CYP135 課程系統 V5.9</small>
   <h1 id="page-title">課程報名</h1>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
 </div>
@@ -553,6 +555,7 @@ let publicData = null;
 let adminCourseData = [];
 let isAdminUser = false;
 let selectedClassType = '';
+let lockedClassType = '';
 let lookupCache = {};
 let lastLookupSeq = 0;
 let selectedEdmFile = null;
@@ -565,7 +568,7 @@ let coursePrefillFromImport = null;
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v58';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v59';
 let currentView = '';
 let appState = {
   courses: [],
@@ -918,10 +921,8 @@ function renderHomePage(options) {
 function renderHomeShell(courses) {
   const app = document.getElementById('app');
   const adminTools = isAdminUser
-    ? `<div class="top-actions">
+    ? `<div class="top-actions single">
         <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
-        <button class="btn btn-sub" onclick="renderExternalImportPage()">外部名單匯入</button>
-        <button class="btn btn-sub" onclick="renderTicketGeneratorPage()">票券產生</button>
       </div>`
     : '';
 
@@ -967,7 +968,7 @@ function courseCardHtml(c) {
     : '<button class="btn btn-warn" disabled>目前無法報名</button>';
   const img = c.dmUrl
     ? `<img class="course-img" loading="lazy" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">`
-    : `<div class="course-img"></div>`;
+    : `<div class="course-img placeholder"></div>`;
 
   return `
     <div class="course-card">
@@ -2653,6 +2654,7 @@ function renderRegisterForm() {
   const c = currentCourse;
   const classDetails = (initData && initData.classDetails) || [];
   selectedClassType = classDetails.length === 1 ? String(classDetails[0].name || '') : '';
+  lockedClassType = '';
 
   document.getElementById('app').innerHTML = `
     <button class="btn btn-ghost" onclick="renderCourseDetailContent(currentCourse)">← 返回活動詳情</button>
@@ -2805,7 +2807,7 @@ function renderLookupResult(res, clean, name) {
         ✅ 已找到名冊資料<br>
         姓名：${esc((res.member && res.member.name) || name)}<br>
         上手白金/雁群組長：${esc(selectedLeader || '—')}
-        ${autoClassType ? `<br>自動判斷類別：${esc(autoClassType)}` : ''}
+        ${autoClassType ? `<br>自動判斷類別：${esc(autoClassType)}${lockedClassType ? '（依名冊鎖定）' : ''}` : ''}
       </div>
       <input id="r-leader" type="hidden" value="${esc(selectedLeader)}">
     `;
@@ -2915,21 +2917,23 @@ function inferPlatinumClassType(member) {
   if (!hasPlatinumClassPair()) return '';
   const status = String((member && member.memberStatus) || '').trim();
   if (status.includes('非白金')) return '非白金';
-  if (status.includes('白金') && !status.includes('非')) return '白金';
+  if (status.includes('白金')) return '白金';
   return '非白金';
 }
 
 function applyPlatinumClassAutoSelection(member) {
   const classType = inferPlatinumClassType(member);
   if (!classType) return '';
-  selectRegistrationClass(classType);
+  lockedClassType = classType === '白金' ? '白金' : '';
+  selectRegistrationClass(classType, { force: true });
   return classType;
 }
 
 function resetPlatinumClassAutoSelection() {
   if (!hasPlatinumClassPair()) return;
   selectedClassType = '';
-  document.querySelectorAll('.class-choice').forEach(btn => btn.classList.remove('on'));
+  lockedClassType = '';
+  syncClassChoiceButtons();
   updateRegistrationPrice();
 }
 
@@ -2943,7 +2947,9 @@ function renderClassChoiceButtons(details) {
     const name = String(item.name || '').trim();
     const price = Number(item.price || 0);
     const on = name === selectedClassType ? ' on' : '';
-    return `<button type="button" class="class-choice${on}" data-class="${esc(name)}" onclick="selectRegistrationClass(this.dataset.class)">
+    const locked = lockedClassType && name !== lockedClassType;
+    const lockedAttrs = locked ? ' disabled aria-disabled="true"' : '';
+    return `<button type="button" class="class-choice${on}${locked ? ' locked' : ''}" data-class="${esc(name)}" onclick="selectRegistrationClass(this.dataset.class)"${lockedAttrs}>
       <div class="class-choice-name">${esc(name)}</div>
       <div class="class-choice-price">$${esc(price)}</div>
     </button>`;
@@ -2956,11 +2962,25 @@ function getPriceByClassType(classType) {
   return item ? Number(item.price || 0) : 0;
 }
 
-function selectRegistrationClass(classType) {
-  selectedClassType = String(classType || '').trim();
+function syncClassChoiceButtons() {
   document.querySelectorAll('.class-choice').forEach(btn => {
-    btn.classList.toggle('on', btn.dataset.class === selectedClassType);
+    const isSelected = btn.dataset.class === selectedClassType;
+    const isLockedOut = !!lockedClassType && btn.dataset.class !== lockedClassType;
+    btn.classList.toggle('on', isSelected);
+    btn.classList.toggle('locked', isLockedOut);
+    btn.disabled = isLockedOut;
+    btn.setAttribute('aria-disabled', isLockedOut ? 'true' : 'false');
   });
+}
+
+function selectRegistrationClass(classType, options) {
+  const nextType = String(classType || '').trim();
+  if (lockedClassType && nextType !== lockedClassType && !(options && options.force)) {
+    syncClassChoiceButtons();
+    return;
+  }
+  selectedClassType = nextType;
+  syncClassChoiceButtons();
   updateRegistrationPrice();
 }
 
@@ -3041,7 +3061,9 @@ async function submitRegister() {
       }
 
       if (currentCourse) {
-        currentCourse.currentCount = Number(currentCourse.currentCount || 0) + 1;
+        currentCourse.currentCount = res.currentCount !== undefined ? res.currentCount : Number(currentCourse.currentCount || 0) + 1;
+        if (res.remainingCount !== undefined) currentCourse.remainingCount = res.remainingCount;
+        if (res.statusBadge) currentCourse.statusBadge = res.statusBadge;
         mergeCourseToState(currentCourse);
       }
 
