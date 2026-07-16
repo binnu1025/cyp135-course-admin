@@ -41,18 +41,15 @@ function ensureTicketScripts() {
 
 async function renderTicketGeneratorPage() {
   currentView = 'ticket';
+  setWideLayout(false);
   clearMsg();
   setTitle('票券產生');
   const app = document.getElementById('app');
 
-  if (!isAdminUser) {
-    app.innerHTML = `
-      <div class="card"><h2>沒有權限</h2><p class="muted">此功能限會長使用。</p></div>
-    `;
-    return;
-  }
-
   app.innerHTML = `<div class="loading">載入票券產生工具中...</div>`;
+  const allowed = await ensureAdminAccess();
+  if (!allowed) return;
+
   try { await ensurePublicData(false); } catch(e) {}
 
   const courses = (appState.courses || []).filter(c => c && c.eventName);
@@ -1095,9 +1092,22 @@ function renderNoAdminPage() {
     <button class="btn btn-ghost" onclick="renderHomePage({skipRefresh:true})">← 返回報名課程</button>
     <div class="card" style="margin-top:12px">
       <h2>無權限進入設定頁</h2>
-      <p class="meta">此功能限 LINE權限表角色為「會長」的人使用。</p>
+      <p class="meta">建立課程、外部名單匯入與票券產生都限 LINE權限表角色為「會長」的人使用。</p>
     </div>
   `;
+}
+
+async function ensureAdminAccess() {
+  if (initData && initData.allowed) return true;
+  try {
+    const data = await getCachedAdminData_();
+    if (data && data.allowed) return true;
+  } catch (err) {
+    document.getElementById('app').innerHTML = '<div class="card"><h2>權限檢查失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+    return false;
+  }
+  renderNoAdminPage();
+  return false;
 }
 
 async function renderAdminCoursesPage() {
@@ -1163,15 +1173,8 @@ async function renderCreateCoursePage(useImportPrefill) {
     app.innerHTML = '<div class="loading">載入建立課程中...</div>';
   }
 
-  let data;
-  try {
-    data = await getCachedAdminData_();
-  } catch (err) {
-    app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
-    return;
-  }
-
-  if (!data.allowed) return renderNoAdminPage();
+  const allowed = await ensureAdminAccess();
+  if (!allowed) return;
   renderCreateCourseShell();
 }
 
@@ -1659,6 +1662,9 @@ async function renderExternalImportPage(courseCode) {
   } else {
     app.innerHTML = '<div class="loading">檢查外部名單匯入權限中...</div>';
   }
+
+  const allowed = await ensureAdminAccess();
+  if (!allowed) return;
 
   getExternalImportData_()
     .then(data => {
@@ -3110,14 +3116,10 @@ async function renderTicketGeneratorPage() {
   setTitle('票券產生');
   const app = document.getElementById('app');
 
-  if (!isAdminUser) {
-    app.innerHTML = `
-      <div class="card"><h2>沒有權限</h2><p class="muted">此功能限會長使用。</p></div>
-    `;
-    return;
-  }
-
   app.innerHTML = `<div class="loading">載入票券產生工具中...</div>`;
+  const allowed = await ensureAdminAccess();
+  if (!allowed) return;
+
   try { await ensurePublicData(false); } catch(e) {}
 
   const courses = (appState.courses || []).filter(c => c && c.eventName);
