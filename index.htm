@@ -433,7 +433,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .badge.yellow{background:#fef6e4;color:#7a4f0f}
 .badge.gray{background:#eee;color:#666}
 .course-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:auto;padding-top:12px}
-.course-actions.admin{grid-template-columns:1fr 1fr 1fr}
+.course-actions.admin{grid-template-columns:1fr 1fr}
 .course-actions .btn{padding:11px 8px;font-size:13px}
 .detail-hero{width:100%;border-radius:16px;margin-bottom:14px;background:#e7e2d7;max-height:420px;object-fit:cover}
 .desc{font-size:14px;color:#4f4a43;line-height:1.85;white-space:pre-wrap}
@@ -537,8 +537,22 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .import-table th{background:#faf8f3;color:#555;font-weight:700}
 .import-status-ok{color:#2d7d46;font-weight:700}
 .import-status-duplicate,.import-status-error{color:#b23b3b;font-weight:700}
+.roster-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
+.roster-stat{background:#f7f4ed;border:1px solid #eadfce;border-radius:12px;padding:10px;text-align:center}
+.roster-stat strong{display:block;color:#2d5a3d;font-size:20px;line-height:1.1}
+.roster-stat span{font-size:11px;color:#777}
+.roster-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.roster-tabs .btn.on{background:#2d5a3d;color:#fff}
+.roster-group{border:1px solid #eee7da;border-radius:16px;background:#fbfaf6;margin:12px 0;overflow:hidden}
+.roster-group-head{padding:12px 14px;background:#f5f2eb;color:#2d5a3d;font-weight:900}
+.roster-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 88px;gap:8px;align-items:center;padding:12px 14px;border-top:1px solid #eee}
+.roster-row.cancelled{opacity:.58;background:#fafafa}
+.roster-name{font-weight:900;color:#2d5a3d}
+.roster-meta{font-size:12px;color:#666;line-height:1.6}
+.roster-actions{display:flex;gap:6px;justify-content:flex-end}
+.roster-actions .btn{padding:8px 8px;font-size:12px;border-radius:10px}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:420px){.import-summary{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:420px){.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}}
 
 @media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
@@ -547,7 +561,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V5.10</small>
+    <small>CYP135 課程系統 V5.11</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -595,6 +609,7 @@ let uploadedEdmFileName = '';
 let externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
 let excelParserLoading = null;
 let coursePrefillFromImport = null;
+let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grouped', query: '', classDetails: [], leaders: [] };
 
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
@@ -1032,7 +1047,7 @@ function courseCardHtml(c) {
         <div class="course-actions ${isAdminUser ? 'admin' : ''}">
           <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看詳情</button>
           ${registerButton}
-          ${isAdminUser ? `<button class="btn btn-ghost" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>` : ''}
+          ${isAdminUser ? `<button class="btn btn-ghost" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button><button class="btn btn-ghost" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>` : ''}
         </div>
       </div>
     </div>
@@ -1113,7 +1128,10 @@ function renderCourseDetailContent(c) {
       </div>
       ${c.description ? '<div class="divider"></div><div class="desc">' + esc(c.description) + '</div>' : ''}
       <div class="divider"></div>
-      ${canRegister ? '<button class="btn btn-main" onclick="renderRegisterForm()">我要報名</button>' : '<button class="btn btn-warn" disabled>目前無法報名</button>'}
+      <div class="compact-actions">
+        ${canRegister ? '<button class="btn btn-main" onclick="renderRegisterForm()">我要報名</button>' : '<button class="btn btn-warn" disabled>目前無法報名</button>'}
+        ${isAdminUser ? `<button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單管理</button>` : '<button class="btn btn-ghost" onclick="renderHomePage({skipRefresh:true})">返回課程首頁</button>'}
+      </div>
     </div>
   `;
 }
@@ -1124,6 +1142,247 @@ function getCountText(c) {
   if (hasCount && c.maxCount) return esc(String(c.currentCount || 0) + ' / ' + c.maxCount);
   if (hasCount) return esc(String(c.currentCount || 0));
   return c.maxCount ? '上限 ' + esc(c.maxCount) : '不限';
+}
+
+// ─────────────────────────────
+// 名單管理
+// ─────────────────────────────
+async function renderCourseRosterPage(courseCode) {
+  currentView = 'roster';
+  setWideLayout(true);
+  clearMsg();
+  setTitle('名單管理');
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="loading">載入名單中...</div>';
+
+  const allowed = await ensureAdminAccess();
+  if (!allowed) return;
+
+  try {
+    const data = await post('getCourseRoster', { userId, eventCode: courseCode }, 18000);
+    if (!data || data.status !== 'ok') {
+      app.innerHTML = '<div class="card"><h2>名單載入失敗</h2><p class="meta">' + esc((data && data.message) || '') + '</p></div>';
+      return;
+    }
+    applyRosterData(data);
+    renderRosterContent();
+  } catch (err) {
+    app.innerHTML = '<div class="card"><h2>名單載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+  }
+}
+
+function applyRosterData(data) {
+  rosterState.course = data.course || rosterState.course;
+  rosterState.rows = data.rows || [];
+  rosterState.groups = data.groups || [];
+  rosterState.stats = data.stats || {};
+  rosterState.classDetails = data.classDetails || [];
+  rosterState.leaders = data.leaders || [];
+  if (rosterState.course) {
+    currentCourse = rosterState.course;
+    mergeCourseToState(rosterState.course);
+  }
+}
+
+function renderRosterContent() {
+  const c = rosterState.course || {};
+  const stats = rosterState.stats || {};
+  const app = document.getElementById('app');
+
+  app.innerHTML = `
+    <div class="top-actions">
+      <button class="btn btn-sub" onclick="renderHomePage({skipRefresh:true})">課程首頁</button>
+      <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">活動詳情</button>
+      <button class="btn btn-main" onclick="refreshRoster()">重新整理</button>
+    </div>
+    <div class="card compact-card">
+      <h2>${esc(c.eventName || '課程名單')}</h2>
+      <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>名額：${esc(stats.active || 0)} / ${esc(stats.maxCount || '不限')}</div>
+      <div class="roster-summary">
+        <div class="roster-stat"><strong>${esc(stats.active || 0)}</strong><span>有效報名</span></div>
+        <div class="roster-stat"><strong>${esc(stats.added || 0)}</strong><span>加報</span></div>
+        <div class="roster-stat"><strong>${esc(stats.cancelled || 0)}</strong><span>取消</span></div>
+        <div class="roster-stat"><strong>${stats.remaining === '' ? '不限' : esc(stats.remaining)}</strong><span>剩餘名額</span></div>
+      </div>
+      <div id="roster-msg" class="msg"></div>
+      ${renderRosterAddForm()}
+      <div class="divider"></div>
+      <div class="searchbar"><input id="roster-search" placeholder="搜尋姓名 / 雁群 / 類別 / 狀態" value="${esc(rosterState.query || '')}" oninput="filterRosterList()"></div>
+      <div class="roster-tabs">
+        <button class="btn btn-sub ${rosterState.view === 'grouped' ? 'on' : ''}" onclick="setRosterView('grouped')">依雁群</button>
+        <button class="btn btn-sub ${rosterState.view === 'all' ? 'on' : ''}" onclick="setRosterView('all')">全部名單</button>
+        <button class="btn btn-sub ${rosterState.view === 'cancelled' ? 'on' : ''}" onclick="setRosterView('cancelled')">取消名單</button>
+      </div>
+      <div id="roster-list"></div>
+    </div>
+  `;
+  renderRosterList();
+}
+
+function renderRosterAddForm() {
+  const c = rosterState.course || {};
+  const classDetails = rosterState.classDetails || [];
+  const needsClass = c.pricingMode === '類別制' && classDetails.length > 1;
+  const classSelect = needsClass
+    ? `<div class="field"><label>上課類別</label><select id="roster-add-class">${optionHtml(classDetails.map(x => x.name), '', '請選擇類別')}</select></div>`
+    : '';
+  const leaderOptions = (rosterState.leaders || []).map(x => `<option value="${esc(x)}"></option>`).join('');
+
+  return `
+    <details class="fold">
+      <summary>管理加報</summary>
+      <div class="fold-content">
+        <div class="form-grid">
+          <div class="field">
+            <label>姓名</label>
+            <input id="roster-add-name" placeholder="輸入加報姓名">
+          </div>
+          <div class="field">
+            <label>上手白金/雁群組長</label>
+            <input id="roster-add-leader" list="roster-leader-options" placeholder="查無名冊時必填">
+            <datalist id="roster-leader-options">${leaderOptions}</datalist>
+          </div>
+          ${classSelect}
+          <div class="field ${needsClass ? '' : 'full'}">
+            <label>備註</label>
+            <input id="roster-add-remark" placeholder="可空白">
+          </div>
+        </div>
+        <button class="btn btn-main" onclick="submitAdminAddRegistration()">送出加報</button>
+        <p class="muted" style="margin-top:8px">加報會寫入報名總表 F 欄「加報」，並納入有效名額統計。</p>
+      </div>
+    </details>
+  `;
+}
+
+function filterRosterList() {
+  rosterState.query = val('roster-search');
+  renderRosterList();
+}
+
+function setRosterView(view) {
+  rosterState.view = view;
+  renderRosterContent();
+}
+
+function getFilteredRosterRows() {
+  const q = String(rosterState.query || '').trim().toLowerCase();
+  let rows = (rosterState.rows || []).slice();
+  if (rosterState.view === 'cancelled') rows = rows.filter(row => row.rawStatus === '取消');
+  if (q) {
+    rows = rows.filter(row => [row.name, row.cleanName, row.leader, row.flock, row.classType, row.status, row.source]
+      .join(' ').toLowerCase().includes(q));
+  }
+  return rows;
+}
+
+function renderRosterList() {
+  const box = document.getElementById('roster-list');
+  if (!box) return;
+  const rows = getFilteredRosterRows();
+  if (!rows.length) {
+    box.innerHTML = '<div class="readonly-box">目前沒有符合條件的名單。</div>';
+    return;
+  }
+
+  if (rosterState.view === 'grouped') {
+    const groups = groupRosterRowsClient(rows);
+    box.innerHTML = groups.map(group => `
+      <div class="roster-group">
+        <div class="roster-group-head">${esc(group.flock)}｜有效 ${esc(group.active)} 人${group.added ? '｜加報 ' + esc(group.added) : ''}${group.cancelled ? '｜取消 ' + esc(group.cancelled) : ''}</div>
+        ${group.rows.map(renderRosterRow).join('')}
+      </div>
+    `).join('');
+    return;
+  }
+
+  box.innerHTML = '<div class="roster-group">' + rows.map(renderRosterRow).join('') + '</div>';
+}
+
+function groupRosterRowsClient(rows) {
+  const map = {};
+  rows.forEach(row => {
+    const key = row.flock || row.leader || '未分組';
+    if (!map[key]) map[key] = { flock: key, active: 0, cancelled: 0, added: 0, rows: [] };
+    map[key].rows.push(row);
+    if (row.rawStatus === '取消') map[key].cancelled += 1;
+    else {
+      map[key].active += 1;
+      if (row.rawStatus === '加報') map[key].added += 1;
+    }
+  });
+  return Object.keys(map).sort().map(key => map[key]);
+}
+
+function renderRosterRow(row) {
+  const cancelled = row.rawStatus === '取消';
+  const statusClass = cancelled ? 'gray' : (row.rawStatus === '加報' ? 'yellow' : '');
+  const action = cancelled
+    ? `<button class="btn btn-sub" onclick="updateRosterStatus(${Number(row.rowNumber)}, '')">恢復</button>`
+    : `<button class="btn btn-warn" onclick="updateRosterStatus(${Number(row.rowNumber)}, '取消')">取消</button>`;
+  return `
+    <div class="roster-row ${cancelled ? 'cancelled' : ''}">
+      <div>
+        <div class="roster-name">${esc(row.name || row.cleanName || '未命名')}</div>
+        <div class="roster-meta">${esc(row.flock || row.leader || '未分組')}｜${esc(row.classType || '—')}｜$${esc(row.price === '' ? '—' : row.price)}</div>
+      </div>
+      <div class="roster-meta">
+        <span class="badge ${statusClass}">${esc(row.status || '正常')}</span><br>
+        ${esc(row.source || '—')}｜${esc(row.registeredAt || '—')}
+      </div>
+      <div class="roster-actions">${action}</div>
+    </div>
+  `;
+}
+
+async function refreshRoster() {
+  if (!rosterState.course) return;
+  await renderCourseRosterPage(rosterState.course.eventCode);
+}
+
+async function updateRosterStatus(rowNumber, status) {
+  if (!rosterState.course) return;
+  const label = status === '取消' ? '取消這筆報名' : '恢復這筆報名';
+  if (!confirm('確認要' + label + '？')) return;
+  showBoxMsg('roster-msg', '更新中...', 'info');
+  try {
+    const res = await post('updateRegistrationStatus', {
+      userId,
+      eventCode: rosterState.course.eventCode,
+      rowNumber,
+      status
+    }, 18000);
+    if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '更新失敗'), 'err');
+    applyRosterData(res);
+    renderRosterContent();
+    showBoxMsg('roster-msg', esc(res.message || '已更新'), 'ok');
+  } catch (err) {
+    showBoxMsg('roster-msg', esc(err.message || err), 'err');
+  }
+}
+
+async function submitAdminAddRegistration() {
+  if (!rosterState.course) return;
+  const name = val('roster-add-name');
+  if (!name) return showBoxMsg('roster-msg', '請輸入加報姓名。', 'err');
+  showBoxMsg('roster-msg', '加報中...', 'info');
+  try {
+    const res = await post('adminAddRegistration', {
+      userId,
+      displayName,
+      eventCode: rosterState.course.eventCode,
+      name,
+      leader: val('roster-add-leader'),
+      classType: val('roster-add-class'),
+      remark: val('roster-add-remark')
+    }, 20000);
+    if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '加報失敗'), 'err');
+    applyRosterData(res);
+    renderRosterContent();
+    showBoxMsg('roster-msg', esc(res.message || '已完成加報'), 'ok');
+  } catch (err) {
+    showBoxMsg('roster-msg', esc(err.message || err), 'err');
+  }
 }
 
 // ─────────────────────────────
