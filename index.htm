@@ -1415,7 +1415,7 @@ function renderCourseForm(course) {
 
       <div class="compact-actions">
         <button class="btn btn-main" onclick="submitCourseForm()">${isEdit ? '更新課程' : '建立課程'}</button>
-        ${isEdit ? '<button class="btn btn-ghost" onclick="renderCourseForm(null)">取消編輯</button>' : '<button class="btn btn-ghost" onclick="clearCourseFormQuick()">清空</button>'}
+        ${isEdit ? '<button class="btn btn-ghost" onclick="cancelCourseEdit()">取消編輯</button>' : '<button class="btn btn-ghost" onclick="clearCourseFormQuick()">清空</button>'}
       </div>
     </div>
   `;
@@ -1432,6 +1432,15 @@ function renderCourseForm(course) {
   togglePricingMode();
   toggleOtherTicket();
   if (!isEdit && coursePrefillFromImport) coursePrefillFromImport = null;
+}
+
+function cancelCourseEdit() {
+  editingCourseCode = '';
+  currentCourseData = null;
+  selectedEdmFile = null;
+  uploadedEdmUrl = '';
+  uploadedEdmFileName = '';
+  renderHomePage({ skipRefresh: true });
 }
 
 function clearCourseFormQuick() {
