@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V5.8</title>
+<title>CYP135 課程報名 V5.13</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -221,7 +221,7 @@ function ticketQrImage(code) {
 
 async function drawTicketCanvas(canvas, person, info) {
   await ensureTicketScripts();
-  const W = 560, H = 1080, topH = 360, px = 40;
+  const W = 560, H = 1240, topH = 420, px = 40;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
 
@@ -232,32 +232,8 @@ async function drawTicketCanvas(canvas, person, info) {
     const scale = Math.min(W / img.width, topH / img.height);
     const dw = img.width * scale, dh = img.height * scale;
     ctx.drawImage(img, 0, 0, img.width, img.height, (W-dw)/2, (topH-dh)/2, dw, dh);
-    const grad = ctx.createLinearGradient(0, topH*.45, 0, topH);
-    grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,.62)');
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, topH);
   } else {
     drawTicketBuiltinBg(ctx, W, topH);
-  }
-
-  ctx.textAlign = 'left';
-  ctx.font = '700 15px "Noto Sans TC", sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,.62)';
-  ctx.fillText('CYP135', px, 38);
-
-  ctx.font = '900 48px "Noto Sans TC", sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ticketWrapText(ctx, info.eventName, px, topH - 140, W - px*2, 58, 2);
-
-  if (info.displayDate) {
-    ctx.font = '500 18px "Noto Sans TC", sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,.82)';
-    ctx.fillText(info.displayDate, px, topH - 78);
-  }
-  const sub = [info.session, info.ticketType].filter(Boolean).join('  ·  ');
-  if (sub) {
-    ctx.font = '500 16px "Noto Sans TC", sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,.62)';
-    ctx.fillText(sub, px, topH - 50);
   }
 
   ctx.fillStyle = '#ffffff';
@@ -265,9 +241,21 @@ async function drawTicketCanvas(canvas, person, info) {
   ctx.fillStyle = '#1a3a5c';
   ctx.fillRect(px, topH + 24, W - px*2, 3);
 
+  ctx.textAlign = 'center';
+  ctx.font = '900 34px "Noto Sans TC", sans-serif';
+  ctx.fillStyle = '#1a1a2e';
+  ticketWrapText(ctx, info.eventName, px, topH + 72, W - px*2, 42, 2);
+
+  const sub = [info.displayDate, info.session, info.ticketType].filter(Boolean).join('  ·  ');
+  if (sub) {
+    ctx.font = '600 18px "Noto Sans TC", sans-serif';
+    ctx.fillStyle = '#4f5964';
+    ctx.fillText(sub, W/2, topH + 140);
+  }
+
   const qrSize = Math.round(W * 0.70);
   const qrX = Math.round((W - qrSize) / 2);
-  const qrY = topH + 44;
+  const qrY = topH + 168;
   ctx.fillStyle = '#f7f7f7';
   ticketRoundRect(ctx, qrX-8, qrY-8, qrSize+16, qrSize+16, 12);
   ctx.fill();
@@ -561,7 +549,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V5.12</small>
+    <small>CYP135 課程系統 V5.13</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -609,7 +597,7 @@ let uploadedEdmFileName = '';
 let externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
 let excelParserLoading = null;
 let coursePrefillFromImport = null;
-let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grouped', query: '', classDetails: [], leaders: [], canManage: false };
+let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grouped', query: '', classDetails: [], leaders: [], canManage: false, add: null };
 
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
@@ -1132,6 +1120,7 @@ function renderCourseDetailContent(c) {
         ${canRegister ? '<button class="btn btn-main" onclick="renderRegisterForm()">我要報名</button>' : '<button class="btn btn-warn" disabled>目前無法報名</button>'}
         ${isAdminUser ? `<button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單管理</button>` : '<button class="btn btn-ghost" onclick="renderHomePage({skipRefresh:true})">返回課程首頁</button>'}
       </div>
+      ${isAdminUser ? '<button class="btn btn-ghost" style="margin-top:8px" onclick="renderHomePage({skipRefresh:true})">返回課程首頁</button>' : ''}
     </div>
   `;
 }
@@ -1172,7 +1161,10 @@ async function renderCourseRosterPage(courseCode) {
 }
 
 function applyRosterData(data) {
+  const oldCode = rosterState.course && rosterState.course.eventCode;
   rosterState.course = data.course || rosterState.course;
+  const newCode = rosterState.course && rosterState.course.eventCode;
+  if (oldCode !== newCode) rosterState.add = null;
   rosterState.rows = data.rows || [];
   rosterState.groups = data.groups || [];
   rosterState.stats = data.stats || {};
@@ -1227,10 +1219,8 @@ function renderRosterAddForm() {
   }
   const c = rosterState.course || {};
   const classDetails = rosterState.classDetails || [];
-  const needsClass = c.pricingMode === '類別制' && classDetails.length > 1;
-  const classSelect = needsClass
-    ? `<div class="field"><label>上課類別</label><select id="roster-add-class">${optionHtml(classDetails.map(x => x.name), '', '請選擇類別')}</select></div>`
-    : '';
+  const needsClass = classDetails.length > 1;
+  if (!rosterState.add) resetRosterAddState();
   const leaderOptions = (rosterState.leaders || []).map(x => `<option value="${esc(x)}"></option>`).join('');
 
   return `
@@ -1240,14 +1230,15 @@ function renderRosterAddForm() {
         <div class="form-grid">
           <div class="field">
             <label>姓名</label>
-            <input id="roster-add-name" placeholder="輸入加報姓名">
+            <input id="roster-add-name" placeholder="輸入加報姓名" oninput="handleRosterAddNameInput()">
           </div>
           <div class="field">
             <label>上手白金/雁群組長</label>
-            <input id="roster-add-leader" list="roster-leader-options" placeholder="查無名冊時必填">
+            <input id="roster-add-leader" list="roster-leader-options" placeholder="查無名冊時必填" value="${esc(rosterState.add.selectedLeader || '')}" onchange="handleRosterAddLeaderChange()">
             <datalist id="roster-leader-options">${leaderOptions}</datalist>
           </div>
-          ${classSelect}
+          <div id="roster-add-lookup" class="full"></div>
+          ${needsClass ? `<div class="field full"><label>上課類別</label>${renderRosterAddClassChoices(classDetails)}</div>` : ''}
           <div class="field ${needsClass ? '' : 'full'}">
             <label>備註</label>
             <input id="roster-add-remark" placeholder="可空白">
@@ -1258,6 +1249,174 @@ function renderRosterAddForm() {
       </div>
     </details>
   `;
+}
+
+function resetRosterAddState() {
+  rosterState.add = {
+    name: '',
+    selectedLeader: '',
+    selectedClassType: '',
+    lockedClassType: '',
+    lookupMembers: [],
+    lookupTimer: null,
+    lastSeq: 0,
+    duplicate: false
+  };
+}
+
+function renderRosterAddClassChoices(details) {
+  const add = rosterState.add || {};
+  details = details || [];
+  return '<div class="class-choice-grid">' + details.map(item => {
+    const name = String(item.name || '').trim();
+    const price = Number(item.price || 0);
+    const on = name === add.selectedClassType ? ' on' : '';
+    const locked = add.lockedClassType && name !== add.lockedClassType;
+    const lockedAttrs = locked ? ' disabled aria-disabled="true"' : '';
+    return `<button type="button" class="class-choice roster-add-class-choice${on}${locked ? ' locked' : ''}" data-class="${esc(name)}" onclick="selectRosterAddClass(this.dataset.class)"${lockedAttrs}>
+      <div class="class-choice-name">${esc(name)}</div>
+      <div class="class-choice-price">$${esc(price)}</div>
+    </button>`;
+  }).join('') + '</div><div id="roster-add-price" class="readonly-box" style="margin-top:8px">' + rosterAddPriceText() + '</div>';
+}
+
+function rosterAddPriceText() {
+  const add = rosterState.add || {};
+  const detail = (rosterState.classDetails || []).find(item => String(item.name || '').trim() === String(add.selectedClassType || '').trim());
+  if (!detail) return '請先選類別';
+  return `本次票價：$${esc(Number(detail.price || 0))}`;
+}
+
+function syncRosterAddClassChoices() {
+  const add = rosterState.add || {};
+  document.querySelectorAll('.roster-add-class-choice').forEach(btn => {
+    const isSelected = btn.dataset.class === add.selectedClassType;
+    const isLockedOut = !!add.lockedClassType && btn.dataset.class !== add.lockedClassType;
+    btn.classList.toggle('on', isSelected);
+    btn.classList.toggle('locked', isLockedOut);
+    btn.disabled = isLockedOut;
+    btn.setAttribute('aria-disabled', isLockedOut ? 'true' : 'false');
+  });
+  const price = document.getElementById('roster-add-price');
+  if (price) price.innerHTML = rosterAddPriceText();
+}
+
+function selectRosterAddClass(classType, options) {
+  const add = rosterState.add || (rosterState.add = {});
+  const nextType = String(classType || '').trim();
+  if (add.lockedClassType && nextType !== add.lockedClassType && !(options && options.force)) {
+    syncRosterAddClassChoices();
+    return;
+  }
+  add.selectedClassType = nextType;
+  syncRosterAddClassChoices();
+}
+
+function hasRosterAddPlatinumClassPair() {
+  const mode = String((rosterState.course && rosterState.course.pricingMode) || '').trim();
+  if (mode === '類別制') return false;
+  const details = rosterState.classDetails || [];
+  return details.some(item => String(item.name || '').trim() === '白金')
+    && details.some(item => String(item.name || '').trim() === '非白金');
+}
+
+function inferRosterAddClassType(member) {
+  if (!hasRosterAddPlatinumClassPair()) return '';
+  const status = String((member && member.memberStatus) || '').trim();
+  if (status.includes('非白金')) return '非白金';
+  if (status.includes('白金')) return '白金';
+  return '非白金';
+}
+
+function applyRosterAddClassAutoSelection(member) {
+  const classType = inferRosterAddClassType(member);
+  if (!classType) return '';
+  const add = rosterState.add || (rosterState.add = {});
+  add.lockedClassType = classType;
+  selectRosterAddClass(classType, { force: true });
+  return classType;
+}
+
+function handleRosterAddNameInput() {
+  const add = rosterState.add || (rosterState.add = {});
+  const name = val('roster-add-name');
+  add.name = name;
+  add.duplicate = false;
+  add.selectedLeader = '';
+  add.lookupMembers = [];
+  add.selectedClassType = hasRosterAddPlatinumClassPair() ? '' : add.selectedClassType;
+  add.lockedClassType = '';
+  syncRosterAddClassChoices();
+
+  const box = document.getElementById('roster-add-lookup');
+  if (box) box.innerHTML = '';
+  if (add.lookupTimer) clearTimeout(add.lookupTimer);
+  const clean = cleanNameLocal(name);
+  if (!clean) return;
+  add.lookupTimer = setTimeout(() => lookupRosterAddName(clean, name), 350);
+}
+
+async function lookupRosterAddName(clean, name) {
+  const add = rosterState.add || (rosterState.add = {});
+  const box = document.getElementById('roster-add-lookup');
+  const leaderInput = document.getElementById('roster-add-leader');
+  if (!box || clean !== cleanNameLocal(val('roster-add-name'))) return;
+  const duplicate = (rosterState.rows || []).find(row => row.rawStatus !== '取消' && cleanNameLocal(row.name || row.cleanName) === clean);
+  if (duplicate) {
+    add.duplicate = true;
+    box.innerHTML = '<div class="msg on err">此姓名已有有效報名，無法重複加報。</div>';
+    return;
+  }
+
+  try {
+    const seq = ++add.lastSeq;
+    box.innerHTML = '<div class="msg on info">查詢名冊中...</div>';
+    const res = await post('lookupMember', { name }, 7000);
+    if (seq !== add.lastSeq || clean !== cleanNameLocal(val('roster-add-name'))) return;
+
+    if (res && res.status === 'found') {
+      const member = res.member || {};
+      add.lookupMembers = [member];
+      add.selectedLeader = member.leader || member.flock || member.uplinePlatinum || '';
+      if (leaderInput) leaderInput.value = add.selectedLeader;
+      const autoClassType = applyRosterAddClassAutoSelection(member);
+      box.innerHTML = `
+        <div class="msg on ok">
+          ✅ 已找到名冊資料<br>
+          姓名：${esc(member.name || name)}<br>
+          上手白金/雁群組長：${esc(add.selectedLeader || '—')}
+          ${autoClassType ? `<br>自動判斷類別：${esc(autoClassType)}（依名冊鎖定）` : ''}
+        </div>
+      `;
+    } else if (res && res.status === 'multiple') {
+      add.lookupMembers = res.members || [];
+      const choices = [...new Set((res.members || []).map(x => x.leader || x.flock || x.uplinePlatinum).filter(Boolean))];
+      box.innerHTML = '<div class="msg on info">找到多筆同名資料，請在右側選擇上手白金/雁群組長後再加報。</div>';
+      if (leaderInput && choices.length) leaderInput.setAttribute('list', 'roster-leader-options');
+    } else {
+      add.selectedLeader = '';
+      if (leaderInput) leaderInput.value = '';
+      const autoClassType = applyRosterAddClassAutoSelection(null);
+      box.innerHTML = `
+        <div class="msg on err">
+          查無名冊資料，請選擇上手白金/雁群組長<br>
+          建立資料
+          ${autoClassType ? `<br>自動判斷類別：${esc(autoClassType)}` : ''}
+        </div>
+      `;
+    }
+  } catch (err) {
+    box.innerHTML = '<div class="msg on err">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長。</div>';
+  }
+}
+
+function handleRosterAddLeaderChange() {
+  const add = rosterState.add || (rosterState.add = {});
+  const leader = val('roster-add-leader').trim();
+  add.selectedLeader = leader;
+  if (!leader || !Array.isArray(add.lookupMembers) || !add.lookupMembers.length) return;
+  const member = add.lookupMembers.find(item => String(item.leader || item.flock || item.uplinePlatinum || '').trim() === leader);
+  if (member) applyRosterAddClassAutoSelection(member);
 }
 
 function renderRosterFillAction() {
@@ -1343,6 +1502,10 @@ function renderRosterRow(row) {
   const priceValue = row.displayPrice !== undefined && row.displayPrice !== '' ? row.displayPrice : row.price;
   const priceText = priceValue === '' ? '—' : priceValue;
   const inferredText = row.classTypeInferred || row.priceInferred ? '<span class="badge yellow">推算</span>' : '';
+  const registeredBy = row.createdBy || row.source || '—';
+  const cancelLine = cancelled
+    ? `<br><span class="muted">取消：${esc(row.cancelledBy || row.statusUpdatedBy || '—')}｜${esc(row.cancelledAt || row.statusUpdatedAt || '—')}</span>`
+    : '';
   return `
     <div class="roster-row ${cancelled ? 'cancelled' : ''}">
       <div>
@@ -1351,7 +1514,7 @@ function renderRosterRow(row) {
       </div>
       <div class="roster-meta">
         <span class="badge ${statusClass}">${esc(row.status || '正常')}</span><br>
-        ${esc(row.source || '—')}｜${esc(row.registeredAt || '—')}
+        報名：${esc(registeredBy)}｜${esc(row.registeredAt || '—')}${cancelLine}
       </div>
       <div class="roster-actions">${action}</div>
     </div>
@@ -1371,6 +1534,7 @@ async function updateRosterStatus(rowNumber, status) {
   try {
     const res = await post('updateRegistrationStatus', {
       userId,
+      displayName,
       eventCode: rosterState.course.eventCode,
       rowNumber,
       status
@@ -1406,6 +1570,10 @@ async function submitAdminAddRegistration() {
   if (!rosterState.course) return;
   const name = val('roster-add-name');
   if (!name) return showBoxMsg('roster-msg', '請輸入加報姓名。', 'err');
+  const add = rosterState.add || {};
+  if (add.duplicate) return showBoxMsg('roster-msg', '此姓名已有有效報名，無法重複加報。', 'err');
+  const classType = add.selectedClassType || val('roster-add-class');
+  const leader = (add.selectedLeader || val('roster-add-leader') || '').trim();
   showBoxMsg('roster-msg', '加報中...', 'info');
   try {
     const res = await post('adminAddRegistration', {
@@ -1413,12 +1581,13 @@ async function submitAdminAddRegistration() {
       displayName,
       eventCode: rosterState.course.eventCode,
       name,
-      leader: val('roster-add-leader'),
-      classType: val('roster-add-class'),
+      leader,
+      classType,
       remark: val('roster-add-remark')
     }, 20000);
     if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '加報失敗'), 'err');
     applyRosterData(res);
+    resetRosterAddState();
     renderRosterContent();
     showBoxMsg('roster-msg', esc(res.message || '已完成加報'), 'ok');
   } catch (err) {
@@ -2258,7 +2427,7 @@ function renderExternalImportShell(selectedCode, loadingCourses) {
         <button class="btn btn-sub" onclick="createCourseFromImportSuggestion()">用 Excel 建議名稱建立課程</button>
         <button class="btn btn-ghost" onclick="createBlankExternalImportCourse()">空白建立課程</button>
       </div>
-      <div class="ticket-small">前 10 行只是欄位設定預覽；正式檢查會讀取整份 Excel。會寫入報名總表 A~O；報名來源固定標記為「外部Excel」。LINE Bot 查詢主線不會修改。</div>
+      <div class="ticket-small">前 10 行只是欄位設定預覽；正式檢查會讀取整份 Excel。會寫入報名總表 A~S；報名來源固定標記為「外部Excel」。LINE Bot 查詢主線不會修改。</div>
       <div id="external-import-suggest"></div>
     </div>
 
@@ -3295,7 +3464,7 @@ function renderLookupResult(res, clean, name) {
     selectedLeader = '';
     const autoClassType = applyPlatinumClassAutoSelection(null);
     box.innerHTML = `
-      <div class="msg on err">查無名冊資料，請選擇上手白金/雁群組長${autoClassType ? '<br>自動判斷類別：' + esc(autoClassType) : ''}</div>
+      <div class="msg on err">查無名冊資料，請選擇上手白金/雁群組長<br>建立資料${autoClassType ? '<br>自動判斷類別：' + esc(autoClassType) : ''}</div>
       ${renderLeaderSelect(getLeaderOptionsForForm())}
     `;
   }
@@ -3397,7 +3566,7 @@ function inferPlatinumClassType(member) {
 function applyPlatinumClassAutoSelection(member) {
   const classType = inferPlatinumClassType(member);
   if (!classType) return '';
-  lockedClassType = classType === '白金' ? '白金' : '';
+  lockedClassType = classType;
   selectRegistrationClass(classType, { force: true });
   return classType;
 }
@@ -3422,7 +3591,7 @@ function renderClassChoiceButtons(details) {
     const on = name === selectedClassType ? ' on' : '';
     const locked = lockedClassType && name !== lockedClassType;
     const lockedAttrs = locked ? ' disabled aria-disabled="true"' : '';
-    return `<button type="button" class="class-choice${on}${locked ? ' locked' : ''}" data-class="${esc(name)}" onclick="selectRegistrationClass(this.dataset.class)"${lockedAttrs}>
+    return `<button type="button" class="class-choice registration-class-choice${on}${locked ? ' locked' : ''}" data-class="${esc(name)}" onclick="selectRegistrationClass(this.dataset.class)"${lockedAttrs}>
       <div class="class-choice-name">${esc(name)}</div>
       <div class="class-choice-price">$${esc(price)}</div>
     </button>`;
@@ -3436,7 +3605,7 @@ function getPriceByClassType(classType) {
 }
 
 function syncClassChoiceButtons() {
-  document.querySelectorAll('.class-choice').forEach(btn => {
+  document.querySelectorAll('.registration-class-choice').forEach(btn => {
     const isSelected = btn.dataset.class === selectedClassType;
     const isLockedOut = !!lockedClassType && btn.dataset.class !== lockedClassType;
     btn.classList.toggle('on', isSelected);
@@ -3797,7 +3966,7 @@ function ticketQrImage(code) {
 
 async function drawTicketCanvas(canvas, person, info) {
   await ensureTicketScripts();
-  const W = 560, H = 1080, topH = 360, px = 40;
+  const W = 560, H = 1240, topH = 420, px = 40;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
 
@@ -3808,32 +3977,8 @@ async function drawTicketCanvas(canvas, person, info) {
     const scale = Math.min(W / img.width, topH / img.height);
     const dw = img.width * scale, dh = img.height * scale;
     ctx.drawImage(img, 0, 0, img.width, img.height, (W-dw)/2, (topH-dh)/2, dw, dh);
-    const grad = ctx.createLinearGradient(0, topH*.45, 0, topH);
-    grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,.62)');
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, topH);
   } else {
     drawTicketBuiltinBg(ctx, W, topH);
-  }
-
-  ctx.textAlign = 'left';
-  ctx.font = '700 15px "Noto Sans TC", sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,.62)';
-  ctx.fillText('CYP135', px, 38);
-
-  ctx.font = '900 48px "Noto Sans TC", sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ticketWrapText(ctx, info.eventName, px, topH - 140, W - px*2, 58, 2);
-
-  if (info.displayDate) {
-    ctx.font = '500 18px "Noto Sans TC", sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,.82)';
-    ctx.fillText(info.displayDate, px, topH - 78);
-  }
-  const sub = [info.session, info.ticketType].filter(Boolean).join('  ·  ');
-  if (sub) {
-    ctx.font = '500 16px "Noto Sans TC", sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,.62)';
-    ctx.fillText(sub, px, topH - 50);
   }
 
   ctx.fillStyle = '#ffffff';
@@ -3841,9 +3986,21 @@ async function drawTicketCanvas(canvas, person, info) {
   ctx.fillStyle = '#1a3a5c';
   ctx.fillRect(px, topH + 24, W - px*2, 3);
 
+  ctx.textAlign = 'center';
+  ctx.font = '900 34px "Noto Sans TC", sans-serif';
+  ctx.fillStyle = '#1a1a2e';
+  ticketWrapText(ctx, info.eventName, px, topH + 72, W - px*2, 42, 2);
+
+  const sub = [info.displayDate, info.session, info.ticketType].filter(Boolean).join('  ·  ');
+  if (sub) {
+    ctx.font = '600 18px "Noto Sans TC", sans-serif';
+    ctx.fillStyle = '#4f5964';
+    ctx.fillText(sub, W/2, topH + 140);
+  }
+
   const qrSize = Math.round(W * 0.70);
   const qrX = Math.round((W - qrSize) / 2);
-  const qrY = topH + 44;
+  const qrY = topH + 168;
   ctx.fillStyle = '#f7f7f7';
   ticketRoundRect(ctx, qrX-8, qrY-8, qrSize+16, qrSize+16, 12);
   ctx.fill();
