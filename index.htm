@@ -451,6 +451,27 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .readonly-box{background:#f7f7f7;border:1px solid #e0e0e0;border-radius:12px;padding:12px;font-size:15px;color:#333}
 .quick-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .compact-card{padding:14px}
+.time-clock-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.date-time-clock{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.clock-display{width:100%;border:1px solid #ddd;border-radius:13px;background:#fff;color:#2a2620;padding:13px 14px;font-family:'Noto Sans TC',sans-serif;font-size:15px;font-weight:800;text-align:left;cursor:pointer;min-height:48px}
+.clock-display:after{content:'◷';float:right;color:#2d5a3d;font-weight:900}
+.clock-display.empty{color:#777;font-weight:700}
+.clock-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:30;display:none;align-items:center;justify-content:center;padding:18px}
+.clock-backdrop.on{display:flex}
+.clock-panel{width:min(360px,calc(100vw - 36px));background:#fff;border-radius:20px;box-shadow:0 16px 54px rgba(0,0,0,.28);padding:16px;border:1px solid rgba(45,90,61,.15)}
+.clock-title{text-align:center;color:#2d5a3d;font-size:18px;font-weight:900;margin-bottom:10px}
+.clock-value{text-align:center;font-size:30px;font-weight:900;color:#1f4d2c;line-height:1.1;margin-bottom:12px}
+.clock-period{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.clock-period button,.clock-minute button,.clock-actions button{border:none;border-radius:12px;padding:10px;font-family:'Noto Sans TC',sans-serif;font-weight:900;cursor:pointer;background:#e8f0ea;color:#2d5a3d}
+.clock-period button.on,.clock-minute button.on{background:#2d5a3d;color:#fff}
+.clock-face{position:relative;width:220px;height:220px;border-radius:50%;background:#f7f4ed;border:1px solid #eadfce;margin:0 auto 14px}
+.clock-face:before{content:'';position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;background:#2d5a3d;transform:translate(-50%,-50%)}
+.clock-hour{position:absolute;width:42px;height:42px;margin:-21px 0 0 -21px;border:none;border-radius:50%;background:#fff;color:#2a2620;font-family:'Noto Sans TC',sans-serif;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,.08);cursor:pointer}
+.clock-hour.on{background:#2d5a3d;color:#fff}
+.clock-minute{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px}
+.clock-minute button{padding:8px 0;border-radius:10px}
+.clock-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.clock-actions .ghost{background:#fff;border:1px solid rgba(45,90,61,.22)}
 
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
 .form-grid .full{grid-column:1 / -1}
@@ -517,18 +538,21 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:420px){.import-summary{grid-template-columns:repeat(2,1fr)}}
 
-@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
+@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
 </head>
 <body>
 
 <div class="hd">
-  <small>CYP135 課程系統 V5.9</small>
+  <small>CYP135 課程系統 V5.10</small>
   <h1 id="page-title">課程報名</h1>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
 </div>
 <div id="menu-backdrop" class="menu-backdrop" onclick="toggleMenu(false)"></div>
 <div id="side-menu" class="side-menu"></div>
+<div id="clock-backdrop" class="clock-backdrop" onclick="closeClockPicker(event)">
+  <div id="clock-panel" class="clock-panel" onclick="event.stopPropagation()"></div>
+</div>
 
 <div class="wrap">
   <div id="msg" class="msg"></div>
@@ -558,6 +582,9 @@ let selectedClassType = '';
 let lockedClassType = '';
 let lookupCache = {};
 let lastLookupSeq = 0;
+let activeClockTarget = '';
+let activeClockHour = 9;
+let activeClockMinute = 0;
 let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
@@ -568,7 +595,7 @@ let coursePrefillFromImport = null;
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v59';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v510';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1383,11 +1410,11 @@ function renderCourseForm(course) {
           </div>
           <div class="field">
             <label>報名開始，可空白</label>
-            <input id="c-apply-start" type="datetime-local" value="${esc(toDatetimeLocalValue(course ? course.applyStart : ''))}">
+            ${renderDateTimeClockPicker('c-apply-start', course ? course.applyStart : '')}
           </div>
           <div class="field">
             <label>報名結束，可空白</label>
-            <input id="c-apply-end" type="datetime-local" value="${esc(toDatetimeLocalValue(course ? course.applyEnd : ''))}">
+            ${renderDateTimeClockPicker('c-apply-end', course ? course.applyEnd : '')}
           </div>
         </div>
       </div>
@@ -1573,7 +1600,165 @@ function compressImageToDataUrl(file, maxWidth, quality) {
 function renderTimePicker(prefix, selected) {
   selected = selected || {};
   const value = selected.time || to24Hour(selected.hour, selected.minute, selected.ampm) || '';
-  return `<input id="${prefix}-time" type="time" value="${esc(value)}">`;
+  return renderClockTimePicker(`${prefix}-time`, value);
+}
+
+function renderClockTimePicker(id, value, dataAttrs) {
+  const safeValue = normalizeClockValue(value);
+  const attrs = dataAttrs || '';
+  return `
+    <div class="time-clock-grid">
+      <input id="${esc(id)}" type="hidden" value="${esc(safeValue)}"${attrs}>
+      <button id="${esc(id)}-display" type="button" class="clock-display ${safeValue ? '' : 'empty'}" onclick="openClockPicker('${esc(id)}')">${esc(formatClockDisplay(safeValue))}</button>
+    </div>
+  `;
+}
+
+function renderDateTimeClockPicker(id, text) {
+  const local = toDatetimeLocalValue(text);
+  const parts = local ? local.split('T') : ['', ''];
+  const date = parts[0] || '';
+  const time = normalizeClockValue(parts[1] || '');
+  return `
+    <div class="date-time-clock">
+      <input id="${esc(id)}" type="hidden" value="${esc(date && time ? date + 'T' + time : '')}">
+      <input id="${esc(id)}-date" type="date" value="${esc(date)}" onchange="syncDateTimeClock('${esc(id)}')">
+      ${renderClockTimePicker(`${id}-time`, time, ` data-datetime-base="${esc(id)}"`)}
+    </div>
+  `;
+}
+
+function syncDateTimeClock(id) {
+  const date = val(`${id}-date`);
+  const time = val(`${id}-time`);
+  const target = document.getElementById(id);
+  if (!target) return;
+  target.value = date && time ? `${date}T${time}` : '';
+}
+
+function normalizeClockValue(value) {
+  const m = String(value || '').match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return '';
+  const h = Math.max(0, Math.min(23, Number(m[1]) || 0));
+  const min = Math.max(0, Math.min(59, Number(m[2]) || 0));
+  return String(h).padStart(2, '0') + ':' + String(min).padStart(2, '0');
+}
+
+function formatClockDisplay(value) {
+  const normalized = normalizeClockValue(value);
+  return normalized || '選擇時間';
+}
+
+function openClockPicker(targetId) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  activeClockTarget = targetId;
+  const parsed = normalizeClockValue(target.value);
+  const now = new Date();
+  activeClockHour = parsed ? Number(parsed.slice(0, 2)) : now.getHours();
+  activeClockMinute = parsed ? Number(parsed.slice(3, 5)) : 0;
+  renderClockPanel();
+  document.getElementById('clock-backdrop').classList.add('on');
+}
+
+function closeClockPicker(event) {
+  if (event && event.target && event.target.id !== 'clock-backdrop') return;
+  document.getElementById('clock-backdrop').classList.remove('on');
+}
+
+function getClockPeriod() {
+  return activeClockHour >= 12 ? 'PM' : 'AM';
+}
+
+function getClockHour12() {
+  const hour = activeClockHour % 12;
+  return hour || 12;
+}
+
+function setClockPeriod(period) {
+  const hour12 = getClockHour12();
+  activeClockHour = period === 'PM' ? (hour12 % 12) + 12 : (hour12 % 12);
+  renderClockPanel();
+}
+
+function setClockHour(hour12) {
+  const period = getClockPeriod();
+  activeClockHour = period === 'PM' ? (hour12 % 12) + 12 : (hour12 % 12);
+  renderClockPanel();
+}
+
+function setClockMinute(minute) {
+  activeClockMinute = Math.max(0, Math.min(59, Number(minute) || 0));
+  renderClockPanel();
+}
+
+function adjustClockMinute(delta) {
+  activeClockMinute = (activeClockMinute + delta + 60) % 60;
+  renderClockPanel();
+}
+
+function saveClockPicker() {
+  const target = document.getElementById(activeClockTarget);
+  if (!target) return;
+  const value = String(activeClockHour).padStart(2, '0') + ':' + String(activeClockMinute).padStart(2, '0');
+  target.value = value;
+  updateClockDisplay(activeClockTarget);
+  if (target.dataset.datetimeBase) syncDateTimeClock(target.dataset.datetimeBase);
+  document.getElementById('clock-backdrop').classList.remove('on');
+}
+
+function clearClockPicker() {
+  const target = document.getElementById(activeClockTarget);
+  if (!target) return;
+  target.value = '';
+  updateClockDisplay(activeClockTarget);
+  if (target.dataset.datetimeBase) syncDateTimeClock(target.dataset.datetimeBase);
+  document.getElementById('clock-backdrop').classList.remove('on');
+}
+
+function updateClockDisplay(targetId) {
+  const target = document.getElementById(targetId);
+  const display = document.getElementById(`${targetId}-display`);
+  if (!target || !display) return;
+  const text = formatClockDisplay(target.value);
+  display.textContent = text;
+  display.classList.toggle('empty', !target.value);
+}
+
+function renderClockPanel() {
+  const panel = document.getElementById('clock-panel');
+  if (!panel) return;
+  const period = getClockPeriod();
+  const hour12 = getClockHour12();
+  const minuteChoices = ['00','05','10','15','20','25','30','35','40','45','50','55'];
+  const hours = Array.from({ length: 12 }, (_, i) => i + 1);
+  panel.innerHTML = `
+    <div class="clock-title">選擇時間</div>
+    <div class="clock-value">${String(activeClockHour).padStart(2, '0')}:${String(activeClockMinute).padStart(2, '0')}</div>
+    <div class="clock-period">
+      <button type="button" class="${period === 'AM' ? 'on' : ''}" onclick="setClockPeriod('AM')">上午</button>
+      <button type="button" class="${period === 'PM' ? 'on' : ''}" onclick="setClockPeriod('PM')">下午</button>
+    </div>
+    <div class="clock-face">
+      ${hours.map(hour => {
+        const angle = (hour % 12) * 30 - 90;
+        const rad = angle * Math.PI / 180;
+        const x = 110 + Math.cos(rad) * 82;
+        const y = 110 + Math.sin(rad) * 82;
+        return `<button type="button" class="clock-hour ${hour12 === hour ? 'on' : ''}" style="left:${x}px;top:${y}px" onclick="setClockHour(${hour})">${hour}</button>`;
+      }).join('')}
+    </div>
+    <div class="clock-minute">
+      ${minuteChoices.map(min => `<button type="button" class="${activeClockMinute === Number(min) ? 'on' : ''}" onclick="setClockMinute(${Number(min)})">${min}</button>`).join('')}
+    </div>
+    <div class="clock-actions">
+      <button type="button" class="ghost" onclick="adjustClockMinute(-1)">-1 分</button>
+      <button type="button" class="ghost" onclick="adjustClockMinute(1)">+1 分</button>
+      <button type="button" onclick="saveClockPicker()">完成</button>
+      <button type="button" class="ghost" onclick="clearClockPicker()">清除</button>
+      <button type="button" class="ghost" onclick="document.getElementById('clock-backdrop').classList.remove('on')">取消</button>
+    </div>
+  `;
 }
 
 function optionHtml(arr, selected, placeholder) {
