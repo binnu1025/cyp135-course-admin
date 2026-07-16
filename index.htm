@@ -2351,13 +2351,21 @@ function getExternalSelectedCourse() {
 function buildExternalClassTypeOptions() {
   const course = getExternalSelectedCourse();
   let details = course && Array.isArray(course.classDetails) ? course.classDetails : [];
+  details = details
+    .map(item => ({ name: String((item && item.name) || '').trim() }))
+    .filter(item => item.name);
   if (!details.length && course) {
     if (course.pricingMode === '類別制') {
-      details = csvSplit(course.categoryNames || '').map(name => ({ name }));
+      details = csvSplit(course.categoryNames || '')
+        .map(name => ({ name: String(name || '').trim() }))
+        .filter(item => item.name);
     } else {
       details = [{ name: '白金' }, { name: '非白金' }];
     }
   }
+
+  if (!course) return '<option value="">請先選擇課程</option>';
+  if (!details.length) return '<option value="">此課程尚未設定類別</option>';
 
   const selected = details.length === 1 ? details[0].name : '';
   let html = details.length === 1 ? '' : '<option value="">請選擇類別</option>';
@@ -2365,7 +2373,7 @@ function buildExternalClassTypeOptions() {
     const name = item && item.name ? item.name : '';
     return `<option value="${esc(name)}" ${name === selected ? 'selected' : ''}>${esc(name)}</option>`;
   }).join('');
-  return html || '<option value="">請先選擇課程</option>';
+  return html;
 }
 
 function getExternalDefaultClassType() {
