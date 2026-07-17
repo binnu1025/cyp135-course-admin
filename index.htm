@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.8</title>
+<title>CYP135 課程報名 V6.9</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -407,6 +407,9 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .loading-bar{height:8px;border-radius:999px;background:#e8f0ea;overflow:hidden;margin:10px 0 6px}
 .loading-bar i{display:block;height:100%;width:8%;background:#2d5a3d;border-radius:999px;transition:width .25s ease}
 .loading-percent{font-size:12px;color:#888}
+.inline-loading{height:44px;border:1px solid #eadfce;border-radius:12px;background:#fbfaf6;overflow:hidden;position:relative;margin-bottom:12px}
+.inline-loading:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(45,90,61,.12) 35%,rgba(45,90,61,.28) 50%,rgba(45,90,61,.12) 65%,transparent 100%);transform:translateX(-100%);animation:slideLoading 1.2s ease-in-out infinite}
+@keyframes slideLoading{to{transform:translateX(100%)}}
 @keyframes spin{to{transform:rotate(360deg)}}
 .top-actions{display:flex;flex-wrap:nowrap;gap:8px;margin-bottom:14px;align-items:stretch}
 .top-actions .btn{width:auto;flex:1 1 0;min-width:0;padding:10px 8px;font-size:13px;border-radius:12px;white-space:nowrap}
@@ -570,7 +573,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.8</small>
+    <small>CYP135 課程系統 V6.9</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -627,9 +630,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v70';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v71';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v70_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v71_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -836,6 +839,17 @@ function stopLoading() {
   loadingSeq++;
   if (loadingTimer) clearInterval(loadingTimer);
   loadingTimer = null;
+}
+
+function inlineLoadingHtml() {
+  return '<div class="inline-loading" aria-label="載入中"></div>';
+}
+
+function showBoxLoading(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'msg on';
+  el.innerHTML = inlineLoadingHtml();
 }
 
 function setAdminData(data, fromCache) {
@@ -1338,12 +1352,12 @@ async function renderCourseRosterPage(courseCode) {
   if (cachedRoster) {
     applyRosterData(cachedRoster, { fromCache: true, loading: true });
     renderRosterContent();
-    showBoxMsg('roster-msg', '正在更新最新名單...', 'info');
+    showBoxLoading('roster-msg');
     hasShell = true;
   } else if (localCourse) {
     applyRosterData(buildRosterPlaceholderData(localCourse), { loading: true });
     renderRosterContent();
-    showBoxMsg('roster-msg', '正在載入名單...', 'info');
+    showBoxLoading('roster-msg');
     hasShell = true;
   } else {
     showLoading('載入名單中');
@@ -1701,8 +1715,8 @@ function renderRosterList() {
   if (!box) return;
   const rows = getFilteredRosterRows();
   if (!rows.length) {
-  if (rosterState.loading) {
-      box.innerHTML = '<div class="readonly-box">正在更新名單...</div>';
+    if (rosterState.loading) {
+      box.innerHTML = inlineLoadingHtml();
       return;
     }
     box.innerHTML = '<div class="readonly-box">目前沒有符合條件的名單。</div>';
