@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.5</title>
+<title>CYP135 課程報名 V6.6</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -63,7 +63,6 @@ async function renderTicketGeneratorPage() {
 
     <div class="card">
       <h2>票券產生</h2>
-      <p class="muted">選活動後，系統會從報名總表同步名單到 QR管理，保留同活動舊 CODE，只幫新報名者補新 CODE。</p>
       <div id="ticket-msg" class="msg"></div>
       <div class="field">
         <label>選擇活動</label>
@@ -76,7 +75,6 @@ async function renderTicketGeneratorPage() {
         <div class="field full">
           <label>票券底圖，上半部圖片，可選</label>
           <input type="file" id="ticket-bg-file" accept="image/*" onchange="handleTicketBgUpload(this)">
-          <div class="ticket-small">不選底圖會使用內建深色設計。第一階段先下載 ZIP，不存 Google Drive。</div>
         </div>
       </div>
       <div class="ticket-toolbar">
@@ -565,7 +563,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.5</small>
+    <small>CYP135 課程系統 V6.6</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -619,9 +617,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v67';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v68';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v67_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v68_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1365,8 +1363,6 @@ function renderRosterContent() {
   const c = rosterState.course || {};
   const stats = rosterState.stats || {};
   const money = rosterMoneySummary(rosterState.rows || []);
-  const scopeText = rosterState.scopeText
-    || ((rosterState.scopeFlocks || []).length ? rosterState.scopeFlocks.join('、') : (rosterState.loading ? '正在確認權限...' : '依 LINE權限表判斷'));
   const app = document.getElementById('app');
 
   app.innerHTML = `
@@ -1378,7 +1374,6 @@ function renderRosterContent() {
     <div class="card compact-card">
       <h2>${esc(c.eventName || '課程名單')}</h2>
       <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>名額：${esc(stats.active || 0)} / ${esc(stats.maxCount || '不限')}</div>
-      <div class="readonly-box">目前查看範圍：${esc(scopeText)}</div>
       <div class="roster-summary">
         <div class="roster-stat"><strong>${esc(stats.active || 0)}</strong><span>有效報名</span></div>
         <div class="roster-stat"><strong>$${esc(money.total)}</strong><span>應收金額</span></div>
@@ -1403,7 +1398,7 @@ function renderRosterContent() {
 
 function renderRosterAddForm() {
   if (!rosterState.canManage) {
-    return '<div class="readonly-box">目前是名單查看模式；LINE權限表 C 欄決定可查看雁群，E 欄包含「管理權限」才可加報、取消或恢復。</div>';
+    return '';
   }
   const c = rosterState.course || {};
   const classDetails = rosterState.classDetails || [];
@@ -1433,7 +1428,6 @@ function renderRosterAddForm() {
           </div>
         </div>
         <button class="btn btn-main" onclick="submitAdminAddRegistration()">送出加報</button>
-        <p class="muted" style="margin-top:8px">加報會寫入報名總表 F 欄「加報」，並納入有效名額統計。</p>
       </div>
     </details>
   `;
@@ -1573,7 +1567,7 @@ async function lookupRosterAddName(clean, name) {
           ✅ 已找到名冊資料<br>
           姓名：${esc(member.name || name)}<br>
           上手白金/雁群組長：${esc(add.selectedLeader || '—')}
-          ${autoClassType ? `<br>自動判斷類別：${esc(autoClassType)}（依名冊鎖定）` : ''}
+          ${autoClassType ? `<br>上課類別：${esc(autoClassType)}` : ''}
         </div>
       `;
     } else if (res && res.status === 'multiple') {
@@ -1589,7 +1583,7 @@ async function lookupRosterAddName(clean, name) {
         <div class="msg on err">
           查無名冊資料，請選擇上手白金/雁群組長<br>
           建立資料
-          ${autoClassType ? `<br>自動判斷類別：${esc(autoClassType)}` : ''}
+          ${autoClassType ? `<br>上課類別：${esc(autoClassType)}` : ''}
         </div>
       `;
     }
@@ -1613,8 +1607,7 @@ function renderRosterFillAction() {
   if (!needsFill) return '';
   return `
     <div class="readonly-box" style="margin-top:10px">
-      有部分名單缺少上課類別或金額，畫面已先依課程管理與名冊資料推算。
-      <button class="btn btn-sub" style="margin-top:10px" onclick="fillRosterDerivedData()">補齊本課名單資料</button>
+      <button class="btn btn-sub" onclick="fillRosterDerivedData()">整理名單資料</button>
     </div>
   `;
 }
@@ -1646,8 +1639,8 @@ function renderRosterList() {
   if (!box) return;
   const rows = getFilteredRosterRows();
   if (!rows.length) {
-    if (rosterState.loading) {
-      box.innerHTML = '<div class="readonly-box">正在更新名單，畫面會自動補上最新資料。</div>';
+  if (rosterState.loading) {
+      box.innerHTML = '<div class="readonly-box">正在更新名單...</div>';
       return;
     }
     box.innerHTML = '<div class="readonly-box">目前沒有符合條件的名單。</div>';
@@ -1878,18 +1871,18 @@ async function updateRosterStatus(rowNumber, status) {
 
 async function fillRosterDerivedData() {
   if (!rosterState.course) return;
-  if (!confirm('確認要把畫面推算出的上課類別與金額寫回報名總表？')) return;
-  showBoxMsg('roster-msg', '補齊資料中...', 'info');
+  if (!confirm('確認整理本課名單資料？')) return;
+  showBoxMsg('roster-msg', '整理中...', 'info');
   try {
     const res = await post('fillCourseRosterDerivedData', {
       userId,
       eventCode: rosterState.course.eventCode
     }, 30000);
-    if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '補齊失敗'), 'err');
+    if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '整理失敗'), 'err');
     applyRosterData(res);
     saveCurrentRosterCache();
     renderRosterContent();
-    showBoxMsg('roster-msg', esc(res.message || '已補齊資料'), 'ok');
+    showBoxMsg('roster-msg', esc(res.message || '已整理完成'), 'ok');
   } catch (err) {
     showBoxMsg('roster-msg', esc(err.message || err), 'err');
   }
@@ -1943,8 +1936,8 @@ function renderNoAdminPage() {
   document.getElementById('app').innerHTML = `
     <button class="btn btn-ghost" onclick="renderHomePage({skipRefresh:true})">← 返回報名課程</button>
     <div class="card" style="margin-top:12px">
-      <h2>無權限進入設定頁</h2>
-      <p class="meta">建立課程、外部名單匯入與票券產生都限 LINE權限表角色為「會長」的人使用。</p>
+      <h2>目前無法進入</h2>
+      <p class="meta">請返回課程首頁。</p>
     </div>
   `;
 }
@@ -1955,7 +1948,7 @@ async function ensureAdminAccess() {
     const data = await getCachedAdminData_();
     if (data && data.allowed) return true;
   } catch (err) {
-    document.getElementById('app').innerHTML = '<div class="card"><h2>權限檢查失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+    document.getElementById('app').innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
     return false;
   }
   renderNoAdminPage();
@@ -2153,7 +2146,7 @@ function renderCourseForm(course) {
             <label>課程用途</label>
             <select id="c-purpose">
               <option value="報名網站" ${purposeValue !== '外部匯入' ? 'selected' : ''}>報名網站，會出現在課程首頁</option>
-              <option value="外部匯入" ${purposeValue === '外部匯入' ? 'selected' : ''}>外部匯入，只供匯入與 LINE Bot 查詢</option>
+              <option value="外部匯入" ${purposeValue === '外部匯入' ? 'selected' : ''}>外部匯入</option>
             </select>
           </div>
         </div>
@@ -2211,7 +2204,7 @@ function renderCourseForm(course) {
           </div>
         </div>
         <div id="price-category" class="hide" style="margin-top:10px">
-          <p class="muted" style="margin-bottom:8px">類別可自行設定。系統會統一儲存成逗號格式，例如：初訓,複訓,旁聽 / 500,400,300。</p>
+          <p class="muted" style="margin-bottom:8px">可新增多個上課類別與價格。</p>
           <datalist id="class-suggestions">${(data.options.classTypes || []).map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
           <div id="category-box"></div>
           <button class="btn btn-sub" onclick="addCategoryRow()" type="button">新增課程類別</button>
@@ -2248,7 +2241,6 @@ function renderCourseForm(course) {
 
       <div class="mini-section">
         <div class="section-title">報名欄位設定</div>
-        <p class="muted" style="margin-bottom:8px">這些欄位會寫入「報名附加答案」，不影響報名總表主欄位。</p>
         <div class="form-grid">
           ${renderCourseFieldModeSelect('c-field-phone', '電話', regFields.phone)}
           ${renderCourseFieldModeSelect('c-field-gender', '性別', regFields.gender)}
@@ -2269,7 +2261,6 @@ function renderCourseForm(course) {
               <div id="edm-preview-box" class="edm-preview ${course && course.dmUrl ? '' : 'hide'}">
                 ${course && course.dmUrl ? `<img src="${esc(course.dmUrl)}" alt="EDM 預覽"><div class="edm-info">目前 EDM 圖片。若重新選擇圖片，更新時會覆蓋連結。</div>` : ''}
               </div>
-              <p class="muted" style="margin-top:8px">手機可直接選相簿圖片。建立或更新課程時會自動上傳到 Google Drive「CYP135_EDM」。</p>
             </div>
           </div>
           <div class="field">
@@ -2348,7 +2339,7 @@ function handleEdmFileChange(event) {
       <div class="edm-info">
         已選擇：${esc(file.name)}<br>
         上傳後檔名：${esc(predictedName)}<br>
-        狀態：尚未上傳，按「${editingCourseCode ? '更新課程' : '建立課程'}」時會自動上傳。
+        狀態：尚未上傳。
       </div>
     `;
   }
@@ -2400,7 +2391,7 @@ async function uploadEdmIfNeeded(eventName, eventDate) {
     box.classList.remove('hide');
     box.innerHTML = `
       <img src="${esc(uploadedEdmUrl)}" alt="EDM 預覽">
-      <div class="edm-info">✅ 已上傳到 Google Drive<br>檔名：${esc(uploadedEdmFileName || '—')}</div>
+      <div class="edm-info">✅ 圖片已準備完成<br>檔名：${esc(uploadedEdmFileName || '—')}</div>
     `;
   }
 
@@ -2775,7 +2766,7 @@ async function renderExternalImportPage(courseCode) {
   if (initData && initData.allowed) {
     renderExternalImportShell(selectedCode, true);
   } else {
-    app.innerHTML = '<div class="loading">檢查外部名單匯入權限中...</div>';
+    app.innerHTML = '<div class="loading">載入中...</div>';
   }
 
   const allowed = await ensureAdminAccess();
@@ -2831,7 +2822,6 @@ function renderExternalImportShell(selectedCode, loadingCourses) {
 
     <div class="card" id="external-import-form-card">
       <h2>外部名單匯入</h2>
-      <p class="muted">初次匯入可以先建立課程，也可以先上傳 Excel 讀取活動名稱；選定課程後才會預覽檢查，不會直接寫入報名總表。</p>
       ${renderExternalImportSteps()}
       <div id="external-import-msg" class="msg"></div>
       <div class="form-grid">
@@ -2850,7 +2840,6 @@ function renderExternalImportShell(selectedCode, loadingCourses) {
         <button class="btn btn-sub" onclick="createCourseFromImportSuggestion()">用 Excel 建議名稱建立課程</button>
         <button class="btn btn-ghost" onclick="createBlankExternalImportCourse()">空白建立課程</button>
       </div>
-      <div class="ticket-small">前 10 行只是欄位設定預覽；正式檢查會讀取整份 Excel。會寫入報名總表 A~S；報名來源固定標記為「外部Excel」。LINE Bot 查詢主線不會修改。</div>
       <div id="external-import-suggest"></div>
     </div>
 
@@ -3151,7 +3140,7 @@ function renderExternalImportSuggestion() {
       <strong>Excel 已讀取：</strong>${Number(estimatedRows || 0)} 筆<br>
       <strong>建議課程名稱：</strong>${esc(suggested || '未判斷')}<br>
       ${meta.title ? '<strong>Excel 標題：</strong>' + esc(meta.title) + '<br>' : ''}
-      ${packages.length ? '<strong>J 欄套組：</strong>' + esc(packages.join('、')) + '<br>' : ''}
+      ${packages.length ? '<strong>套組：</strong>' + esc(packages.join('、')) + '<br>' : ''}
       <button class="btn btn-sub" style="margin-top:10px" onclick="createCourseFromImportSuggestion()">用建議名稱建立課程</button>
     </div>
     ${renderExternalColumnMapper()}
@@ -3174,34 +3163,33 @@ function renderExternalColumnMapper() {
   return `
     <div class="card" style="margin-top:12px">
       <h2>欄位對應</h2>
-      <p class="muted">這裡是在設定「Excel 哪一欄」要寫到「報名總表哪一欄」。下方只顯示前 10 行讓你核對欄位，不代表只匯入 10 筆。</p>
       <div class="form-grid">
         <div class="field full">
           <label>表頭在哪一列</label>
           <select id="import-header-row" onchange="refreshExternalColumnMapperFromHeader()">${rowOptions}</select>
         </div>
         <div class="field">
-          <label>報名總表 A 姓名</label>
+          <label>姓名</label>
           <select id="import-col-name">${colOptions(columns.name)}</select>
         </div>
         <div class="field">
-          <label>報名總表 B 上手白金/組長</label>
+          <label>上手白金/組長</label>
           <select id="import-col-leader">${colOptions(columns.leader)}</select>
         </div>
         <div class="field">
-          <label>報名總表 C 所屬活動</label>
+          <label>所屬活動</label>
           <select id="import-col-package">${colOptions(columns.packageName)}</select>
         </div>
         <div class="field">
-          <label>輔助判斷白金/非白金，可選</label>
+          <label>白金/非白金，可選</label>
           <select id="import-col-member">${colOptions(columns.memberType, true)}</select>
         </div>
         <div class="field">
-          <label>報名總表 M 報名時間，可選</label>
+          <label>報名時間，可選</label>
           <select id="import-col-time">${colOptions(columns.registeredAt, true)}</select>
         </div>
         <div class="field">
-          <label>報名總表 G 備註，可選</label>
+          <label>備註，可選</label>
           <select id="import-col-remark">${colOptions(columns.remark, true)}</select>
         </div>
       </div>
@@ -3209,7 +3197,6 @@ function renderExternalColumnMapper() {
         <button class="btn btn-ghost" onclick="externalImportBack()">上一步</button>
         <button class="btn btn-main" onclick="applyExternalColumnMapping()">套用欄位並預覽</button>
       </div>
-      <div class="ticket-small" style="margin-top:8px">H 上課類別與 N 應收金額會依「所選課程」的收費模式與金額設定自動計算；白金制會優先依名冊或輔助欄判斷。</div>
       <div class="import-table-wrap">
         <table class="import-table">
           <tbody>${renderExternalFirstRows(grid, maxCols)}</tbody>
@@ -3373,7 +3360,7 @@ function renderExternalImportPreview(data) {
   if (committed && suggest) suggest.innerHTML = '';
   const doneMessage = data.message || (
     canSyncMaster
-      ? `已匯入資料，寫入報名總表第 ${data.firstWrittenRow} 到 ${data.lastWrittenRow} 列。`
+      ? `已完成匯入。`
       : '已匯入資料。'
   );
 
@@ -3397,7 +3384,6 @@ function renderExternalImportPreview(data) {
         ${committed ? '<button class="btn btn-sub" onclick="createBlankExternalImportCourse()">建立課程</button>' : ''}
       </div>
       <div id="external-sync-msg" class="msg"></div>
-      <div class="ticket-small" style="margin-top:8px">畫面最多顯示前 200 筆方便檢查；確認匯入會處理全部「可匯入」資料，不只匯入畫面看到的資料。</div>
       <div class="import-table-wrap">
         <table class="import-table">
           <thead>
@@ -3440,7 +3426,7 @@ async function commitExternalImport() {
 
   const okCount = Number((state.preview.summary && state.preview.summary.ok) || 0);
   if (!okCount) return showBoxMsg('external-import-msg', '目前沒有可匯入資料。', 'err');
-  if (!confirm('確認匯入 ' + okCount + ' 筆可匯入資料到報名總表？')) return;
+  if (!confirm('確認匯入 ' + okCount + ' 筆資料？')) return;
 
   try {
     showBoxMsg('external-import-msg', '匯入中，請不要關閉頁面...', 'info');
@@ -3935,8 +3921,7 @@ function renderLookupResult(res, clean, name) {
         ✅ 已找到名冊資料<br>
         姓名：${esc((res.member && res.member.name) || name)}<br>
         上手白金/雁群組長：${esc(selectedLeader || '—')}
-        ${autoClassType ? `<br>自動判斷類別：${esc(autoClassType)}${lockedClassType ? '（依名冊鎖定）' : ''}` : ''}
-        ${prefilled.length ? `<br>已自動帶入：${esc(prefilled.join('、'))}` : ''}
+        ${autoClassType ? `<br>上課類別：${esc(autoClassType)}` : ''}
       </div>
       <input id="r-leader" type="hidden" value="${esc(selectedLeader)}">
     `;
@@ -3951,7 +3936,7 @@ function renderLookupResult(res, clean, name) {
     selectedLeader = '';
     const autoClassType = applyPlatinumClassAutoSelection(null);
     box.innerHTML = `
-      <div class="msg on err">查無名冊資料，請選擇上手白金/雁群組長<br>建立資料${autoClassType ? '<br>自動判斷類別：' + esc(autoClassType) : ''}</div>
+      <div class="msg on err">查無名冊資料，請選擇上手白金/雁群組長<br>建立資料${autoClassType ? '<br>上課類別：' + esc(autoClassType) : ''}</div>
       ${renderLeaderSelect(getLeaderOptionsForForm())}
     `;
   }
@@ -4364,7 +4349,6 @@ async function renderTicketGeneratorPage() {
 
     <div class="card">
       <h2>票券產生</h2>
-      <p class="muted">選活動後，系統會從報名總表同步名單到 QR管理，保留同活動舊 CODE，只幫新報名者補新 CODE。</p>
       <div id="ticket-msg" class="msg"></div>
       <div class="field">
         <label>選擇活動</label>
@@ -4377,7 +4361,6 @@ async function renderTicketGeneratorPage() {
         <div class="field full">
           <label>票券底圖，上半部圖片，可選</label>
           <input type="file" id="ticket-bg-file" accept="image/*" onchange="handleTicketBgUpload(this)">
-          <div class="ticket-small">不選底圖會使用內建深色設計。第一階段先下載 ZIP，不存 Google Drive。</div>
         </div>
       </div>
       <div class="ticket-toolbar">
