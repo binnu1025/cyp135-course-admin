@@ -619,9 +619,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v66';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v67';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v66_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v67_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1335,7 +1335,7 @@ function buildRosterPlaceholderData(course) {
     },
     classDetails: course.classDetails || [],
     leaders: [],
-    rosterScopeText: '',
+    rosterScopeText: '正在確認權限...',
     rosterScopeFlocks: []
   };
 }
@@ -1365,7 +1365,8 @@ function renderRosterContent() {
   const c = rosterState.course || {};
   const stats = rosterState.stats || {};
   const money = rosterMoneySummary(rosterState.rows || []);
-  const scopeText = rosterState.scopeText || ((rosterState.scopeFlocks || []).length ? rosterState.scopeFlocks.join('、') : '全部名單');
+  const scopeText = rosterState.scopeText
+    || ((rosterState.scopeFlocks || []).length ? rosterState.scopeFlocks.join('、') : (rosterState.loading ? '正在確認權限...' : '依 LINE權限表判斷'));
   const app = document.getElementById('app');
 
   app.innerHTML = `
