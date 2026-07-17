@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.11</title>
+<title>CYP135 課程報名 V6.12</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -577,7 +577,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.11</small>
+    <small>CYP135 課程系統 V6.12</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -634,9 +634,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v73';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v74';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v73_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v74_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1506,6 +1506,7 @@ function renderRosterAddForm() {
             <label>備註</label>
             <input id="roster-add-remark" placeholder="可空白">
           </div>
+          <div class="full">${renderRegistrationExtraFields(c.registrationFields, 'roster-extra-')}</div>
         </div>
         <button class="btn btn-main" onclick="submitAdminAddRegistration()">送出加報</button>
       </div>
@@ -1609,6 +1610,7 @@ function handleRosterAddNameInput() {
   add.selectedClassType = hasRosterAddPlatinumClassPair() ? '' : add.selectedClassType;
   add.lockedClassType = '';
   syncRosterAddClassChoices();
+  clearExtraAnswerValues('roster-extra-');
 
   const box = document.getElementById('roster-add-lookup');
   if (box) box.innerHTML = '';
@@ -1642,6 +1644,7 @@ async function lookupRosterAddName(clean, name) {
       add.selectedLeader = member.leader || member.flock || member.uplinePlatinum || '';
       if (leaderInput) leaderInput.value = add.selectedLeader;
       const autoClassType = applyRosterAddClassAutoSelection(member);
+      applyMemberProfileToRegistration(member, 'roster-extra-');
       box.innerHTML = `
         <div class="msg on ok">
           ✅ 已找到名冊資料<br>
@@ -1678,7 +1681,10 @@ function handleRosterAddLeaderChange() {
   add.selectedLeader = leader;
   if (!leader || !Array.isArray(add.lookupMembers) || !add.lookupMembers.length) return;
   const member = add.lookupMembers.find(item => String(item.leader || item.flock || item.uplinePlatinum || '').trim() === leader);
-  if (member) applyRosterAddClassAutoSelection(member);
+  if (member) {
+    applyRosterAddClassAutoSelection(member);
+    applyMemberProfileToRegistration(member, 'roster-extra-');
+  }
 }
 
 function renderRosterFillAction() {
@@ -2077,6 +2083,8 @@ async function submitAdminAddRegistration() {
   if (add.duplicate) return showBoxMsg('roster-msg', '此姓名已有有效報名，無法重複加報。', 'err');
   const classType = add.selectedClassType || val('roster-add-class');
   const leader = (add.selectedLeader || val('roster-add-leader') || '').trim();
+  const extraCheck = collectRegistrationExtraAnswers(rosterState.course.registrationFields, 'roster-extra-');
+  if (!extraCheck.ok) return showBoxMsg('roster-msg', extraCheck.message, 'err');
   showBoxMsg('roster-msg', '加報中...', 'info');
   try {
     const res = await post('adminAddRegistration', {
@@ -2086,6 +2094,7 @@ async function submitAdminAddRegistration() {
       name,
       leader,
       classType,
+      extraAnswers: extraCheck.answers,
       remark: val('roster-add-remark')
     }, 20000);
     if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '加報失敗'), 'err');
@@ -4005,8 +4014,8 @@ function setRegisterButtonDisabled(disabled, text) {
   btn.textContent = text || '送出報名';
 }
 
-function setExtraAnswerValue(key, value) {
-  const el = document.getElementById('r-extra-' + key);
+function setExtraAnswerValue(key, value, prefix = 'r-extra-') {
+  const el = document.getElementById(prefix + key);
   if (!el || value === undefined || value === null || value === '') return false;
   const text = String(value || '').trim();
   if (!text) return false;
@@ -4023,12 +4032,16 @@ function setExtraAnswerValue(key, value) {
   return true;
 }
 
-function applyMemberProfileToRegistration(member) {
+function clearExtraAnswerValues(prefix = 'r-extra-') {
+  document.querySelectorAll(`[id^="${prefix}"]`).forEach(el => { el.value = ''; });
+}
+
+function applyMemberProfileToRegistration(member, prefix = 'r-extra-') {
   member = member || {};
   const filled = [];
-  if (setExtraAnswerValue('phone', member.phone)) filled.push('電話');
-  if (setExtraAnswerValue('gender', member.gender)) filled.push('性別');
-  if (setExtraAnswerValue('meal', member.meal)) filled.push('葷素');
+  if (setExtraAnswerValue('phone', member.phone, prefix)) filled.push('電話');
+  if (setExtraAnswerValue('gender', member.gender, prefix)) filled.push('性別');
+  if (setExtraAnswerValue('meal', member.meal, prefix)) filled.push('葷素');
   return filled;
 }
 
@@ -4311,7 +4324,7 @@ function registrationExtraFieldLabels() {
   };
 }
 
-function renderRegistrationExtraFields(fields) {
+function renderRegistrationExtraFields(fields, prefix = 'r-extra-') {
   fields = normalizeRegistrationFieldsClient(fields);
   const labels = registrationExtraFieldLabels();
   const rows = [];
@@ -4319,7 +4332,7 @@ function renderRegistrationExtraFields(fields) {
     const mode = fields[key];
     if (mode === 'hidden') return;
     const required = mode === 'required';
-    const inputId = 'r-extra-' + key;
+    const inputId = prefix + key;
     let input = '';
     if (key === 'birthDate') {
       input = `<input id="${inputId}" type="date" ${required ? 'required' : ''}>`;
@@ -4350,13 +4363,13 @@ function renderRegistrationExtraFields(fields) {
   return `<div class="mini-section"><div class="section-title">補充資料</div><div class="form-grid">${rows.join('')}</div></div>`;
 }
 
-function collectRegistrationExtraAnswers(fields) {
+function collectRegistrationExtraAnswers(fields, prefix = 'r-extra-') {
   fields = normalizeRegistrationFieldsClient(fields);
   const labels = registrationExtraFieldLabels();
   const answers = {};
   for (const key of Object.keys(labels)) {
     if (fields[key] === 'hidden') continue;
-    const answer = val('r-extra-' + key).trim();
+    const answer = val(prefix + key).trim();
     if (fields[key] === 'required' && !answer) {
       return { ok: false, message: '請填寫' + labels[key] };
     }
