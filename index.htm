@@ -600,6 +600,7 @@ let lookupTimer = null;
 let publicData = null;
 let adminCourseData = [];
 let isAdminUser = false;
+let canViewRoster = false;
 let selectedClassType = '';
 let lockedClassType = '';
 let lookupCache = {};
@@ -613,14 +614,14 @@ let uploadedEdmFileName = '';
 let externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
 let excelParserLoading = null;
 let coursePrefillFromImport = null;
-let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grouped', query: '', classDetails: [], leaders: [], canManage: false, add: null, loading: false };
+let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grouped', query: '', classDetails: [], leaders: [], canManage: false, scopeText: '', scopeFlocks: [], add: null, loading: false };
 
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v64';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v65';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v64_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v65_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -739,6 +740,7 @@ function setPublicData(data, fromCache) {
   appState.lastPublicRefresh = Date.now();
   rebuildCourseMap();
   if (typeof data.isAdmin !== 'undefined') isAdminUser = !!data.isAdmin;
+  canViewRoster = !!(isAdminUser || data.rosterAllowed);
   renderMenu();
 
   if (!fromCache) {
@@ -746,6 +748,9 @@ function setPublicData(data, fromCache) {
       localStorage.setItem(PUBLIC_CACHE_KEY, JSON.stringify({
         savedAt: Date.now(),
         isAdmin: !!data.isAdmin,
+        rosterAllowed: !!data.rosterAllowed,
+        canManageRoster: !!data.canManageRoster,
+        rosterScopeFlocks: data.rosterScopeFlocks || [],
         role: data.role || '',
         courses: data.courses || []
       }));
@@ -763,6 +768,9 @@ function loadPublicCache() {
       status: 'ok',
       cached: true,
       isAdmin: !!cached.isAdmin,
+      rosterAllowed: !!cached.rosterAllowed,
+      canManageRoster: !!cached.canManageRoster,
+      rosterScopeFlocks: cached.rosterScopeFlocks || [],
       role: cached.role || '',
       courses: cached.courses || []
     }, true);
@@ -776,6 +784,7 @@ function setAdminData(data, fromCache) {
   if (!data || data.status !== 'ok') return data;
   initData = data || {};
   isAdminUser = !!data.allowed;
+  canViewRoster = !!(canViewRoster || isAdminUser || data.rosterAllowed);
   adminCourseData = (data && data.courses) || [];
   if (adminCourseData.length) adminCourseData.forEach(mergeCourseToState);
   renderMenu();
@@ -827,7 +836,9 @@ function saveRosterCache(courseCode, data) {
       groups: data.groups || [],
       stats: data.stats || {},
       classDetails: data.classDetails || [],
-      leaders: data.leaders || []
+      leaders: data.leaders || [],
+      rosterScopeText: data.rosterScopeText || '',
+      rosterScopeFlocks: data.rosterScopeFlocks || []
     }));
   } catch (e) {}
 }
@@ -855,7 +866,9 @@ function saveCurrentRosterCache() {
     groups: rosterState.groups || [],
     stats: rosterState.stats || {},
     classDetails: rosterState.classDetails || [],
-    leaders: rosterState.leaders || []
+    leaders: rosterState.leaders || [],
+    rosterScopeText: rosterState.scopeText || '',
+    rosterScopeFlocks: rosterState.scopeFlocks || []
   });
 }
 
@@ -921,6 +934,7 @@ function ensureRegistrationData(courseCode, force) {
       currentCourse = data.course;
       mergeCourseToState(data.course);
       if (typeof data.isAdmin !== 'undefined') isAdminUser = !!data.isAdmin;
+      canViewRoster = !!(canViewRoster || isAdminUser || data.rosterAllowed);
       renderMenu();
     }
     return data;
@@ -1149,7 +1163,8 @@ function courseCardHtml(c) {
         <div class="course-actions ${isAdminUser ? 'admin' : ''}">
           <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看詳情</button>
           ${registerButton}
-          ${isAdminUser ? `<button class="btn btn-ghost" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button><button class="btn btn-ghost" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>` : ''}
+          ${canViewRoster ? `<button class="btn btn-ghost" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button>` : ''}
+          ${isAdminUser ? `<button class="btn btn-ghost" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>` : ''}
         </div>
       </div>
     </div>
@@ -1236,7 +1251,7 @@ function renderCourseDetailContent(c) {
       <div class="divider"></div>
       <div class="compact-actions">
         ${canRegister ? '<button class="btn btn-main" onclick="renderRegisterForm()">我要報名</button>' : '<button class="btn btn-warn" disabled>目前無法報名</button>'}
-        ${isAdminUser ? `<button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單管理</button>` : '<button class="btn btn-ghost" onclick="renderHomePage({skipRefresh:true})">返回課程首頁</button>'}
+        ${canViewRoster ? `<button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單管理</button>` : '<button class="btn btn-ghost" onclick="renderHomePage({skipRefresh:true})">返回課程首頁</button>'}
       </div>
       ${isAdminUser ? '<button class="btn btn-ghost" style="margin-top:8px" onclick="renderHomePage({skipRefresh:true})">返回課程首頁</button>' : ''}
     </div>
@@ -1279,9 +1294,11 @@ async function renderCourseRosterPage(courseCode) {
     app.innerHTML = '<div class="loading">載入名單中...</div>';
   }
 
-  if (!isAdminUser && !(initData && initData.allowed)) {
-    const allowed = await ensureAdminAccess();
-    if (!allowed) return;
+  if (!canViewRoster && !isAdminUser && !(initData && initData.allowed)) {
+    try {
+      const fresh = await ensurePublicData(true);
+      canViewRoster = !!(isAdminUser || (fresh && fresh.rosterAllowed));
+    } catch (err) {}
   }
 
   try {
@@ -1305,7 +1322,7 @@ function buildRosterPlaceholderData(course) {
   return {
     status: 'ok',
     allowed: true,
-    canManage: !!(initData && initData.allowed),
+    canManage: !!(publicData && publicData.canManageRoster),
     course,
     rows: [],
     groups: [],
@@ -1317,7 +1334,9 @@ function buildRosterPlaceholderData(course) {
       remaining: course.remainingCount !== undefined ? course.remainingCount : ''
     },
     classDetails: course.classDetails || [],
-    leaders: []
+    leaders: [],
+    rosterScopeText: '',
+    rosterScopeFlocks: []
   };
 }
 
@@ -1333,6 +1352,8 @@ function applyRosterData(data, options) {
   rosterState.classDetails = data.classDetails || [];
   rosterState.leaders = data.leaders || [];
   if (typeof data.canManage !== 'undefined') rosterState.canManage = !!data.canManage;
+  if (typeof data.rosterScopeText !== 'undefined') rosterState.scopeText = data.rosterScopeText || '';
+  if (typeof data.rosterScopeFlocks !== 'undefined') rosterState.scopeFlocks = data.rosterScopeFlocks || [];
   rosterState.loading = !!options.loading;
   if (rosterState.course) {
     currentCourse = rosterState.course;
@@ -1344,6 +1365,7 @@ function renderRosterContent() {
   const c = rosterState.course || {};
   const stats = rosterState.stats || {};
   const money = rosterMoneySummary(rosterState.rows || []);
+  const scopeText = rosterState.scopeText || ((rosterState.scopeFlocks || []).length ? rosterState.scopeFlocks.join('、') : '全部名單');
   const app = document.getElementById('app');
 
   app.innerHTML = `
@@ -1355,6 +1377,7 @@ function renderRosterContent() {
     <div class="card compact-card">
       <h2>${esc(c.eventName || '課程名單')}</h2>
       <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>名額：${esc(stats.active || 0)} / ${esc(stats.maxCount || '不限')}</div>
+      <div class="readonly-box">目前查看範圍：${esc(scopeText)}</div>
       <div class="roster-summary">
         <div class="roster-stat"><strong>${esc(stats.active || 0)}</strong><span>有效報名</span></div>
         <div class="roster-stat"><strong>$${esc(money.total)}</strong><span>應收金額</span></div>
@@ -1379,7 +1402,7 @@ function renderRosterContent() {
 
 function renderRosterAddForm() {
   if (!rosterState.canManage) {
-    return '<div class="readonly-box">目前是名單查看模式；需 LINE權限表 E 欄包含「管理權限」才可加報、取消或恢復。</div>';
+    return '<div class="readonly-box">目前是名單查看模式；LINE權限表 C 欄決定可查看雁群，E 欄包含「管理權限」才可加報、取消或恢復。</div>';
   }
   const c = rosterState.course || {};
   const classDetails = rosterState.classDetails || [];
