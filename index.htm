@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.14</title>
+<title>CYP135 課程報名 V6.15</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -435,6 +435,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .desc{font-size:14px;color:#4f4a43;line-height:1.85;white-space:pre-wrap}
 .divider{height:1px;background:#eee;margin:14px 0}
 .category-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(82px,.8fr) 38px;gap:8px;align-items:end;margin-bottom:8px}
+.custom-field-row{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(96px,.55fr) minmax(92px,.55fr) minmax(0,1fr) 38px;gap:8px;align-items:end;margin-bottom:8px}
 .icon-btn{border:none;border-radius:11px;background:#f3eeee;color:#9a3333;font-weight:900;height:43px;cursor:pointer}
 .success-box{text-align:left;font-size:14px;line-height:1.9;color:#4f4a43}
 .muted{font-size:12px;color:#888;line-height:1.6}
@@ -570,14 +571,14 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:420px){.wrap.wide{padding-left:8px;padding-right:8px}.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:9px 10px;display:block}.roster-group-head strong{display:block;font-size:15px;margin-bottom:4px}.roster-group-head span{display:block;text-align:left}.roster-class-head{display:block;padding:7px 10px}.roster-class-head span{display:block;text-align:left}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
 
-@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
+@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
 </head>
 <body>
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.14</small>
+    <small>CYP135 課程系統 V6.15</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -634,9 +635,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v76';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v77';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v76_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v77_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -2477,6 +2478,11 @@ function renderCourseForm(course) {
           ${renderCourseFieldModeSelect('c-field-id', '身分證字號', regFields.idNumber)}
           ${renderCourseFieldModeSelect('c-field-birth', '出生年月日', regFields.birthDate)}
           ${renderCourseFieldModeSelect('c-field-meal', '葷素', regFields.meal)}
+          <div class="field full">
+            <label>自訂欄位</label>
+            <div id="custom-field-list">${renderCustomRegistrationFieldRows(regFields.customFields)}</div>
+            <button class="btn btn-sub" type="button" onclick="addCustomRegistrationField()">新增自訂欄位</button>
+          </div>
         </div>
       </div>
 
@@ -2841,7 +2847,8 @@ function normalizeRegistrationFieldsClient(fields) {
     gender: normalizeFieldModeClient(pick(['gender', '性別'])),
     idNumber: normalizeFieldModeClient(pick(['idNumber', 'id', '身分證', '身分證字號'])),
     birthDate: normalizeFieldModeClient(pick(['birthDate', 'birthday', '生日', '出生年月日'])),
-    meal: normalizeFieldModeClient(pick(['meal', '葷素', '餐食']))
+    meal: normalizeFieldModeClient(pick(['meal', '葷素', '餐食'])),
+    customFields: normalizeCustomRegistrationFieldsClient(fields.customFields || fields.custom || fields.fields || [])
   };
 }
 
@@ -2872,6 +2879,48 @@ function normalizeFieldModeClient(mode) {
   return 'hidden';
 }
 
+function normalizeCustomFieldTypeClient(type) {
+  type = String(type || '').trim();
+  if (['text', 'textarea', 'select', 'number', 'date'].includes(type)) return type;
+  if (type === '長文字') return 'textarea';
+  if (type === '下拉選單') return 'select';
+  if (type === '數字') return 'number';
+  if (type === '日期') return 'date';
+  return 'text';
+}
+
+function makeCustomFieldIdClient(label, index) {
+  const safe = String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return 'cf_' + (safe || ('field_' + (index + 1)));
+}
+
+function normalizeCustomRegistrationFieldsClient(items) {
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (e) { items = []; }
+  }
+  if (!Array.isArray(items)) return [];
+  const used = {};
+  return items.map((item, index) => {
+    item = item && typeof item === 'object' ? item : {};
+    const label = String(item.label || item.name || item.title || '').trim();
+    if (!label) return null;
+    let id = String(item.id || item.key || '').trim() || makeCustomFieldIdClient(label, index);
+    id = id.replace(/[^A-Za-z0-9_-]/g, '_') || makeCustomFieldIdClient(label, index);
+    if (used[id]) id = id + '_' + (index + 1);
+    used[id] = true;
+    let options = item.options || item.choices || [];
+    if (typeof options === 'string') options = options.split(/[,\n，、]/);
+    options = Array.isArray(options) ? options.map(v => String(v || '').trim()).filter(Boolean) : [];
+    return {
+      id,
+      label,
+      type: normalizeCustomFieldTypeClient(item.type),
+      mode: normalizeFieldModeClient(item.mode || item.required),
+      options
+    };
+  }).filter(Boolean);
+}
+
 function renderCourseFieldModeSelect(id, label, selected) {
   selected = normalizeFieldModeClient(selected);
   return `
@@ -2886,13 +2935,121 @@ function renderCourseFieldModeSelect(id, label, selected) {
   `;
 }
 
+function renderCustomFieldTypeOptions(selected) {
+  selected = normalizeCustomFieldTypeClient(selected);
+  const options = [
+    ['text', '短文字'],
+    ['textarea', '長文字'],
+    ['select', '下拉選單'],
+    ['number', '數字'],
+    ['date', '日期']
+  ];
+  return options.map(([value, label]) => `<option value="${value}" ${selected === value ? 'selected' : ''}>${label}</option>`).join('');
+}
+
+function renderCustomFieldModeOptions(selected) {
+  selected = normalizeFieldModeClient(selected);
+  return `
+    <option value="hidden" ${selected === 'hidden' ? 'selected' : ''}>不顯示</option>
+    <option value="optional" ${selected === 'optional' ? 'selected' : ''}>選填</option>
+    <option value="required" ${selected === 'required' ? 'selected' : ''}>必填</option>
+  `;
+}
+
+function renderCustomRegistrationFieldRows(customFields) {
+  customFields = normalizeCustomRegistrationFieldsClient(customFields);
+  if (!customFields.length) {
+    return '<div class="muted custom-field-empty">尚未新增自訂欄位。</div>';
+  }
+  return customFields.map((field, index) => `
+    <div class="custom-field-row" data-custom-field-row>
+      <input class="custom-field-id" type="hidden" value="${esc(field.id)}">
+      <div class="field wide">
+        <label>欄位名稱</label>
+        <input class="custom-field-label" placeholder="例如 接駁需求" value="${esc(field.label)}">
+      </div>
+      <div class="field">
+        <label>型態</label>
+        <select class="custom-field-type">${renderCustomFieldTypeOptions(field.type)}</select>
+      </div>
+      <div class="field">
+        <label>顯示方式</label>
+        <select class="custom-field-mode">${renderCustomFieldModeOptions(field.mode)}</select>
+      </div>
+      <div class="field wide">
+        <label>下拉選項</label>
+        <input class="custom-field-options" placeholder="下拉選單才需要，逗號分隔" value="${esc((field.options || []).join(','))}">
+      </div>
+      <button class="icon-btn" type="button" onclick="removeCustomRegistrationField(${index})">×</button>
+    </div>
+  `).join('');
+}
+
+function getCustomRegistrationFieldsFromForm() {
+  return Array.from(document.querySelectorAll('[data-custom-field-row]')).map((row, index) => {
+    const label = (row.querySelector('.custom-field-label') || { value: '' }).value.trim();
+    const optionsText = (row.querySelector('.custom-field-options') || { value: '' }).value.trim();
+    return {
+      id: (row.querySelector('.custom-field-id') || { value: '' }).value.trim() || makeCustomFieldIdClient(label, index),
+      label,
+      type: (row.querySelector('.custom-field-type') || { value: 'text' }).value,
+      mode: (row.querySelector('.custom-field-mode') || { value: 'hidden' }).value,
+      options: optionsText ? optionsText.split(/[,\n，、]/).map(v => v.trim()).filter(Boolean) : []
+    };
+  }).filter(field => field.label);
+}
+
+function setCustomRegistrationFieldRows(customFields) {
+  const box = document.getElementById('custom-field-list');
+  if (!box) return;
+  box.innerHTML = renderCustomRegistrationFieldRows(customFields);
+}
+
+function addCustomRegistrationField() {
+  const fields = getCustomRegistrationFieldsFromForm();
+  fields.push({ id: 'cf_' + Date.now().toString(36), label: '', type: 'text', mode: 'optional', options: [] });
+  const box = document.getElementById('custom-field-list');
+  if (!box) return;
+  box.innerHTML = fields.map((field, index) => `
+    <div class="custom-field-row" data-custom-field-row>
+      <input class="custom-field-id" type="hidden" value="${esc(field.id)}">
+      <div class="field wide">
+        <label>欄位名稱</label>
+        <input class="custom-field-label" placeholder="例如 接駁需求" value="${esc(field.label)}">
+      </div>
+      <div class="field">
+        <label>型態</label>
+        <select class="custom-field-type">${renderCustomFieldTypeOptions(field.type)}</select>
+      </div>
+      <div class="field">
+        <label>顯示方式</label>
+        <select class="custom-field-mode">${renderCustomFieldModeOptions(field.mode)}</select>
+      </div>
+      <div class="field wide">
+        <label>下拉選項</label>
+        <input class="custom-field-options" placeholder="下拉選單才需要，逗號分隔" value="${esc((field.options || []).join(','))}">
+      </div>
+      <button class="icon-btn" type="button" onclick="removeCustomRegistrationField(${index})">×</button>
+    </div>
+  `).join('');
+  const inputs = box.querySelectorAll('.custom-field-label');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+
+function removeCustomRegistrationField(index) {
+  const fields = getCustomRegistrationFieldsFromForm();
+  fields.splice(index, 1);
+  setCustomRegistrationFieldRows(fields);
+}
+
 function collectRegistrationFieldSettings() {
   return {
     phone: val('c-field-phone') || 'hidden',
     gender: val('c-field-gender') || 'hidden',
     idNumber: val('c-field-id') || 'hidden',
     birthDate: val('c-field-birth') || 'hidden',
-    meal: val('c-field-meal') || 'hidden'
+    meal: val('c-field-meal') || 'hidden',
+    customFields: normalizeCustomRegistrationFieldsClient(getCustomRegistrationFieldsFromForm())
   };
 }
 
@@ -4361,6 +4518,28 @@ function registrationExtraFieldLabels() {
   };
 }
 
+function customRegistrationInputId(prefix, field) {
+  return prefix + 'custom-' + String(field.id || '').replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+function renderCustomRegistrationInput(field, inputId, required) {
+  const requiredAttr = required ? 'required' : '';
+  if (field.type === 'textarea') {
+    return `<textarea id="${esc(inputId)}" placeholder="${esc(field.label)}" ${requiredAttr}></textarea>`;
+  }
+  if (field.type === 'select') {
+    const options = (field.options || []).map(option => `<option value="${esc(option)}">${esc(option)}</option>`).join('');
+    return `<select id="${esc(inputId)}" ${requiredAttr}><option value="">請選擇</option>${options}</select>`;
+  }
+  if (field.type === 'number') {
+    return `<input id="${esc(inputId)}" type="number" placeholder="${esc(field.label)}" ${requiredAttr}>`;
+  }
+  if (field.type === 'date') {
+    return `<input id="${esc(inputId)}" type="date" ${requiredAttr}>`;
+  }
+  return `<input id="${esc(inputId)}" type="text" placeholder="${esc(field.label)}" ${requiredAttr}>`;
+}
+
 function renderRegistrationExtraFields(fields, prefix = 'r-extra-') {
   fields = normalizeRegistrationFieldsClient(fields);
   const labels = registrationExtraFieldLabels();
@@ -4396,6 +4575,18 @@ function renderRegistrationExtraFields(fields, prefix = 'r-extra-') {
       </div>
     `);
   });
+  (fields.customFields || []).forEach(field => {
+    const mode = normalizeFieldModeClient(field.mode);
+    if (mode === 'hidden') return;
+    const required = mode === 'required';
+    const inputId = customRegistrationInputId(prefix, field);
+    rows.push(`
+      <div class="field">
+        <label>${esc(field.label)}${required ? '（必填）' : '（選填）'}</label>
+        ${renderCustomRegistrationInput(field, inputId, required)}
+      </div>
+    `);
+  });
   if (!rows.length) return '';
   return `<div class="mini-section"><div class="section-title">補充資料</div><div class="form-grid">${rows.join('')}</div></div>`;
 }
@@ -4411,6 +4602,16 @@ function collectRegistrationExtraAnswers(fields, prefix = 'r-extra-') {
       return { ok: false, message: '請填寫' + labels[key] };
     }
     answers[key] = answer;
+  }
+  answers.customFields = {};
+  for (const field of (fields.customFields || [])) {
+    const mode = normalizeFieldModeClient(field.mode);
+    if (mode === 'hidden') continue;
+    const answer = val(customRegistrationInputId(prefix, field)).trim();
+    if (mode === 'required' && !answer) {
+      return { ok: false, message: '請填寫' + field.label };
+    }
+    answers.customFields[field.id] = answer;
   }
   return { ok: true, answers };
 }
