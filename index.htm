@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.3</title>
+<title>CYP135 課程報名 V6.4</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -565,7 +565,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.3</small>
+    <small>CYP135 課程系統 V6.4</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -613,12 +613,14 @@ let uploadedEdmFileName = '';
 let externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
 let excelParserLoading = null;
 let coursePrefillFromImport = null;
-let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grouped', query: '', classDetails: [], leaders: [], canManage: false, add: null };
+let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grouped', query: '', classDetails: [], leaders: [], canManage: false, add: null, loading: false };
 
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v63';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v64';
+const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v64_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -768,6 +770,93 @@ function loadPublicCache() {
   } catch (e) {
     return false;
   }
+}
+
+function setAdminData(data, fromCache) {
+  if (!data || data.status !== 'ok') return data;
+  initData = data || {};
+  isAdminUser = !!data.allowed;
+  adminCourseData = (data && data.courses) || [];
+  if (adminCourseData.length) adminCourseData.forEach(mergeCourseToState);
+  renderMenu();
+
+  if (!fromCache && data.allowed) {
+    try {
+      localStorage.setItem(ADMIN_CACHE_KEY, JSON.stringify({
+        savedAt: Date.now(),
+        status: 'ok',
+        allowed: !!data.allowed,
+        role: data.role || '',
+        courses: data.courses || [],
+        options: data.options || {},
+        flocks: data.flocks || [],
+        platinumNames: data.platinumNames || [],
+        leaders: data.leaders || []
+      }));
+    } catch (e) {}
+  }
+  return initData;
+}
+
+function loadAdminCache() {
+  try {
+    const text = localStorage.getItem(ADMIN_CACHE_KEY);
+    if (!text) return null;
+    const cached = JSON.parse(text);
+    if (!cached || cached.status !== 'ok' || !cached.allowed || !Array.isArray(cached.courses)) return null;
+    return setAdminData(cached, true);
+  } catch (e) {
+    return null;
+  }
+}
+
+function getRosterCacheKey(courseCode) {
+  return ROSTER_CACHE_PREFIX + normalizeCode(courseCode);
+}
+
+function saveRosterCache(courseCode, data) {
+  if (!courseCode || !data || data.status !== 'ok') return;
+  try {
+    localStorage.setItem(getRosterCacheKey(courseCode), JSON.stringify({
+      savedAt: Date.now(),
+      status: 'ok',
+      allowed: !!data.allowed,
+      canManage: !!data.canManage,
+      course: data.course || null,
+      rows: data.rows || [],
+      groups: data.groups || [],
+      stats: data.stats || {},
+      classDetails: data.classDetails || [],
+      leaders: data.leaders || []
+    }));
+  } catch (e) {}
+}
+
+function loadRosterCache(courseCode) {
+  try {
+    const text = localStorage.getItem(getRosterCacheKey(courseCode));
+    if (!text) return null;
+    const cached = JSON.parse(text);
+    if (!cached || cached.status !== 'ok' || !cached.course) return null;
+    return cached;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveCurrentRosterCache() {
+  if (!rosterState.course) return;
+  saveRosterCache(rosterState.course.eventCode, {
+    status: 'ok',
+    allowed: true,
+    canManage: rosterState.canManage,
+    course: rosterState.course,
+    rows: rosterState.rows || [],
+    groups: rosterState.groups || [],
+    stats: rosterState.stats || {},
+    classDetails: rosterState.classDetails || [],
+    leaders: rosterState.leaders || []
+  });
 }
 
 function getCourseFromState(courseCode) {
@@ -935,6 +1024,7 @@ window.addEventListener('DOMContentLoaded', async function() {
   if (liffStatus === 'login' || liffStatus === 'error') return;
 
   loadPublicCache();
+  loadAdminCache();
   renderMenu();
 
   const mode = getParam('mode');
@@ -1170,25 +1260,69 @@ async function renderCourseRosterPage(courseCode) {
   clearMsg();
   setTitle('名單管理');
   const app = document.getElementById('app');
-  app.innerHTML = '<div class="loading">載入名單中...</div>';
+  const code = normalizeCode(courseCode);
+  const localCourse = getCourseFromState(code);
+  const cachedRoster = loadRosterCache(code);
+  let hasShell = false;
 
-  const allowed = await ensureAdminAccess();
-  if (!allowed) return;
+  if (cachedRoster) {
+    applyRosterData(cachedRoster, { fromCache: true, loading: true });
+    renderRosterContent();
+    showBoxMsg('roster-msg', '正在更新最新名單...', 'info');
+    hasShell = true;
+  } else if (localCourse) {
+    applyRosterData(buildRosterPlaceholderData(localCourse), { loading: true });
+    renderRosterContent();
+    showBoxMsg('roster-msg', '正在載入名單...', 'info');
+    hasShell = true;
+  } else {
+    app.innerHTML = '<div class="loading">載入名單中...</div>';
+  }
+
+  if (!isAdminUser && !(initData && initData.allowed)) {
+    const allowed = await ensureAdminAccess();
+    if (!allowed) return;
+  }
 
   try {
-    const data = await post('getCourseRoster', { userId, eventCode: courseCode }, 18000);
+    const data = await post('getCourseRoster', { userId, eventCode: code, light: true }, 18000);
     if (!data || data.status !== 'ok') {
-      app.innerHTML = '<div class="card"><h2>名單載入失敗</h2><p class="meta">' + esc((data && data.message) || '') + '</p></div>';
+      if (hasShell) showBoxMsg('roster-msg', esc((data && data.message) || '名單載入失敗'), 'err');
+      else app.innerHTML = '<div class="card"><h2>名單載入失敗</h2><p class="meta">' + esc((data && data.message) || '') + '</p></div>';
       return;
     }
     applyRosterData(data);
+    saveRosterCache(code, data);
     renderRosterContent();
+    if (cachedRoster) showBoxMsg('roster-msg', '已更新最新名單。', 'ok');
   } catch (err) {
-    app.innerHTML = '<div class="card"><h2>名單載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+    if (hasShell) showBoxMsg('roster-msg', esc(err.message || err), 'err');
+    else app.innerHTML = '<div class="card"><h2>名單載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
   }
 }
 
-function applyRosterData(data) {
+function buildRosterPlaceholderData(course) {
+  return {
+    status: 'ok',
+    allowed: true,
+    canManage: !!(initData && initData.allowed),
+    course,
+    rows: [],
+    groups: [],
+    stats: {
+      active: course.currentCount || 0,
+      added: 0,
+      cancelled: 0,
+      maxCount: course.maxCount || '',
+      remaining: course.remainingCount !== undefined ? course.remainingCount : ''
+    },
+    classDetails: course.classDetails || [],
+    leaders: []
+  };
+}
+
+function applyRosterData(data, options) {
+  options = options || {};
   const oldCode = rosterState.course && rosterState.course.eventCode;
   rosterState.course = data.course || rosterState.course;
   const newCode = rosterState.course && rosterState.course.eventCode;
@@ -1199,6 +1333,7 @@ function applyRosterData(data) {
   rosterState.classDetails = data.classDetails || [];
   rosterState.leaders = data.leaders || [];
   if (typeof data.canManage !== 'undefined') rosterState.canManage = !!data.canManage;
+  rosterState.loading = !!options.loading;
   if (rosterState.course) {
     currentCourse = rosterState.course;
     mergeCourseToState(rosterState.course);
@@ -1487,6 +1622,10 @@ function renderRosterList() {
   if (!box) return;
   const rows = getFilteredRosterRows();
   if (!rows.length) {
+    if (rosterState.loading) {
+      box.innerHTML = '<div class="readonly-box">正在更新名單，畫面會自動補上最新資料。</div>';
+      return;
+    }
     box.innerHTML = '<div class="readonly-box">目前沒有符合條件的名單。</div>';
     return;
   }
@@ -1705,6 +1844,7 @@ async function updateRosterStatus(rowNumber, status) {
     }, 18000);
     if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '更新失敗'), 'err');
     applyRosterData(res);
+    saveCurrentRosterCache();
     renderRosterContent();
     showBoxMsg('roster-msg', esc(res.message || '已更新'), 'ok');
   } catch (err) {
@@ -1723,6 +1863,7 @@ async function fillRosterDerivedData() {
     }, 30000);
     if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '補齊失敗'), 'err');
     applyRosterData(res);
+    saveCurrentRosterCache();
     renderRosterContent();
     showBoxMsg('roster-msg', esc(res.message || '已補齊資料'), 'ok');
   } catch (err) {
@@ -1751,6 +1892,7 @@ async function submitAdminAddRegistration() {
     }, 20000);
     if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '加報失敗'), 'err');
     applyRosterData(res);
+    saveCurrentRosterCache();
     resetRosterAddState();
     renderRosterContent();
     showBoxMsg('roster-msg', esc(res.message || '已完成加報'), 'ok');
@@ -1762,17 +1904,14 @@ async function submitAdminAddRegistration() {
 // ─────────────────────────────
 // 舊管理清單：保留相容，主流程改由課程首頁卡片直接編輯。
 // ─────────────────────────────
-function getCachedAdminData_() {
-  if (initData && initData.allowed && Array.isArray(initData.courses)) return Promise.resolve(initData);
+function getCachedAdminData_(force) {
+  if (!force && initData && initData.allowed && Array.isArray(initData.courses)) return Promise.resolve(initData);
+  if (!force) {
+    const cached = loadAdminCache();
+    if (cached && cached.allowed) return Promise.resolve(cached);
+  }
   return post('getCourseAdminInit', { userId }).then(data => {
-    initData = data || {};
-    isAdminUser = !!(data && data.allowed);
-    adminCourseData = (data && data.courses) || [];
-    if (adminCourseData.length) {
-      adminCourseData.forEach(mergeCourseToState);
-    }
-    renderMenu();
-    return initData;
+    return setAdminData(data || {}, false) || data || {};
   });
 }
 
@@ -1888,32 +2027,45 @@ function renderCreateCourseShell() {
 
 async function renderEditCoursePageByCode(code) {
   let c = (adminCourseData || []).find(x => String(x.eventCode || '') === String(code || ''));
-  if (!c && isAdminUser) {
-    showMsg('載入編輯資料中...', 'info');
-    const data = await getCachedAdminData_().catch(err => ({ status:'err', message: err.message || err }));
-    if (data && data.allowed) {
-      c = (adminCourseData || []).find(x => normalizeCode(x.eventCode) === normalizeCode(code));
-    }
-    clearMsg();
-  }
   c = c || getCourseFromState(code);
-  if (!c) {
-    showMsg('找不到要編輯的課程，請重新整理課程清單。', 'err');
+  if (c) {
+    renderEditCoursePage(c, { fast: true });
+    refreshAdminDataForEdit(code);
     return;
   }
+
+  setTitle('編輯課程');
+  document.getElementById('app').innerHTML = '<div class="loading">載入編輯資料中...</div>';
+  const data = await getCachedAdminData_(true).catch(err => ({ status:'err', message: err.message || err }));
+  if (data && data.allowed) {
+    c = (adminCourseData || []).find(x => normalizeCode(x.eventCode) === normalizeCode(code));
+  }
+  if (!c) return showMsg('找不到要編輯的課程，請重新整理課程清單。', 'err');
   renderEditCoursePage(c);
 }
 
-async function renderEditCoursePage(course) {
+function refreshAdminDataForEdit(code) {
+  if (!isAdminUser && !(initData && initData.allowed)) return;
+  getCachedAdminData_(true).then(data => {
+    if (!data || !data.allowed || currentView !== 'editCourse') return;
+    const fresh = (adminCourseData || []).find(x => normalizeCode(x.eventCode) === normalizeCode(code));
+    if (fresh) mergeCourseToState(fresh);
+  }).catch(() => {});
+}
+
+async function renderEditCoursePage(course, options) {
+  options = options || {};
   currentView = 'editCourse';
   setWideLayout(false);
   clearMsg();
   setTitle('編輯課程');
 
-  if (!initData || !initData.allowed) {
+  if (!isAdminUser && (!initData || !initData.allowed)) {
     document.getElementById('app').innerHTML = '<div class="loading">載入編輯資料中...</div>';
     const data = await getCachedAdminData_().catch(err => ({ status:'err', message: err.message || err }));
     if (!data.allowed) return renderNoAdminPage();
+  } else if (!initData || !initData.allowed) {
+    loadAdminCache();
   }
 
   const app = document.getElementById('app');
@@ -2426,7 +2578,9 @@ function renderClockPanel() {
 
 function optionHtml(arr, selected, placeholder) {
   const first = placeholder ? `<option value="">${esc(placeholder)}</option>` : '';
-  return first + (arr || []).map(v => `<option value="${esc(v)}" ${String(v) === String(selected) ? 'selected' : ''}>${esc(v)}</option>`).join('');
+  const list = (arr || []).slice();
+  if (selected && !list.some(v => String(v) === String(selected))) list.unshift(selected);
+  return first + list.map(v => `<option value="${esc(v)}" ${String(v) === String(selected) ? 'selected' : ''}>${esc(v)}</option>`).join('');
 }
 
 function normalizeRegistrationFieldsClient(fields) {
