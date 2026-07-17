@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.6</title>
+<title>CYP135 課程報名 V6.7</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -40,17 +40,17 @@ function ensureTicketScripts() {
 }
 
 async function renderTicketGeneratorPage() {
-  currentView = 'ticket';
-  setWideLayout(false);
-  clearMsg();
-  setTitle('票券產生');
+  const token = beginPage('ticket', '票券產生', false);
   const app = document.getElementById('app');
 
-  app.innerHTML = `<div class="loading">載入票券產生工具中...</div>`;
-  const allowed = await ensureAdminAccess();
+  showLoading('載入票券產生工具中');
+  const allowed = await ensureAdminAccess(token, 'ticket');
+  if (!isPageActive(token, 'ticket')) return;
+  stopLoading();
   if (!allowed) return;
 
   try { await ensurePublicData(false); } catch(e) {}
+  if (!isPageActive(token, 'ticket')) return;
 
   const courses = (appState.courses || []).filter(c => c && c.eventName);
   const options = courses.map(c => `<option value="${esc(normalizeCode(c.eventCode))}">${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`).join('');
@@ -401,6 +401,13 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .msg.err{background:#fdf0f0;color:#7a2020;border:1px solid #d4a0a0}
 .msg.info{background:#f6f3ea;color:#6a5a30;border:1px solid #e2d7b4}
 .loading{padding:42px 16px;text-align:center;color:#777;font-size:14px}
+.loading-card{max-width:360px;margin:0 auto;background:#fff;border:1px solid rgba(45,90,61,.12);border-radius:18px;padding:22px 18px;box-shadow:0 3px 12px rgba(0,0,0,.045)}
+.loading-ring{width:42px;height:42px;border-radius:50%;border:4px solid #e8f0ea;border-top-color:#2d5a3d;margin:0 auto 12px;animation:spin .85s linear infinite}
+.loading-title{font-weight:900;color:#2d5a3d;margin-bottom:8px}
+.loading-bar{height:8px;border-radius:999px;background:#e8f0ea;overflow:hidden;margin:10px 0 6px}
+.loading-bar i{display:block;height:100%;width:8%;background:#2d5a3d;border-radius:999px;transition:width .25s ease}
+.loading-percent{font-size:12px;color:#888}
+@keyframes spin{to{transform:rotate(360deg)}}
 .top-actions{display:flex;flex-wrap:nowrap;gap:8px;margin-bottom:14px;align-items:stretch}
 .top-actions .btn{width:auto;flex:1 1 0;min-width:0;padding:10px 8px;font-size:13px;border-radius:12px;white-space:nowrap}
 .top-actions .btn + .btn{margin-top:0}
@@ -563,7 +570,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.6</small>
+    <small>CYP135 課程系統 V6.7</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -606,6 +613,9 @@ let lastLookupSeq = 0;
 let activeClockTarget = '';
 let activeClockHour = 9;
 let activeClockMinute = 0;
+let pageSeq = 0;
+let loadingSeq = 0;
+let loadingTimer = null;
 let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
@@ -617,9 +627,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v68';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v69';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v68_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v69_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -776,6 +786,56 @@ function loadPublicCache() {
   } catch (e) {
     return false;
   }
+}
+
+function beginPage(view, title, wide) {
+  const token = ++pageSeq;
+  currentView = view;
+  setWideLayout(!!wide);
+  clearMsg();
+  setTitle(title);
+  return token;
+}
+
+function isPageActive(token, view) {
+  return token === pageSeq && (!view || currentView === view);
+}
+
+function loadingHtml(text) {
+  return `
+    <div class="loading">
+      <div class="loading-card">
+        <div class="loading-ring"></div>
+        <div class="loading-title">${esc(text || '載入中')}</div>
+        <div class="loading-bar"><i id="loading-fill"></i></div>
+        <div id="loading-percent" class="loading-percent">8%</div>
+      </div>
+    </div>
+  `;
+}
+
+function showLoading(text) {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.innerHTML = loadingHtml(text);
+  const seq = ++loadingSeq;
+  let pct = 8;
+  if (loadingTimer) clearInterval(loadingTimer);
+  loadingTimer = setInterval(() => {
+    if (seq !== loadingSeq) return clearInterval(loadingTimer);
+    const fill = document.getElementById('loading-fill');
+    const label = document.getElementById('loading-percent');
+    if (!fill || !label) return clearInterval(loadingTimer);
+    pct = Math.min(92, pct + Math.max(1, Math.round((92 - pct) * 0.18)));
+    fill.style.width = pct + '%';
+    label.textContent = pct + '%';
+  }, 260);
+}
+
+function stopLoading() {
+  loadingSeq++;
+  if (loadingTimer) clearInterval(loadingTimer);
+  loadingTimer = null;
 }
 
 function setAdminData(data, fromCache) {
@@ -1064,10 +1124,7 @@ window.addEventListener('DOMContentLoaded', async function() {
 // ─────────────────────────────
 function renderHomePage(options) {
   options = options || {};
-  currentView = 'home';
-  setWideLayout(true);
-  clearMsg();
-  setTitle('課程報名');
+  const token = beginPage('home', '課程報名', true);
   const app = document.getElementById('app');
 
   const courses = (publicData && publicData.courses) || appState.courses || [];
@@ -1077,9 +1134,11 @@ function renderHomePage(options) {
     return;
   }
 
-  app.innerHTML = '<div class="loading">載入課程中...</div>';
+  showLoading('載入課程中');
   ensurePublicData(true)
     .then(data => {
+      if (!isPageActive(token, 'home')) return;
+      stopLoading();
       if (!data || data.status !== 'ok') {
         app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc((data && data.message) || '') + '</p></div>';
         return;
@@ -1087,6 +1146,8 @@ function renderHomePage(options) {
       renderHomeShell(data.courses || []);
     })
     .catch(err => {
+      if (!isPageActive(token, 'home')) return;
+      stopLoading();
       app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
     });
 }
@@ -1173,10 +1234,8 @@ function courseCardHtml(c) {
 // 活動詳情頁
 // ─────────────────────────────
 async function renderCourseDetailPage(courseCode, openRegisterNow, forceRefresh) {
-  currentView = openRegisterNow ? 'register' : 'detail';
-  setWideLayout(false);
-  clearMsg();
-  setTitle(openRegisterNow ? '填寫報名' : '活動詳情');
+  const targetView = openRegisterNow ? 'register' : 'detail';
+  const token = beginPage(targetView, openRegisterNow ? '填寫報名' : '活動詳情', false);
 
   const localCourse = getCourseFromState(courseCode);
   if (localCourse && !forceRefresh && !openRegisterNow) {
@@ -1191,10 +1250,12 @@ async function renderCourseDetailPage(courseCode, openRegisterNow, forceRefresh)
   }
 
   const app = document.getElementById('app');
-  app.innerHTML = '<div class="loading">載入活動資料中...</div>';
+  showLoading(openRegisterNow ? '載入報名表中' : '載入活動資料中');
 
   try {
     const data = await ensureRegistrationData(courseCode, !!forceRefresh || !!openRegisterNow);
+    if (!isPageActive(token, targetView)) return;
+    stopLoading();
     if (!data || data.status !== 'ok') {
       app.innerHTML = '<div class="card"><h2>找不到課程</h2><p class="meta">' + esc((data && data.message) || '') + '</p><button class="btn btn-sub" onclick="renderHomePage()">返回課程列表</button></div>';
       return;
@@ -1209,6 +1270,8 @@ async function renderCourseDetailPage(courseCode, openRegisterNow, forceRefresh)
       renderCourseDetailContent(data.course);
     }
   } catch (err) {
+    if (!isPageActive(token, targetView)) return;
+    stopLoading();
     app.innerHTML = '<div class="card"><h2>活動載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
   }
 }
@@ -1268,10 +1331,7 @@ function getCountText(c) {
 // 名單管理
 // ─────────────────────────────
 async function renderCourseRosterPage(courseCode) {
-  currentView = 'roster';
-  setWideLayout(true);
-  clearMsg();
-  setTitle('名單管理');
+  const token = beginPage('roster', '名單管理', true);
   const app = document.getElementById('app');
   const code = normalizeCode(courseCode);
   const localCourse = getCourseFromState(code);
@@ -1289,18 +1349,21 @@ async function renderCourseRosterPage(courseCode) {
     showBoxMsg('roster-msg', '正在載入名單...', 'info');
     hasShell = true;
   } else {
-    app.innerHTML = '<div class="loading">載入名單中...</div>';
+    showLoading('載入名單中');
   }
 
   if (!canViewRoster && !isAdminUser && !(initData && initData.allowed)) {
     try {
       const fresh = await ensurePublicData(true);
+      if (!isPageActive(token, 'roster')) return;
       canViewRoster = !!(isAdminUser || (fresh && fresh.rosterAllowed));
     } catch (err) {}
   }
 
   try {
     const data = await post('getCourseRoster', { userId, eventCode: code, light: true }, 18000);
+    if (!isPageActive(token, 'roster')) return;
+    stopLoading();
     if (!data || data.status !== 'ok') {
       if (hasShell) showBoxMsg('roster-msg', esc((data && data.message) || '名單載入失敗'), 'err');
       else app.innerHTML = '<div class="card"><h2>名單載入失敗</h2><p class="meta">' + esc((data && data.message) || '') + '</p></div>';
@@ -1311,6 +1374,8 @@ async function renderCourseRosterPage(courseCode) {
     renderRosterContent();
     if (cachedRoster) showBoxMsg('roster-msg', '已更新最新名單。', 'ok');
   } catch (err) {
+    if (!isPageActive(token, 'roster')) return;
+    stopLoading();
     if (hasShell) showBoxMsg('roster-msg', esc(err.message || err), 'err');
     else app.innerHTML = '<div class="card"><h2>名單載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
   }
@@ -1942,15 +2007,18 @@ function renderNoAdminPage() {
   `;
 }
 
-async function ensureAdminAccess() {
+async function ensureAdminAccess(token, view) {
   if (initData && initData.allowed) return true;
   try {
     const data = await getCachedAdminData_();
+    if (token && !isPageActive(token, view)) return false;
     if (data && data.allowed) return true;
   } catch (err) {
+    if (token && !isPageActive(token, view)) return false;
     document.getElementById('app').innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
     return false;
   }
+  if (token && !isPageActive(token, view)) return false;
   renderNoAdminPage();
   return false;
 }
@@ -2004,10 +2072,7 @@ function renderAdminCoursesShell(courses) {
 }
 
 async function renderCreateCoursePage(useImportPrefill) {
-  currentView = 'createCourse';
-  setWideLayout(false);
-  clearMsg();
-  setTitle('建立課程');
+  const token = beginPage('createCourse', '建立課程', false);
   const app = document.getElementById('app');
   if (!useImportPrefill) coursePrefillFromImport = null;
 
@@ -2015,10 +2080,12 @@ async function renderCreateCoursePage(useImportPrefill) {
   if (initData && initData.allowed) {
     renderCreateCourseShell();
   } else {
-    app.innerHTML = '<div class="loading">載入建立課程中...</div>';
+    showLoading('載入建立課程中');
   }
 
-  const allowed = await ensureAdminAccess();
+  const allowed = await ensureAdminAccess(token, 'createCourse');
+  if (!isPageActive(token, 'createCourse')) return;
+  stopLoading();
   if (!allowed) return;
   renderCreateCourseShell();
 }
@@ -2051,9 +2118,11 @@ async function renderEditCoursePageByCode(code) {
     return;
   }
 
-  setTitle('編輯課程');
-  document.getElementById('app').innerHTML = '<div class="loading">載入編輯資料中...</div>';
+  const token = beginPage('editCourse', '編輯課程', false);
+  showLoading('載入編輯資料中');
   const data = await getCachedAdminData_(true).catch(err => ({ status:'err', message: err.message || err }));
+  if (!isPageActive(token, 'editCourse')) return;
+  stopLoading();
   if (data && data.allowed) {
     c = (adminCourseData || []).find(x => normalizeCode(x.eventCode) === normalizeCode(code));
   }
@@ -2072,14 +2141,13 @@ function refreshAdminDataForEdit(code) {
 
 async function renderEditCoursePage(course, options) {
   options = options || {};
-  currentView = 'editCourse';
-  setWideLayout(false);
-  clearMsg();
-  setTitle('編輯課程');
+  const token = beginPage('editCourse', '編輯課程', false);
 
   if (!isAdminUser && (!initData || !initData.allowed)) {
-    document.getElementById('app').innerHTML = '<div class="loading">載入編輯資料中...</div>';
+    showLoading('載入編輯資料中');
     const data = await getCachedAdminData_().catch(err => ({ status:'err', message: err.message || err }));
+    if (!isPageActive(token, 'editCourse')) return;
+    stopLoading();
     if (!data.allowed) return renderNoAdminPage();
   } else if (!initData || !initData.allowed) {
     loadAdminCache();
@@ -2755,10 +2823,7 @@ function renderAdminCourseList(courses) {
 }
 
 async function renderExternalImportPage(courseCode) {
-  currentView = 'externalImport';
-  setWideLayout(false);
-  clearMsg();
-  setTitle('外部名單匯入');
+  const token = beginPage('externalImport', '外部名單匯入', false);
   const app = document.getElementById('app');
 
   const selectedCode = normalizeCode(courseCode || '');
@@ -2766,14 +2831,17 @@ async function renderExternalImportPage(courseCode) {
   if (initData && initData.allowed) {
     renderExternalImportShell(selectedCode, true);
   } else {
-    app.innerHTML = '<div class="loading">載入中...</div>';
+    showLoading('載入外部名單匯入');
   }
 
-  const allowed = await ensureAdminAccess();
+  const allowed = await ensureAdminAccess(token, 'externalImport');
+  if (!isPageActive(token, 'externalImport')) return;
+  stopLoading();
   if (!allowed) return;
 
   getExternalImportData_()
     .then(data => {
+      if (!isPageActive(token, 'externalImport')) return;
       if (!data.allowed) return renderNoAdminPage();
       if (!externalImportState.grid || !externalImportState.grid.length) {
         renderExternalImportShell(selectedCode, false);
@@ -2783,6 +2851,7 @@ async function renderExternalImportPage(courseCode) {
       }
     })
     .catch(err => {
+      if (!isPageActive(token, 'externalImport')) return;
       const select = document.getElementById('external-course-select');
       if (select) select.innerHTML = '<option value="">課程載入失敗</option>';
       showBoxMsg('external-import-msg', '課程清單載入失敗：' + esc(err.message || err) + '<br><button class="btn btn-sub" style="margin-top:10px" onclick="renderExternalImportPage()">重新載入</button>', 'err');
@@ -4326,17 +4395,17 @@ function ensureTicketScripts() {
 }
 
 async function renderTicketGeneratorPage() {
-  currentView = 'ticket';
-  setWideLayout(false);
-  clearMsg();
-  setTitle('票券產生');
+  const token = beginPage('ticket', '票券產生', false);
   const app = document.getElementById('app');
 
-  app.innerHTML = `<div class="loading">載入票券產生工具中...</div>`;
-  const allowed = await ensureAdminAccess();
+  showLoading('載入票券產生工具中');
+  const allowed = await ensureAdminAccess(token, 'ticket');
+  if (!isPageActive(token, 'ticket')) return;
+  stopLoading();
   if (!allowed) return;
 
   try { await ensurePublicData(false); } catch(e) {}
+  if (!isPageActive(token, 'ticket')) return;
 
   const courses = (appState.courses || []).filter(c => c && c.eventName);
   const options = courses.map(c => `<option value="${esc(normalizeCode(c.eventCode))}">${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`).join('');
