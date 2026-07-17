@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.10</title>
+<title>CYP135 課程報名 V6.11</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -546,6 +546,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .roster-group-head{display:grid;grid-template-columns:minmax(120px,.75fr) minmax(0,1.25fr);gap:10px;align-items:center;padding:10px 12px;background:#f7f4ed;color:#2d5a3d;font-weight:900;font-size:13px}
 .roster-group-head strong{font-size:15px;min-width:0;overflow-wrap:anywhere}
 .roster-group-head span{white-space:normal;overflow:visible;text-overflow:clip;text-align:right;line-height:1.55;overflow-wrap:anywhere}
+.roster-class-section{border-top:1px solid #eee}
+.roster-class-head{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:7px 12px;background:#fbfaf6;color:#5f574e;font-size:12px;font-weight:900}
+.roster-class-head strong{color:#2d5a3d}
+.roster-class-head span{text-align:right;line-height:1.5}
 .roster-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 88px;gap:8px;align-items:center;padding:12px 14px;border-top:1px solid #eee}
 .roster-row.cancelled{opacity:.58;background:#fafafa}
 .roster-name{font-weight:900;color:#2d5a3d}
@@ -564,7 +568,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .roster-table th,.roster-table td{padding:9px;border-bottom:1px solid #eee;text-align:left;vertical-align:top;white-space:nowrap}
 .roster-table th{background:#faf8f3;color:#555;font-weight:900}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:420px){.wrap.wide{padding-left:8px;padding-right:8px}.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:9px 10px;display:block}.roster-group-head strong{display:block;font-size:15px;margin-bottom:4px}.roster-group-head span{display:block;text-align:left}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
+@media(max-width:420px){.wrap.wide{padding-left:8px;padding-right:8px}.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:9px 10px;display:block}.roster-group-head strong{display:block;font-size:15px;margin-bottom:4px}.roster-group-head span{display:block;text-align:left}.roster-class-head{display:block;padding:7px 10px}.roster-class-head span{display:block;text-align:left}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
 
 @media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
@@ -573,7 +577,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.10</small>
+    <small>CYP135 課程系統 V6.11</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -630,9 +634,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v72';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v73';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v72_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v73_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1744,7 +1748,7 @@ function renderRosterList() {
     ` + groups.map(group => `
       <div class="roster-group">
         ${renderRosterGroupHead(group)}
-        ${group.rows.map((row, idx) => renderRosterLine(row, idx + 1)).join('')}
+        ${renderRosterCompactClassSections(group.rows)}
       </div>
     `).join('');
     return;
@@ -1773,11 +1777,85 @@ function groupRosterRowsClient(rows) {
     const group = map[key];
     group.classText = Object.keys(group.classCounts)
       .filter(name => name && name !== '—')
-      .sort()
+      .sort(compareRosterClassNames)
       .map(name => `${name} ${group.classCounts[name]}`)
       .join(' / ');
+    group.rows = sortRosterRows(group.rows);
     return group;
   });
+}
+
+function rosterClassOrderMap() {
+  const map = {};
+  (rosterState.classDetails || []).forEach((item, index) => {
+    const key = String(item && item.name || '').trim();
+    if (key && map[key] === undefined) map[key] = index;
+  });
+  return map;
+}
+
+function rosterClassRank(name) {
+  const key = String(name || '').trim();
+  const orderMap = rosterClassOrderMap();
+  if (orderMap[key] !== undefined) return orderMap[key];
+  if (key === '白金') return 0;
+  if (key === '非白金') return 1;
+  if (!key || key === '—') return 9999;
+  return 1000;
+}
+
+function compareRosterClassNames(a, b) {
+  const rankA = rosterClassRank(a);
+  const rankB = rosterClassRank(b);
+  if (rankA !== rankB) return rankA - rankB;
+  return String(a || '').localeCompare(String(b || ''), 'zh-Hant');
+}
+
+function sortRosterRows(rows) {
+  return (rows || []).slice().sort((a, b) => {
+    const classCompare = compareRosterClassNames(rosterClassText(a), rosterClassText(b));
+    if (classCompare) return classCompare;
+    return String(a.name || a.cleanName || '').localeCompare(String(b.name || b.cleanName || ''), 'zh-Hant');
+  });
+}
+
+function groupRosterRowsByClass(rows) {
+  const map = {};
+  sortRosterRows(rows).forEach(row => {
+    const className = rosterClassText(row);
+    if (!map[className]) map[className] = { className, active: 0, cancelled: 0, total: 0, rows: [] };
+    map[className].rows.push(row);
+    if (row.rawStatus === '取消') map[className].cancelled += 1;
+    else {
+      map[className].active += 1;
+      const priceValue = row.displayPrice !== undefined && row.displayPrice !== '' ? row.displayPrice : row.price;
+      map[className].total += Number(priceValue || 0);
+    }
+  });
+  return Object.keys(map).sort(compareRosterClassNames).map(key => map[key]);
+}
+
+function renderRosterClassHead(classGroup) {
+  const parts = [`共 ${Number(classGroup.rows.length || 0)} 人`];
+  if (Number(classGroup.active || 0)) parts.push(`有效 ${Number(classGroup.active || 0)} 人`);
+  if (Number(classGroup.cancelled || 0)) parts.push(`取消 ${Number(classGroup.cancelled || 0)} 人`);
+  parts.push(`合計 $${Number(classGroup.total || 0)}`);
+  return `
+    <div class="roster-class-head">
+      <strong>${esc(classGroup.className)}</strong>
+      <span>${esc(parts.join('｜'))}</span>
+    </div>
+  `;
+}
+
+function renderRosterCompactClassSections(rows) {
+  let index = 0;
+  return groupRosterRowsByClass(rows).map(classGroup => `
+    <div class="roster-class-section">
+      ${renderRosterClassHead(classGroup)}
+      ${classGroup.rows.map(row => renderRosterLine(row, ++index)).join('')}
+    </div>
+  `).join('');
 }
 
 function renderRosterGroupHead(group) {
@@ -1837,12 +1915,15 @@ function renderRosterDetailTable(rows) {
   return groups.map(group => `
     <div class="roster-group">
       ${renderRosterGroupHead(group)}
+      ${groupRosterRowsByClass(group.rows).map(classGroup => `
+        <div class="roster-class-section">
+          ${renderRosterClassHead(classGroup)}
       <div class="roster-table-wrap">
         <table class="roster-table">
           <thead><tr>
             <th>姓名</th><th>狀態</th><th>類別</th><th>金額</th><th>電話</th><th>性別</th><th>葷素</th><th>來源</th><th>報名時間</th><th>建立者</th><th>取消時間</th><th>取消者</th><th>取消原因</th><th>操作</th>
           </tr></thead>
-          <tbody>${group.rows.map(row => `
+          <tbody>${classGroup.rows.map(row => `
             <tr>
               <td>${esc(row.name || row.cleanName || '')}</td>
               <td>${esc(row.status || '正常')}</td>
@@ -1862,6 +1943,8 @@ function renderRosterDetailTable(rows) {
           `).join('')}</tbody>
         </table>
       </div>
+        </div>
+      `).join('')}
     </div>
   `).join('');
 }
@@ -1871,12 +1954,15 @@ function renderRosterCancelledTable(rows) {
   return groups.map(group => `
     <div class="roster-group">
       ${renderRosterGroupHead(group)}
+      ${groupRosterRowsByClass(group.rows).map(classGroup => `
+        <div class="roster-class-section">
+          ${renderRosterClassHead(classGroup)}
       <div class="roster-table-wrap">
         <table class="roster-table">
           <thead><tr>
             <th>姓名</th><th>類別</th><th>金額</th><th>電話</th><th>性別</th><th>葷素</th><th>取消原因</th><th>取消者</th><th>取消時間</th><th>恢復</th>
           </tr></thead>
-          <tbody>${group.rows.map(row => `
+          <tbody>${classGroup.rows.map(row => `
             <tr>
               <td>${esc(row.name || row.cleanName || '')}</td>
               <td>${esc(rosterClassText(row))}</td>
@@ -1892,6 +1978,8 @@ function renderRosterCancelledTable(rows) {
           `).join('')}</tbody>
         </table>
       </div>
+        </div>
+      `).join('')}
     </div>
   `).join('');
 }
