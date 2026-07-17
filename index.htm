@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.2</title>
+<title>CYP135 課程報名 V6.3</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -525,30 +525,38 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .import-table th{background:#faf8f3;color:#555;font-weight:700}
 .import-status-ok{color:#2d7d46;font-weight:700}
 .import-status-duplicate,.import-status-error{color:#b23b3b;font-weight:700}
-.roster-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
-.roster-stat{background:#f7f4ed;border:1px solid #eadfce;border-radius:12px;padding:10px;text-align:center}
-.roster-stat strong{display:block;color:#2d5a3d;font-size:20px;line-height:1.1}
+.roster-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.roster-stat{background:#f7f4ed;border:1px solid #eadfce;border-radius:10px;padding:8px;text-align:center}
+.roster-stat strong{display:block;color:#2d5a3d;font-size:18px;line-height:1.1}
 .roster-stat span{font-size:11px;color:#777}
-.roster-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.roster-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.roster-tabs .btn{padding:10px 6px;border-radius:12px;font-size:14px}
 .roster-tabs .btn.on{background:#2d5a3d;color:#fff}
-.roster-group{border:1px solid #eee7da;border-radius:16px;background:#fbfaf6;margin:12px 0;overflow:hidden}
-.roster-group-head{padding:12px 14px;background:#f5f2eb;color:#2d5a3d;font-weight:900}
+.roster-list-total{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:8px 0 10px;padding:8px 10px;border:1px solid #eadfce;border-radius:10px;background:#fbfaf6;color:#2d5a3d;font-weight:900;font-size:13px}
+.roster-list-total span{white-space:nowrap}
+.roster-group{border:1px solid #eee7da;border-radius:10px;background:#fff;margin:8px 0;overflow:hidden}
+.roster-group-head{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 10px;background:#f7f4ed;color:#2d5a3d;font-weight:900;font-size:13px}
+.roster-group-head strong{font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.roster-group-head span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
 .roster-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 88px;gap:8px;align-items:center;padding:12px 14px;border-top:1px solid #eee}
 .roster-row.cancelled{opacity:.58;background:#fafafa}
 .roster-name{font-weight:900;color:#2d5a3d}
 .roster-meta{font-size:12px;color:#666;line-height:1.6}
 .roster-actions{display:flex;gap:6px;justify-content:flex-end}
 .roster-actions .btn{padding:8px 8px;font-size:12px;border-radius:10px}
-.roster-line{display:grid;grid-template-columns:34px minmax(0,1.1fr) 72px minmax(0,1fr) 72px;gap:8px;align-items:center;padding:9px 12px;border-top:1px solid #eee;font-size:13px}
+.roster-line{display:grid;grid-template-columns:26px minmax(0,1fr) 74px 70px;gap:6px;align-items:center;min-height:34px;padding:5px 10px;border-top:1px solid #eee;font-size:13px}
 .roster-line.cancelled{opacity:.58;background:#fafafa}
+.roster-line-num{color:#777;text-align:right}
 .roster-line-name{font-weight:900;color:#2d5a3d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.roster-line-class{color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.roster-line-price{color:#444;text-align:right;white-space:nowrap}
 .roster-line .btn{padding:7px 8px;font-size:12px;border-radius:10px}
 .roster-table-wrap{overflow:auto;border:1px solid #eee;border-radius:12px;margin-top:12px}
 .roster-table{width:100%;border-collapse:collapse;font-size:12px;min-width:1220px;background:#fff}
 .roster-table th,.roster-table td{padding:9px;border-bottom:1px solid #eee;text-align:left;vertical-align:top;white-space:nowrap}
 .roster-table th{background:#faf8f3;color:#555;font-weight:900}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:420px){.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:28px minmax(0,1fr) 58px 64px}.roster-line-class{grid-column:2 / 4;font-size:12px;color:#666}.roster-line .btn{grid-column:4}.roster-table{min-width:920px}}
+@media(max-width:420px){.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:7px 8px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr)}.roster-group-head strong{font-size:14px}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
 
 @media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
@@ -557,7 +565,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.2</small>
+    <small>CYP135 課程系統 V6.3</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -1200,6 +1208,7 @@ function applyRosterData(data) {
 function renderRosterContent() {
   const c = rosterState.course || {};
   const stats = rosterState.stats || {};
+  const money = rosterMoneySummary(rosterState.rows || []);
   const app = document.getElementById('app');
 
   app.innerHTML = `
@@ -1213,7 +1222,7 @@ function renderRosterContent() {
       <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>名額：${esc(stats.active || 0)} / ${esc(stats.maxCount || '不限')}</div>
       <div class="roster-summary">
         <div class="roster-stat"><strong>${esc(stats.active || 0)}</strong><span>有效報名</span></div>
-        <div class="roster-stat"><strong>${esc(stats.added || 0)}</strong><span>加報</span></div>
+        <div class="roster-stat"><strong>$${esc(money.total)}</strong><span>應收金額</span></div>
         <div class="roster-stat"><strong>${esc(stats.cancelled || 0)}</strong><span>取消</span></div>
         <div class="roster-stat"><strong>${stats.remaining === '' ? '不限' : esc(stats.remaining)}</strong><span>剩餘名額</span></div>
       </div>
@@ -1464,6 +1473,7 @@ function setRosterView(view) {
 function getFilteredRosterRows() {
   const q = String(rosterState.query || '').trim().toLowerCase();
   let rows = (rosterState.rows || []).slice();
+  if (rosterState.view === 'grouped') rows = rows.filter(row => row.rawStatus !== '取消');
   if (rosterState.view === 'cancelled') rows = rows.filter(row => row.rawStatus === '取消');
   if (q) {
     rows = rows.filter(row => [row.name, row.cleanName, row.leader, row.flock, row.classType, row.displayClassType, row.status, row.source, row.cancelReason]
@@ -1493,9 +1503,18 @@ function renderRosterList() {
 
   if (rosterState.view === 'grouped') {
     const groups = groupRosterRowsClient(rows);
-    box.innerHTML = groups.map(group => `
+    const money = rosterMoneySummary(rows);
+    box.innerHTML = `
+      <div class="roster-list-total">
+        <span>有效 ${esc(money.active)} 人</span>
+        <span>應收 $${esc(money.total)}</span>
+      </div>
+    ` + groups.map(group => `
       <div class="roster-group">
-        <div class="roster-group-head">${esc(group.flock)} 小組｜有效 ${esc(group.active)} 人${group.added ? '｜加報 ' + esc(group.added) : ''}${group.cancelled ? '｜取消 ' + esc(group.cancelled) : ''}｜合計 $${esc(group.total)}</div>
+        <div class="roster-group-head">
+          <strong>${esc(group.flock)} 小組</strong>
+          <span>有效 ${esc(group.active)} 人｜合計 $${esc(group.total)}${group.classText ? '｜' + esc(group.classText) : ''}</span>
+        </div>
         ${group.rows.map((row, idx) => renderRosterLine(row, idx + 1)).join('')}
       </div>
     `).join('');
@@ -1509,7 +1528,7 @@ function groupRosterRowsClient(rows) {
   const map = {};
   rows.forEach(row => {
     const key = row.flock || row.leader || '未分組';
-    if (!map[key]) map[key] = { flock: key, active: 0, cancelled: 0, added: 0, total: 0, rows: [] };
+    if (!map[key]) map[key] = { flock: key, active: 0, cancelled: 0, added: 0, total: 0, classCounts: {}, rows: [] };
     map[key].rows.push(row);
     if (row.rawStatus === '取消') map[key].cancelled += 1;
     else {
@@ -1517,9 +1536,29 @@ function groupRosterRowsClient(rows) {
       if (row.rawStatus === '加報') map[key].added += 1;
       const priceValue = row.displayPrice !== undefined && row.displayPrice !== '' ? row.displayPrice : row.price;
       map[key].total += Number(priceValue || 0);
+      const classText = rosterClassText(row);
+      map[key].classCounts[classText] = (map[key].classCounts[classText] || 0) + 1;
     }
   });
-  return Object.keys(map).sort().map(key => map[key]);
+  return Object.keys(map).sort().map(key => {
+    const group = map[key];
+    group.classText = Object.keys(group.classCounts)
+      .filter(name => name && name !== '—')
+      .sort()
+      .map(name => `${name} ${group.classCounts[name]}`)
+      .join(' / ');
+    return group;
+  });
+}
+
+function rosterMoneySummary(rows) {
+  return (rows || []).reduce((sum, row) => {
+    if (row.rawStatus === '取消') return sum;
+    const priceValue = row.displayPrice !== undefined && row.displayPrice !== '' ? row.displayPrice : row.price;
+    sum.active += 1;
+    sum.total += Number(priceValue || 0);
+    return sum;
+  }, { active: 0, total: 0 });
 }
 
 function rosterActionButton(row) {
@@ -1540,14 +1579,12 @@ function rosterClassText(row) {
 }
 
 function renderRosterLine(row, index) {
-  const cancelled = row.rawStatus === '取消';
   return `
-    <div class="roster-line ${cancelled ? 'cancelled' : ''}">
-      <div>${esc(index)}.</div>
+    <div class="roster-line">
+      <div class="roster-line-num">${esc(index)}.</div>
       <div class="roster-line-name">${esc(row.name || row.cleanName || '未命名')}</div>
-      <div>${esc(rosterPriceText(row))}</div>
-      <div class="roster-line-class">${esc(rosterClassText(row))}${cancelled ? '｜已取消' : ''}</div>
-      <div>${rosterActionButton(row)}</div>
+      <div class="roster-line-class">${esc(rosterClassText(row))}</div>
+      <div class="roster-line-price">${esc(rosterPriceText(row))}</div>
     </div>
   `;
 }
