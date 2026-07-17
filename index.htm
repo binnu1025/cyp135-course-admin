@@ -2067,7 +2067,7 @@ function renderCourseForm(course) {
 
   if (course && course.pricingMode === '類別制') {
     const names = csvSplit(course.categoryNames);
-    const prices = csvSplit(course.categoryPrices);
+    const prices = splitCategoryPrices(course.categoryPrices, names.length);
     names.forEach((name, i) => addCategoryRow(name, prices[i] || ''));
   } else if (!course && prefill.categoryNames) {
     csvSplit(prefill.categoryNames).forEach(name => addCategoryRow(name, ''));
@@ -3332,6 +3332,24 @@ function csvSplit(text) {
     .split(',')
     .map(x => x.trim())
     .filter(Boolean);
+}
+
+function splitCategoryPrices(text, expectedCount) {
+  const raw = String(text || '').trim();
+  let prices = csvSplit(raw);
+  if (!expectedCount || prices.length === expectedCount) return prices;
+
+  const numberMatches = raw.match(/\d+(?:\.\d+)?/g) || [];
+  if (numberMatches.length === expectedCount) return numberMatches;
+
+  if (expectedCount > 1 && /^\d+$/.test(raw) && raw.length % expectedCount === 0) {
+    const size = raw.length / expectedCount;
+    if (size >= 2) {
+      return Array.from({ length: expectedCount }, (_, i) => raw.slice(i * size, (i + 1) * size));
+    }
+  }
+
+  return prices;
 }
 
 async function submitCourseForm() {
