@@ -610,7 +610,7 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v61';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v63';
 let currentView = '';
 let appState = {
   courses: [],
@@ -773,6 +773,14 @@ function mergeCourseToState(course) {
   if (existsIndex >= 0) appState.courses[existsIndex] = Object.assign({}, appState.courses[existsIndex], course);
   else appState.courses.unshift(course);
   rebuildCourseMap();
+}
+
+function clearCourseClientCache(courseCode) {
+  try { localStorage.removeItem(PUBLIC_CACHE_KEY); } catch (e) {}
+  const code = normalizeCode(courseCode);
+  if (code) delete appState.registrationInitByCode[code];
+  appState.publicLoaded = false;
+  appState.lastPublicRefresh = 0;
 }
 
 function ensurePublicData(force) {
@@ -1053,14 +1061,14 @@ function courseCardHtml(c) {
 // ─────────────────────────────
 // 活動詳情頁
 // ─────────────────────────────
-async function renderCourseDetailPage(courseCode, openRegisterNow) {
+async function renderCourseDetailPage(courseCode, openRegisterNow, forceRefresh) {
   currentView = openRegisterNow ? 'register' : 'detail';
   setWideLayout(false);
   clearMsg();
   setTitle(openRegisterNow ? '填寫報名' : '活動詳情');
 
   const localCourse = getCourseFromState(courseCode);
-  if (localCourse) {
+  if (localCourse && !forceRefresh && !openRegisterNow) {
     currentCourse = localCourse;
     renderMenu();
     if (openRegisterNow && canCourseRegister(localCourse)) {
@@ -1075,7 +1083,7 @@ async function renderCourseDetailPage(courseCode, openRegisterNow) {
   app.innerHTML = '<div class="loading">載入活動資料中...</div>';
 
   try {
-    const data = await ensureRegistrationData(courseCode);
+    const data = await ensureRegistrationData(courseCode, !!forceRefresh || !!openRegisterNow);
     if (!data || data.status !== 'ok') {
       app.innerHTML = '<div class="card"><h2>找不到課程</h2><p class="meta">' + esc((data && data.message) || '') + '</p><button class="btn btn-sub" onclick="renderHomePage()">返回課程列表</button></div>';
       return;
@@ -2385,14 +2393,40 @@ function optionHtml(arr, selected, placeholder) {
 }
 
 function normalizeRegistrationFieldsClient(fields) {
-  fields = fields || {};
-  return {
-    phone: normalizeFieldModeClient(fields.phone),
-    gender: normalizeFieldModeClient(fields.gender),
-    idNumber: normalizeFieldModeClient(fields.idNumber),
-    birthDate: normalizeFieldModeClient(fields.birthDate),
-    meal: normalizeFieldModeClient(fields.meal)
+  fields = parseRegistrationFieldsClientSource(fields);
+  const pick = (keys) => {
+    for (const key of keys) {
+      if (fields[key] !== undefined && fields[key] !== null && fields[key] !== '') return fields[key];
+    }
+    return '';
   };
+  return {
+    phone: normalizeFieldModeClient(pick(['phone', '電話'])),
+    gender: normalizeFieldModeClient(pick(['gender', '性別'])),
+    idNumber: normalizeFieldModeClient(pick(['idNumber', 'id', '身分證', '身分證字號'])),
+    birthDate: normalizeFieldModeClient(pick(['birthDate', 'birthday', '生日', '出生年月日'])),
+    meal: normalizeFieldModeClient(pick(['meal', '葷素', '餐食']))
+  };
+}
+
+function parseRegistrationFieldsClientSource(fields) {
+  if (!fields) return {};
+  if (typeof fields !== 'string') return fields;
+
+  const text = fields.trim();
+  if (!text) return {};
+
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (e) {
+    const source = {};
+    text.split(/[;,，、\n]/).forEach(part => {
+      const pair = part.split(/[:=：]/);
+      if (pair.length >= 2) source[pair[0].trim()] = pair.slice(1).join(':').trim();
+    });
+    return source;
+  }
 }
 
 function normalizeFieldModeClient(mode) {
@@ -3411,6 +3445,7 @@ async function submitCourseForm() {
 
     if (res.status === 'ok') {
       const isExternalCourse = payload.coursePurpose === '外部匯入';
+      clearCourseClientCache(res.eventCode);
       document.getElementById('create-result').innerHTML = `
         <div class="msg on ok">
           ✅ ${editingCourseCode ? '課程已更新' : '課程建立完成'}<br>
@@ -3419,7 +3454,7 @@ async function submitCourseForm() {
           ${isExternalCourse
             ? `<button class="btn btn-main" style="margin-top:10px" onclick="renderExternalImportPage('${esc(res.eventCode)}')">返回外部名單匯入</button>`
             : `<button class="btn btn-main" style="margin-top:10px" onclick="renderHomePage()">返回報名課程頁</button>
-               <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(res.eventCode)}')">查看報名頁</button>`}
+               <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(res.eventCode)}', false, true)">查看報名頁</button>`}
           <button class="btn btn-ghost" onclick="renderCreateCoursePage()">返回設定</button>
         </div>
       `;
