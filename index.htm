@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.12</title>
+<title>CYP135 課程報名 V6.13</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -577,7 +577,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.12</small>
+    <small>CYP135 課程系統 V6.13</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -634,9 +634,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v74';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v75';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v74_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v75_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1388,12 +1388,24 @@ async function renderCourseRosterPage(courseCode) {
     saveRosterCache(code, data);
     renderRosterContent();
     if (cachedRoster) showBoxMsg('roster-msg', '已更新最新名單。', 'ok');
+    hydrateRosterLeaderOptions(code, token);
   } catch (err) {
     if (!isPageActive(token, 'roster')) return;
     stopLoading();
     if (hasShell) showBoxMsg('roster-msg', esc(err.message || err), 'err');
     else app.innerHTML = '<div class="card"><h2>名單載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
   }
+}
+
+async function hydrateRosterLeaderOptions(courseCode, token) {
+  if (!rosterState.canManage || getRosterAddLeaderOptions().length) return;
+  try {
+    const data = await ensureRegistrationData(courseCode, false);
+    if (!isPageActive(token, 'roster') || !data || data.status !== 'ok') return;
+    rosterState.leaders = getRosterAddLeaderOptions();
+    saveCurrentRosterCache();
+    updateRosterLeaderDatalist();
+  } catch (err) {}
 }
 
 function buildRosterPlaceholderData(course) {
@@ -1484,7 +1496,7 @@ function renderRosterAddForm() {
   const classDetails = rosterState.classDetails || [];
   const needsClass = classDetails.length > 1;
   if (!rosterState.add) resetRosterAddState();
-  const leaderOptions = (rosterState.leaders || []).map(x => `<option value="${esc(x)}"></option>`).join('');
+  const leaderOptions = getRosterAddLeaderOptions().map(x => `<option value="${esc(x)}"></option>`).join('');
 
   return `
     <details class="fold">
@@ -1512,6 +1524,26 @@ function renderRosterAddForm() {
       </div>
     </details>
   `;
+}
+
+function getRosterAddLeaderOptions() {
+  const merged = [];
+  const seen = {};
+  const push = list => (list || []).forEach(item => {
+    const text = String(item || '').trim();
+    if (!text || seen[text]) return;
+    seen[text] = true;
+    merged.push(text);
+  });
+  push(getLeaderOptionsForForm());
+  push(rosterState.leaders);
+  return merged;
+}
+
+function updateRosterLeaderDatalist() {
+  const list = document.getElementById('roster-leader-options');
+  if (!list) return;
+  list.innerHTML = getRosterAddLeaderOptions().map(x => `<option value="${esc(x)}"></option>`).join('');
 }
 
 function resetRosterAddState() {
