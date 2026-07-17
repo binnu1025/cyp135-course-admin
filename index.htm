@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.9</title>
+<title>CYP135 課程報名 V6.10</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -377,7 +377,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f2eb;color:#2a2620;min-
 .hd small{display:block;color:#c8ddc2;font-size:11px;letter-spacing:.12em;margin-bottom:4px}
 .hd h1{font-size:20px;font-weight:900;line-height:1.35}
 .wrap{padding:16px;max-width:760px;margin:0 auto 40px}
-.wrap.wide{max-width:1240px}
+.wrap.wide{max-width:1360px}
 .card{background:#fff;border:1px solid rgba(45,90,61,.12);border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 3px 12px rgba(0,0,0,.045)}
 .card h2{font-size:17px;color:#2d5a3d;margin-bottom:12px;line-height:1.4}
 .section-title{font-size:13px;font-weight:900;color:#2d5a3d;margin:16px 0 8px;letter-spacing:.05em}
@@ -543,9 +543,9 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .roster-list-total{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:8px 0 10px;padding:8px 10px;border:1px solid #eadfce;border-radius:10px;background:#fbfaf6;color:#2d5a3d;font-weight:900;font-size:13px}
 .roster-list-total span{white-space:nowrap}
 .roster-group{border:1px solid #eee7da;border-radius:10px;background:#fff;margin:8px 0;overflow:hidden}
-.roster-group-head{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 10px;background:#f7f4ed;color:#2d5a3d;font-weight:900;font-size:13px}
-.roster-group-head strong{font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.roster-group-head span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.roster-group-head{display:grid;grid-template-columns:minmax(120px,.75fr) minmax(0,1.25fr);gap:10px;align-items:center;padding:10px 12px;background:#f7f4ed;color:#2d5a3d;font-weight:900;font-size:13px}
+.roster-group-head strong{font-size:15px;min-width:0;overflow-wrap:anywhere}
+.roster-group-head span{white-space:normal;overflow:visible;text-overflow:clip;text-align:right;line-height:1.55;overflow-wrap:anywhere}
 .roster-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 88px;gap:8px;align-items:center;padding:12px 14px;border-top:1px solid #eee}
 .roster-row.cancelled{opacity:.58;background:#fafafa}
 .roster-name{font-weight:900;color:#2d5a3d}
@@ -564,7 +564,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .roster-table th,.roster-table td{padding:9px;border-bottom:1px solid #eee;text-align:left;vertical-align:top;white-space:nowrap}
 .roster-table th{background:#faf8f3;color:#555;font-weight:900}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:420px){.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:7px 8px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr)}.roster-group-head strong{font-size:14px}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
+@media(max-width:420px){.wrap.wide{padding-left:8px;padding-right:8px}.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:9px 10px;display:block}.roster-group-head strong{display:block;font-size:15px;margin-bottom:4px}.roster-group-head span{display:block;text-align:left}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
 
 @media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
