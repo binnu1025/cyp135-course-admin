@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.7</title>
+<title>CYP135 課程報名 V6.8</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -570,7 +570,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.7</small>
+    <small>CYP135 課程系統 V6.8</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -627,9 +627,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v69';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v70';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v69_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v70_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1216,8 +1216,7 @@ function courseCardHtml(c) {
         <div class="meta">
           日期時間：<b>${esc(c.dateTime || '尚未設定')}</b><br>
           票種：${esc(c.ticketType || '—')}<br>
-          金額：${esc(c.priceSummary || '—')}<br>
-          名額：${getCountText(c)}
+          金額：${esc(c.priceSummary || '—')}
         </div>
         <div class="course-actions ${isAdminUser ? 'admin' : ''}">
           <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看詳情</button>
@@ -1290,7 +1289,6 @@ function renderCourseDetailContent(c) {
   const app = document.getElementById('app');
   const canRegister = canCourseRegister(c);
   const img = c.dmUrl ? `<img class="detail-hero" loading="lazy" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">` : '';
-  const countText = getCountText(c);
 
   app.innerHTML = `
     <button class="btn btn-ghost" onclick="renderHomePage({skipRefresh:true})">← 返回報名課程</button>
@@ -1305,8 +1303,7 @@ function renderCourseDetailContent(c) {
         日期時間：<b>${esc(c.dateTime || '尚未設定')}</b><br>
         票種：${esc(c.ticketType || '—')}<br>
         金額：${esc(c.priceSummary || '—')}<br>
-        報名時間：${esc(c.applyStart || '—')} ～ ${esc(c.applyEnd || '—')}<br>
-        名額：${countText}
+        報名時間：${esc(c.applyStart || '—')} ～ ${esc(c.applyEnd || '—')}
       </div>
       ${c.description ? '<div class="divider"></div><div class="desc">' + esc(c.description) + '</div>' : ''}
       <div class="divider"></div>
@@ -2811,8 +2808,7 @@ function renderAdminCourseList(courses) {
         日期：${esc(c.dateTime || '—')}<br>
         場次：${esc(c.session || '—')}　票種：${esc(c.ticketType || '—')}<br>
         金額：${esc(c.priceSummary || '—')}<br>
-        報名時間：${esc(c.applyStart || '—')} ～ ${esc(c.applyEnd || '—')}<br>
-        名額：${getCountText(c)}
+        報名時間：${esc(c.applyStart || '—')} ～ ${esc(c.applyEnd || '—')}
       </div>
       <div class="inline-actions">
         <button class="btn btn-main" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>
@@ -3815,7 +3811,7 @@ function renderRegisterFormBody(isBackgroundLoading) {
 
     <div class="card compact-card" style="margin-top:12px">
       <h2>${esc(c.eventName)}</h2>
-      <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>金額：${esc(c.priceSummary || '—')}｜名額：${getCountText(c)}<br><span id="register-load-status">${isBackgroundLoading ? '正在背景檢查報名狀態...' : '已載入報名狀態。'}</span></div>
+      <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>金額：${esc(c.priceSummary || '—')}<br><span id="register-load-status">${isBackgroundLoading ? '正在載入報名表...' : '請填寫以下資料。'}</span></div>
     </div>
 
     <div class="card compact-card">
