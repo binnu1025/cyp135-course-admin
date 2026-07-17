@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V5.13</title>
+<title>CYP135 課程報名 V6.0</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -539,8 +539,16 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .roster-meta{font-size:12px;color:#666;line-height:1.6}
 .roster-actions{display:flex;gap:6px;justify-content:flex-end}
 .roster-actions .btn{padding:8px 8px;font-size:12px;border-radius:10px}
+.roster-line{display:grid;grid-template-columns:34px minmax(0,1.1fr) 72px minmax(0,1fr) 72px;gap:8px;align-items:center;padding:9px 12px;border-top:1px solid #eee;font-size:13px}
+.roster-line.cancelled{opacity:.58;background:#fafafa}
+.roster-line-name{font-weight:900;color:#2d5a3d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.roster-line .btn{padding:7px 8px;font-size:12px;border-radius:10px}
+.roster-table-wrap{overflow:auto;border:1px solid #eee;border-radius:12px;margin-top:12px}
+.roster-table{width:100%;border-collapse:collapse;font-size:12px;min-width:980px;background:#fff}
+.roster-table th,.roster-table td{padding:9px;border-bottom:1px solid #eee;text-align:left;vertical-align:top;white-space:nowrap}
+.roster-table th{background:#faf8f3;color:#555;font-weight:900}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:420px){.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}}
+@media(max-width:420px){.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:28px minmax(0,1fr) 58px 64px}.roster-line-class{grid-column:2 / 4;font-size:12px;color:#666}.roster-line .btn{grid-column:4}.roster-table{min-width:920px}}
 
 @media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
 </style>
@@ -549,7 +557,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V5.13</small>
+    <small>CYP135 課程系統 V6.0</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -602,7 +610,7 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v510';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v60';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1052,10 +1060,14 @@ async function renderCourseDetailPage(courseCode, openRegisterNow) {
   setTitle(openRegisterNow ? '填寫報名' : '活動詳情');
 
   const localCourse = getCourseFromState(courseCode);
-  if (localCourse && !openRegisterNow) {
+  if (localCourse) {
     currentCourse = localCourse;
     renderMenu();
-    renderCourseDetailContent(localCourse);
+    if (openRegisterNow && canCourseRegister(localCourse)) {
+      renderRegisterForm();
+    } else {
+      renderCourseDetailContent(localCourse);
+    }
     return;
   }
 
@@ -1203,8 +1215,8 @@ function renderRosterContent() {
       <div class="divider"></div>
       <div class="searchbar"><input id="roster-search" placeholder="搜尋姓名 / 雁群 / 類別 / 狀態" value="${esc(rosterState.query || '')}" oninput="filterRosterList()"></div>
       <div class="roster-tabs">
-        <button class="btn btn-sub ${rosterState.view === 'grouped' ? 'on' : ''}" onclick="setRosterView('grouped')">依雁群</button>
-        <button class="btn btn-sub ${rosterState.view === 'all' ? 'on' : ''}" onclick="setRosterView('all')">全部名單</button>
+        <button class="btn btn-sub ${rosterState.view === 'grouped' ? 'on' : ''}" onclick="setRosterView('grouped')">報名名單</button>
+        <button class="btn btn-sub ${rosterState.view === 'detail' ? 'on' : ''}" onclick="setRosterView('detail')">報名詳情</button>
         <button class="btn btn-sub ${rosterState.view === 'cancelled' ? 'on' : ''}" onclick="setRosterView('cancelled')">取消名單</button>
       </div>
       <div id="roster-list"></div>
@@ -1446,7 +1458,7 @@ function getFilteredRosterRows() {
   let rows = (rosterState.rows || []).slice();
   if (rosterState.view === 'cancelled') rows = rows.filter(row => row.rawStatus === '取消');
   if (q) {
-    rows = rows.filter(row => [row.name, row.cleanName, row.leader, row.flock, row.classType, row.displayClassType, row.status, row.source]
+    rows = rows.filter(row => [row.name, row.cleanName, row.leader, row.flock, row.classType, row.displayClassType, row.status, row.source, row.cancelReason]
       .join(' ').toLowerCase().includes(q));
   }
   return rows;
@@ -1461,12 +1473,22 @@ function renderRosterList() {
     return;
   }
 
+  if (rosterState.view === 'detail') {
+    box.innerHTML = renderRosterDetailTable(rows);
+    return;
+  }
+
+  if (rosterState.view === 'cancelled') {
+    box.innerHTML = renderRosterCancelledTable(rows);
+    return;
+  }
+
   if (rosterState.view === 'grouped') {
     const groups = groupRosterRowsClient(rows);
     box.innerHTML = groups.map(group => `
       <div class="roster-group">
-        <div class="roster-group-head">${esc(group.flock)}｜有效 ${esc(group.active)} 人${group.added ? '｜加報 ' + esc(group.added) : ''}${group.cancelled ? '｜取消 ' + esc(group.cancelled) : ''}</div>
-        ${group.rows.map(renderRosterRow).join('')}
+        <div class="roster-group-head">${esc(group.flock)} 小組｜有效 ${esc(group.active)} 人${group.added ? '｜加報 ' + esc(group.added) : ''}${group.cancelled ? '｜取消 ' + esc(group.cancelled) : ''}｜合計 $${esc(group.total)}</div>
+        ${group.rows.map((row, idx) => renderRosterLine(row, idx + 1)).join('')}
       </div>
     `).join('');
     return;
@@ -1479,15 +1501,100 @@ function groupRosterRowsClient(rows) {
   const map = {};
   rows.forEach(row => {
     const key = row.flock || row.leader || '未分組';
-    if (!map[key]) map[key] = { flock: key, active: 0, cancelled: 0, added: 0, rows: [] };
+    if (!map[key]) map[key] = { flock: key, active: 0, cancelled: 0, added: 0, total: 0, rows: [] };
     map[key].rows.push(row);
     if (row.rawStatus === '取消') map[key].cancelled += 1;
     else {
       map[key].active += 1;
       if (row.rawStatus === '加報') map[key].added += 1;
+      const priceValue = row.displayPrice !== undefined && row.displayPrice !== '' ? row.displayPrice : row.price;
+      map[key].total += Number(priceValue || 0);
     }
   });
   return Object.keys(map).sort().map(key => map[key]);
+}
+
+function rosterActionButton(row) {
+  if (!rosterState.canManage) return '';
+  if (row.rawStatus === '取消') {
+    return `<button class="btn btn-sub" onclick="updateRosterStatus(${Number(row.rowNumber)}, '')">恢復</button>`;
+  }
+  return `<button class="btn btn-warn" onclick="updateRosterStatus(${Number(row.rowNumber)}, '取消')">取消</button>`;
+}
+
+function rosterPriceText(row) {
+  const priceValue = row.displayPrice !== undefined && row.displayPrice !== '' ? row.displayPrice : row.price;
+  return priceValue === '' ? '—' : '$' + priceValue;
+}
+
+function rosterClassText(row) {
+  return row.displayClassType || row.classType || '—';
+}
+
+function renderRosterLine(row, index) {
+  const cancelled = row.rawStatus === '取消';
+  return `
+    <div class="roster-line ${cancelled ? 'cancelled' : ''}">
+      <div>${esc(index)}.</div>
+      <div class="roster-line-name">${esc(row.name || row.cleanName || '未命名')}</div>
+      <div>${esc(rosterPriceText(row))}</div>
+      <div class="roster-line-class">${esc(rosterClassText(row))}${cancelled ? '｜已取消' : ''}</div>
+      <div>${rosterActionButton(row)}</div>
+    </div>
+  `;
+}
+
+function renderRosterDetailTable(rows) {
+  return `
+    <div class="roster-table-wrap">
+      <table class="roster-table">
+        <thead><tr>
+          <th>姓名</th><th>狀態</th><th>小組</th><th>類別</th><th>金額</th><th>來源</th><th>報名時間</th><th>建立者</th><th>取消時間</th><th>取消者</th><th>取消原因</th><th>報名ID</th><th>操作</th>
+        </tr></thead>
+        <tbody>${rows.map(row => `
+          <tr>
+            <td>${esc(row.name || row.cleanName || '')}</td>
+            <td>${esc(row.status || '正常')}</td>
+            <td>${esc(row.flock || row.leader || '')}</td>
+            <td>${esc(rosterClassText(row))}</td>
+            <td>${esc(rosterPriceText(row))}</td>
+            <td>${esc(row.source || '')}</td>
+            <td>${esc(row.registeredAt || '')}</td>
+            <td>${esc(row.createdBy || '')}</td>
+            <td>${esc(row.cancelledAt || '')}</td>
+            <td>${esc(row.cancelledBy || '')}</td>
+            <td>${esc(row.cancelReason || '')}</td>
+            <td>${esc(row.registrationId || '')}</td>
+            <td>${rosterActionButton(row)}</td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderRosterCancelledTable(rows) {
+  return `
+    <div class="roster-table-wrap">
+      <table class="roster-table">
+        <thead><tr>
+          <th>姓名</th><th>小組</th><th>類別</th><th>金額</th><th>取消原因</th><th>取消者</th><th>取消時間</th><th>恢復</th>
+        </tr></thead>
+        <tbody>${rows.map(row => `
+          <tr>
+            <td>${esc(row.name || row.cleanName || '')}</td>
+            <td>${esc(row.flock || row.leader || '')}</td>
+            <td>${esc(rosterClassText(row))}</td>
+            <td>${esc(rosterPriceText(row))}</td>
+            <td>${esc(row.cancelReason || '')}</td>
+            <td>${esc(row.cancelledBy || '')}</td>
+            <td>${esc(row.cancelledAt || '')}</td>
+            <td>${rosterActionButton(row)}</td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  `;
 }
 
 function renderRosterRow(row) {
@@ -1529,7 +1636,13 @@ async function refreshRoster() {
 async function updateRosterStatus(rowNumber, status) {
   if (!rosterState.course) return;
   const label = status === '取消' ? '取消這筆報名' : '恢復這筆報名';
-  if (!confirm('確認要' + label + '？')) return;
+  let cancelReason = '';
+  if (status === '取消') {
+    cancelReason = (prompt('請輸入取消原因（必填）') || '').trim();
+    if (!cancelReason) return showBoxMsg('roster-msg', '取消報名必須填寫原因。', 'err');
+  } else if (!confirm('確認要' + label + '？')) {
+    return;
+  }
   showBoxMsg('roster-msg', '更新中...', 'info');
   try {
     const res = await post('updateRegistrationStatus', {
@@ -1537,7 +1650,8 @@ async function updateRosterStatus(rowNumber, status) {
       displayName,
       eventCode: rosterState.course.eventCode,
       rowNumber,
-      status
+      status,
+      cancelReason
     }, 18000);
     if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '更新失敗'), 'err');
     applyRosterData(res);
@@ -1787,6 +1901,7 @@ function renderCourseForm(course) {
   const purposeValue = isEdit
     ? (course.coursePurpose || '報名網站')
     : (prefill.coursePurpose || '報名網站');
+  const regFields = normalizeRegistrationFieldsClient(course ? course.registrationFields : (prefill.registrationFields || null));
 
   document.getElementById('course-form-box').innerHTML = `
     <div class="card">
@@ -1902,6 +2017,17 @@ function renderCourseForm(course) {
             <label>報名結束，可空白</label>
             ${renderDateTimeClockPicker('c-apply-end', course ? course.applyEnd : '')}
           </div>
+        </div>
+      </div>
+
+      <div class="mini-section">
+        <div class="section-title">報名欄位設定</div>
+        <p class="muted" style="margin-bottom:8px">這些欄位會寫入「報名附加答案」，不影響報名總表主欄位。</p>
+        <div class="form-grid">
+          ${renderCourseFieldModeSelect('c-field-phone', '電話', regFields.phone)}
+          ${renderCourseFieldModeSelect('c-field-id', '身分證字號', regFields.idNumber)}
+          ${renderCourseFieldModeSelect('c-field-birth', '出生年月日', regFields.birthDate)}
+          ${renderCourseFieldModeSelect('c-field-meal', '葷素', regFields.meal)}
         </div>
       </div>
 
@@ -2250,6 +2376,46 @@ function renderClockPanel() {
 function optionHtml(arr, selected, placeholder) {
   const first = placeholder ? `<option value="">${esc(placeholder)}</option>` : '';
   return first + (arr || []).map(v => `<option value="${esc(v)}" ${String(v) === String(selected) ? 'selected' : ''}>${esc(v)}</option>`).join('');
+}
+
+function normalizeRegistrationFieldsClient(fields) {
+  fields = fields || {};
+  return {
+    phone: normalizeFieldModeClient(fields.phone),
+    idNumber: normalizeFieldModeClient(fields.idNumber),
+    birthDate: normalizeFieldModeClient(fields.birthDate),
+    meal: normalizeFieldModeClient(fields.meal)
+  };
+}
+
+function normalizeFieldModeClient(mode) {
+  mode = String(mode || '').trim();
+  if (mode === 'required' || mode === '必填') return 'required';
+  if (mode === 'optional' || mode === '選填') return 'optional';
+  return 'hidden';
+}
+
+function renderCourseFieldModeSelect(id, label, selected) {
+  selected = normalizeFieldModeClient(selected);
+  return `
+    <div class="field">
+      <label>${esc(label)}</label>
+      <select id="${esc(id)}">
+        <option value="hidden" ${selected === 'hidden' ? 'selected' : ''}>不顯示</option>
+        <option value="optional" ${selected === 'optional' ? 'selected' : ''}>選填</option>
+        <option value="required" ${selected === 'required' ? 'selected' : ''}>必填</option>
+      </select>
+    </div>
+  `;
+}
+
+function collectRegistrationFieldSettings() {
+  return {
+    phone: val('c-field-phone') || 'hidden',
+    idNumber: val('c-field-id') || 'hidden',
+    birthDate: val('c-field-birth') || 'hidden',
+    meal: val('c-field-meal') || 'hidden'
+  };
 }
 
 function togglePricingMode() {
@@ -3198,6 +3364,7 @@ async function submitCourseForm() {
       ticketType: val('c-ticket'),
       ticketTypeOther: val('c-ticket-other'),
       coursePurpose: val('c-purpose'),
+      registrationFields: collectRegistrationFieldSettings(),
       maxCount: val('c-max'),
       pricingMode,
       platinumPrice: val('c-plat'),
@@ -3262,30 +3429,44 @@ function renderRegisterForm() {
 
   const code = normalizeCode(currentCourse.eventCode);
   if (!appState.registrationInitByCode[code]) {
-    document.getElementById('app').innerHTML = `
-      <button class="btn btn-ghost" onclick="renderCourseDetailContent(currentCourse)">← 返回活動詳情</button>
-      <div class="card compact-card" style="margin-top:12px">
-        <h2>${esc(currentCourse.eventName)}</h2>
-        <div class="meta">${esc(currentCourse.dateTime || '')}｜${esc(currentCourse.session || '')}<br>正在載入本課已報名名單...</div>
-      </div>
-      <div class="loading">第一次進入此課程需要讀取名單，之後切換會直接秒開。</div>
-    `;
+    initData = {
+      status: 'loading',
+      course: currentCourse,
+      classDetails: currentCourse.classDetails || [],
+      leaders: [],
+      platinumNames: [],
+      existingRegistrants: [],
+      memberDirectory: []
+    };
+    renderRegisterFormBody(true);
 
-    ensureRegistrationData(code)
+    post('getRegistrationInit', { eventCode: code, userId }, 12000)
       .then(data => {
         if (!data || data.status !== 'ok') {
-          document.getElementById('app').innerHTML = '<div class="card"><h2>載入報名資料失敗</h2><p class="meta">' + esc((data && data.message) || '') + '</p></div>';
+          showRegisterMsg('背景檢查失敗：' + esc((data && data.message) || '無法取得報名狀態，送出時仍會再次檢查。'), 'err');
           return;
         }
-        renderRegisterForm();
+        appState.registrationInitByCode[code] = data;
+        initData = data;
+        currentCourse = data.course || currentCourse;
+        mergeCourseToState(currentCourse);
+        memberIndex = buildMemberIndex((data && data.memberDirectory) || []);
+        registrationIndex = buildRegistrationIndex((data && data.existingRegistrants) || []);
+        const status = document.getElementById('register-load-status');
+        if (status) status.innerHTML = '已完成報名狀態檢查。';
+        if (!val('r-name')) renderRegisterFormBody(false);
       })
       .catch(err => {
-        document.getElementById('app').innerHTML = '<div class="card"><h2>載入報名資料失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+        showRegisterMsg('背景檢查較慢或失敗：' + esc(err.message || err) + '<br>送出時系統仍會再次檢查是否重複。', 'err');
       });
     return;
   }
 
   initData = appState.registrationInitByCode[code];
+  renderRegisterFormBody(false);
+}
+
+function renderRegisterFormBody(isBackgroundLoading) {
   currentCourse = initData.course || currentCourse;
   selectedLeader = '';
   isCurrentNameDuplicate = false;
@@ -3303,7 +3484,7 @@ function renderRegisterForm() {
 
     <div class="card compact-card" style="margin-top:12px">
       <h2>${esc(c.eventName)}</h2>
-      <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>金額：${esc(c.priceSummary || '—')}｜名額：${getCountText(c)}</div>
+      <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>金額：${esc(c.priceSummary || '—')}｜名額：${getCountText(c)}<br><span id="register-load-status">${isBackgroundLoading ? '正在背景檢查報名狀態...' : '已載入報名狀態。'}</span></div>
     </div>
 
     <div class="card compact-card">
@@ -3330,6 +3511,7 @@ function renderRegisterForm() {
         <label>備註，可空白</label>
         <textarea id="r-remark" placeholder="有特殊需求可填寫"></textarea>
       </div>
+      ${renderRegistrationExtraFields(c.registrationFields)}
       <button id="submit-register-btn" class="btn btn-main submit-sticky" onclick="submitRegister()">送出報名</button>
     </div>
   `;
@@ -3644,6 +3826,62 @@ function updateRegistrationPrice() {
   box.innerHTML = `本次票價：$${esc(info.price)}`;
 }
 
+function registrationExtraFieldLabels() {
+  return {
+    phone: '電話',
+    idNumber: '身分證字號',
+    birthDate: '出生年月日',
+    meal: '葷素'
+  };
+}
+
+function renderRegistrationExtraFields(fields) {
+  fields = normalizeRegistrationFieldsClient(fields);
+  const labels = registrationExtraFieldLabels();
+  const rows = [];
+  Object.keys(labels).forEach(key => {
+    const mode = fields[key];
+    if (mode === 'hidden') return;
+    const required = mode === 'required';
+    const inputId = 'r-extra-' + key;
+    let input = '';
+    if (key === 'birthDate') {
+      input = `<input id="${inputId}" type="date" ${required ? 'required' : ''}>`;
+    } else if (key === 'meal') {
+      input = `<select id="${inputId}" ${required ? 'required' : ''}>
+        <option value="">請選擇</option>
+        <option value="葷">葷</option>
+        <option value="素">素</option>
+      </select>`;
+    } else {
+      input = `<input id="${inputId}" ${key === 'phone' ? 'type="tel"' : 'type="text"'} placeholder="${esc(labels[key])}" ${required ? 'required' : ''}>`;
+    }
+    rows.push(`
+      <div class="field">
+        <label>${esc(labels[key])}${required ? '（必填）' : '（選填）'}</label>
+        ${input}
+      </div>
+    `);
+  });
+  if (!rows.length) return '';
+  return `<div class="mini-section"><div class="section-title">補充資料</div><div class="form-grid">${rows.join('')}</div></div>`;
+}
+
+function collectRegistrationExtraAnswers(fields) {
+  fields = normalizeRegistrationFieldsClient(fields);
+  const labels = registrationExtraFieldLabels();
+  const answers = {};
+  for (const key of Object.keys(labels)) {
+    if (fields[key] === 'hidden') continue;
+    const answer = val('r-extra-' + key).trim();
+    if (fields[key] === 'required' && !answer) {
+      return { ok: false, message: '請填寫' + labels[key] };
+    }
+    answers[key] = answer;
+  }
+  return { ok: true, answers };
+}
+
 async function submitRegister() {
   clearMsg();
   clearRegisterMsg();
@@ -3670,6 +3908,8 @@ async function submitRegister() {
 
   const priceInfo = getSelectedClassPrice();
   if (!priceInfo.classType) return showRegisterMsg('請選擇上課類別', 'err');
+  const extraCheck = collectRegistrationExtraAnswers(currentCourse && currentCourse.registrationFields);
+  if (!extraCheck.ok) return showRegisterMsg(extraCheck.message, 'err');
 
   isSubmittingRegistration = true;
   setRegisterButtonDisabled(true, '送出中...');
@@ -3685,7 +3925,8 @@ async function submitRegister() {
       flock: leader,
       uplinePlatinum: leader,
       classType: priceInfo.classType,
-      remark: val('r-remark')
+      remark: val('r-remark'),
+      extraAnswers: extraCheck.answers
     });
 
     if (res.status === 'ok') {
@@ -3724,6 +3965,7 @@ async function submitRegister() {
       isCurrentNameDuplicate = false;
       if (nameInput) nameInput.value = '';
       if (remarkInput) remarkInput.value = '';
+      document.querySelectorAll('[id^="r-extra-"]').forEach(el => { el.value = ''; });
       if (lookupBox) lookupBox.innerHTML = '';
       resetPlatinumClassAutoSelection();
       setRegisterButtonDisabled(false, '送出報名');
