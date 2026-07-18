@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.18</title>
+<title>CYP135 課程報名 V6.19</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -415,6 +415,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .top-actions .btn{width:auto;flex:1 1 0;min-width:0;padding:10px 8px;font-size:13px;border-radius:12px;white-space:nowrap}
 .top-actions .btn + .btn{margin-top:0}
 .top-actions.single .btn{max-width:100%}
+.top-actions .icon-only{flex:0 0 42px;width:42px;min-width:42px;padding:0;font-size:18px;line-height:1}
 .course-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,380px));gap:14px;align-items:start;justify-content:start}
 .course-card{background:#fff;border:1px solid rgba(45,90,61,.12);border-radius:18px;overflow:hidden;box-shadow:0 3px 12px rgba(0,0,0,.045);display:flex;flex-direction:column;min-height:100%}
 .course-img{width:100%;height:auto;max-height:none;background:#f7f4ed;object-fit:contain;display:block}
@@ -578,7 +579,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.18</small>
+    <small>CYP135 課程系統 V6.19</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -635,9 +636,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v80';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v81';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v80_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v81_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1481,14 +1482,16 @@ function renderRosterContent() {
   const money = rosterMoneySummary(rosterState.rows || []);
   const app = document.getElementById('app');
 
+  if (rosterState.openAdd) {
+    app.innerHTML = `
+      ${renderRosterTopActions(c)}
+      ${renderRosterAddForm()}
+    `;
+    return;
+  }
+
   app.innerHTML = `
-    <div class="top-actions">
-      <button class="btn btn-sub" onclick="renderHomePage({skipRefresh:true})">課程首頁</button>
-      <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">活動詳情</button>
-      ${rosterState.canManage ? `<button class="btn ${rosterState.openAdd ? 'btn-main' : 'btn-sub'}" onclick="toggleRosterAddPanel()">管理加報</button>` : ''}
-      <button class="btn btn-main" onclick="refreshRoster()">重新整理</button>
-    </div>
-    ${renderRosterAddForm()}
+    ${renderRosterTopActions(c)}
     <div class="card compact-card">
       <h2>${esc(c.eventName || '課程名單')}</h2>
       <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>名額：${esc(stats.active || 0)} / ${esc(stats.maxCount || '不限')}</div>
@@ -1513,8 +1516,19 @@ function renderRosterContent() {
   renderRosterList();
 }
 
+function renderRosterTopActions(c) {
+  return `
+    <div class="top-actions">
+      <button class="btn btn-sub" onclick="renderHomePage({skipRefresh:true})">課程首頁</button>
+      <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">活動詳情</button>
+      ${rosterState.canManage ? `<button class="btn ${rosterState.openAdd ? 'btn-main' : 'btn-sub'}" onclick="openCourseAddRegistration('${esc(c.eventCode)}')">管理加報</button>` : ''}
+      <button class="btn btn-main icon-only" onclick="refreshRoster()" title="重新整理" aria-label="重新整理">↻</button>
+    </div>
+  `;
+}
+
 function renderRosterAddForm() {
-  if (!rosterState.canManage || !rosterState.openAdd) {
+  if (!rosterState.canManage) {
     return '';
   }
   const c = rosterState.course || {};
@@ -1526,6 +1540,7 @@ function renderRosterAddForm() {
   return `
     <div class="card compact-card">
       <h2>管理加報</h2>
+      <div id="roster-msg" class="msg"></div>
       <div class="form-grid">
         <div class="field">
           <label>姓名</label>
@@ -1550,7 +1565,7 @@ function renderRosterAddForm() {
 }
 
 function toggleRosterAddPanel() {
-  rosterState.openAdd = !rosterState.openAdd;
+  rosterState.openAdd = true;
   renderRosterContent();
   if (rosterState.openAdd) {
     setTimeout(() => {
@@ -2089,7 +2104,7 @@ function renderRosterRow(row) {
 
 async function refreshRoster() {
   if (!rosterState.course) return;
-  await renderCourseRosterPage(rosterState.course.eventCode);
+  await renderCourseRosterPage(rosterState.course.eventCode, { openAdd: !!rosterState.openAdd });
 }
 
 async function updateRosterStatus(rowNumber, status) {
