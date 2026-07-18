@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.29</title>
+<title>CYP135 課程報名 V6.30</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -586,7 +586,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.29</small>
+    <small>CYP135 課程系統 V6.30</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -643,9 +643,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v91';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v92';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v91_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v92_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1301,27 +1301,33 @@ function getSharePageBaseUrl() {
   return url.toString();
 }
 
-function showShareLinkFallback(url, expiresAtText) {
-  const encodedUrl = encodeURIComponent(url);
+function buildCourseShareText(title, url, expiresAtText) {
+  return `【${title || '課程'}】快速報名\n${url}\n連結有效期限：${expiresAtText || '約 7 天'}`;
+}
+
+function showShareLinkFallback(url, expiresAtText, title) {
+  const shareText = buildCourseShareText(title || '課程', url, expiresAtText);
+  const encodedText = encodeURIComponent(shareText);
   showMsg(
-    '分享連結已建立。若沒有自動開啟分享視窗，請長按或點開下方連結複製。' +
+    '<b>' + esc(title || '課程') + '｜快速報名</b><br>' +
+    '分享連結已建立。若沒有自動開啟分享視窗，可以直接複製分享文字。' +
     '<a class="share-link-box" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + '</a>' +
-    '<div class="share-copy-row"><button class="btn btn-sub" onclick="copyShareUrl(decodeURIComponent(\'' + encodedUrl + '\'))">複製連結</button></div>' +
+    '<div class="share-copy-row"><button class="btn btn-sub" onclick="copyShareText(decodeURIComponent(\'' + encodedText + '\'))">複製分享文字</button></div>' +
     '<span class="muted">有效期限：' + esc(expiresAtText || '約 7 天') + '</span>',
     'ok'
   );
 }
 
-async function copyShareUrl(url) {
+async function copyShareText(text) {
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(url);
-      showMsg('分享連結已複製，可貼到 LINE 傳給朋友。', 'ok');
+      await navigator.clipboard.writeText(text);
+      showMsg('分享文字已複製，可貼到 LINE 傳給朋友。', 'ok');
       return;
     }
   } catch (e) {}
 
-  prompt('請複製這段分享連結', url);
+  prompt('請複製這段分享文字', text);
 }
 
 async function shareCourseLink(courseCode, event) {
@@ -1345,7 +1351,7 @@ async function shareCourseLink(courseCode, event) {
     }
 
     const title = course.eventName || data.eventName || '課程報名';
-    const text = `${title}\n${data.url}\n此連結約 7 天內有效。`;
+    const text = buildCourseShareText(title, data.url, data.expiresAtText);
     let shared = false;
 
     try {
@@ -1368,7 +1374,7 @@ async function shareCourseLink(courseCode, event) {
         showMsg('分享連結已複製，可貼到 LINE 傳給朋友。<br><span class="muted">有效期限：' + esc(data.expiresAtText || '約 7 天') + '</span>', 'ok');
         return;
       } catch (e) {
-        showShareLinkFallback(data.url, data.expiresAtText);
+        showShareLinkFallback(data.url, data.expiresAtText, title);
         return;
       }
     }
@@ -1376,7 +1382,7 @@ async function shareCourseLink(courseCode, event) {
     if (shared) {
       showMsg('已開啟分享視窗。<br><span class="muted">有效期限：' + esc(data.expiresAtText || '約 7 天') + '</span>', 'ok');
     } else {
-      showShareLinkFallback(data.url, data.expiresAtText);
+      showShareLinkFallback(data.url, data.expiresAtText, title);
     }
   } catch (err) {
     showMsg(esc(err.message || err), 'err');
