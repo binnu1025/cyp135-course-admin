@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.20</title>
+<title>CYP135 課程報名 V6.21</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -400,6 +400,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .msg.ok{background:#edf7ee;color:#1f4d2c;border:1px solid #a8d5a2}
 .msg.err{background:#fdf0f0;color:#7a2020;border:1px solid #d4a0a0}
 .msg.info{background:#f6f3ea;color:#6a5a30;border:1px solid #e2d7b4}
+.msg.warn{background:#fff8e8;color:#6f4b12;border:1px solid #e6c987}
 .loading{padding:42px 16px;text-align:center;color:#777;font-size:14px}
 .loading-card{max-width:360px;margin:0 auto;background:#fff;border:1px solid rgba(45,90,61,.12);border-radius:18px;padding:22px 18px;box-shadow:0 3px 12px rgba(0,0,0,.045)}
 .loading-ring{width:42px;height:42px;border-radius:50%;border:4px solid #e8f0ea;border-top-color:#2d5a3d;margin:0 auto 12px;animation:spin .85s linear infinite}
@@ -579,7 +580,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.20</small>
+    <small>CYP135 課程系統 V6.21</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -636,9 +637,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v82';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v83';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v82_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v83_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1742,14 +1743,14 @@ async function lookupRosterAddName(clean, name) {
     } else if (res && res.status === 'multiple') {
       add.lookupMembers = res.members || [];
       const choices = [...new Set((res.members || []).map(x => x.leader || x.flock || x.uplinePlatinum).filter(Boolean))];
-      box.innerHTML = '<div class="msg on info">找到多筆同名資料，請在右側選擇上手白金/雁群組長後再加報。</div>';
+      box.innerHTML = '<div class="msg on warn">找到多筆同名資料，請在右側選擇上手白金/雁群組長後再加報。</div>';
       if (leaderInput && choices.length) leaderInput.setAttribute('list', 'roster-leader-options');
     } else {
       add.selectedLeader = '';
       if (leaderInput) leaderInput.value = '';
       const autoClassType = applyRosterAddClassAutoSelection(null);
       box.innerHTML = `
-        <div class="msg on err">
+        <div class="msg on warn">
           查無名冊資料，請選擇上手白金/雁群組長<br>
           建立資料
           ${autoClassType ? `<br>上課類別：${esc(autoClassType)}` : ''}
@@ -1757,7 +1758,7 @@ async function lookupRosterAddName(clean, name) {
       `;
     }
   } catch (err) {
-    box.innerHTML = '<div class="msg on err">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長。</div>';
+    box.innerHTML = '<div class="msg on warn">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長。</div>';
   }
 }
 
@@ -4368,14 +4369,14 @@ function renderLookupResult(res, clean, name) {
     selectedLeader = '';
     const choices = [...new Set((res.members || []).map(x => x.leader || x.flock || x.uplinePlatinum).filter(Boolean))];
     box.innerHTML = `
-      <div class="msg on info">找到多筆同名資料，請選擇上手白金/雁群組長</div>
+      <div class="msg on warn">找到多筆同名資料，請選擇上手白金/雁群組長</div>
       ${renderLeaderSelect(choices.length ? choices : getLeaderOptionsForForm())}
     `;
   } else {
     selectedLeader = '';
     const autoClassType = applyPlatinumClassAutoSelection(null);
     box.innerHTML = `
-      <div class="msg on err">查無名冊資料，請選擇上手白金/雁群組長<br>建立資料${autoClassType ? '<br>上課類別：' + esc(autoClassType) : ''}</div>
+      <div class="msg on warn">查無名冊資料，請選擇上手白金/雁群組長<br>建立資料${autoClassType ? '<br>上課類別：' + esc(autoClassType) : ''}</div>
       ${renderLeaderSelect(getLeaderOptionsForForm())}
     `;
   }
@@ -4409,7 +4410,7 @@ async function autoLookupMemberRemote(clean, name) {
   } catch (err) {
     selectedLeader = '';
     box.innerHTML = `
-      <div class="msg on err">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長</div>
+      <div class="msg on warn">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長</div>
       ${renderLeaderSelect(getLeaderOptionsForForm())}
     `;
   }
@@ -4686,7 +4687,7 @@ async function submitRegister() {
   const leaderField = document.getElementById('r-leader');
   if (!leader && leaderField) leader = leaderField.value.trim();
 
-  if (!leader) return showRegisterMsg('查無名冊資料，請選擇上手白金/雁群組長', 'err');
+  if (!leader) return showRegisterMsg('查無名冊資料，請選擇上手白金/雁群組長', 'warn');
 
   const priceInfo = getSelectedClassPrice();
   if (!priceInfo.classType) return showRegisterMsg('請選擇上課類別', 'err');
@@ -4754,7 +4755,7 @@ async function submitRegister() {
       setTimeout(() => { if (nameInput) nameInput.focus(); }, 60);
 
     } else if (res.status === 'need_profile') {
-      showRegisterMsg('查無名冊資料，請選擇上手白金/雁群組長', 'err');
+      showRegisterMsg('查無名冊資料，請選擇上手白金/雁群組長', 'warn');
       autoLookupMemberLocal();
     } else if (res.status === 'duplicate') {
       registrationIndex[clean] = { name, cleanName: clean, leader };
