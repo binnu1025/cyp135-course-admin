@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.17</title>
+<title>CYP135 課程報名 V6.18</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -578,7 +578,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.17</small>
+    <small>CYP135 課程系統 V6.18</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -635,9 +635,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v79';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v80';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v79_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v80_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1485,8 +1485,10 @@ function renderRosterContent() {
     <div class="top-actions">
       <button class="btn btn-sub" onclick="renderHomePage({skipRefresh:true})">課程首頁</button>
       <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">活動詳情</button>
+      ${rosterState.canManage ? `<button class="btn ${rosterState.openAdd ? 'btn-main' : 'btn-sub'}" onclick="toggleRosterAddPanel()">管理加報</button>` : ''}
       <button class="btn btn-main" onclick="refreshRoster()">重新整理</button>
     </div>
+    ${renderRosterAddForm()}
     <div class="card compact-card">
       <h2>${esc(c.eventName || '課程名單')}</h2>
       <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>名額：${esc(stats.active || 0)} / ${esc(stats.maxCount || '不限')}</div>
@@ -1497,7 +1499,6 @@ function renderRosterContent() {
         <div class="roster-stat"><strong>${stats.remaining === '' ? '不限' : esc(stats.remaining)}</strong><span>剩餘名額</span></div>
       </div>
       <div id="roster-msg" class="msg"></div>
-      ${renderRosterAddForm()}
       ${renderRosterFillAction()}
       <div class="divider"></div>
       <div class="searchbar"><input id="roster-search" placeholder="搜尋姓名 / 雁群 / 類別 / 狀態" value="${esc(rosterState.query || '')}" oninput="filterRosterList()"></div>
@@ -1513,7 +1514,7 @@ function renderRosterContent() {
 }
 
 function renderRosterAddForm() {
-  if (!rosterState.canManage) {
+  if (!rosterState.canManage || !rosterState.openAdd) {
     return '';
   }
   const c = rosterState.course || {};
@@ -1523,31 +1524,40 @@ function renderRosterAddForm() {
   const leaderOptions = getRosterAddLeaderOptions().map(x => `<option value="${esc(x)}"></option>`).join('');
 
   return `
-    <details class="fold" ${rosterState.openAdd ? 'open' : ''}>
-      <summary>管理加報</summary>
-      <div class="fold-content">
-        <div class="form-grid">
-          <div class="field">
-            <label>姓名</label>
-            <input id="roster-add-name" placeholder="輸入加報姓名" oninput="handleRosterAddNameInput()">
-          </div>
-          <div class="field">
-            <label>上手白金/雁群組長</label>
-            <input id="roster-add-leader" list="roster-leader-options" placeholder="查無名冊時必填" value="${esc(rosterState.add.selectedLeader || '')}" onchange="handleRosterAddLeaderChange()">
-            <datalist id="roster-leader-options">${leaderOptions}</datalist>
-          </div>
-          <div id="roster-add-lookup" class="full"></div>
-          ${needsClass ? `<div class="field full"><label>上課類別</label>${renderRosterAddClassChoices(classDetails)}</div>` : ''}
-          <div class="field ${needsClass ? '' : 'full'}">
-            <label>備註</label>
-            <input id="roster-add-remark" placeholder="可空白">
-          </div>
-          <div class="full">${renderRegistrationExtraFields(c.registrationFields, 'roster-extra-')}</div>
+    <div class="card compact-card">
+      <h2>管理加報</h2>
+      <div class="form-grid">
+        <div class="field">
+          <label>姓名</label>
+          <input id="roster-add-name" placeholder="輸入加報姓名" oninput="handleRosterAddNameInput()">
         </div>
-        <button class="btn btn-main" onclick="submitAdminAddRegistration()">送出加報</button>
+        <div class="field">
+          <label>上手白金/雁群組長</label>
+          <input id="roster-add-leader" list="roster-leader-options" placeholder="查無名冊時必填" value="${esc(rosterState.add.selectedLeader || '')}" onchange="handleRosterAddLeaderChange()">
+          <datalist id="roster-leader-options">${leaderOptions}</datalist>
+        </div>
+        <div id="roster-add-lookup" class="full"></div>
+        ${needsClass ? `<div class="field full"><label>上課類別</label>${renderRosterAddClassChoices(classDetails)}</div>` : ''}
+        <div class="field ${needsClass ? '' : 'full'}">
+          <label>備註</label>
+          <input id="roster-add-remark" placeholder="可空白">
+        </div>
+        <div class="full">${renderRegistrationExtraFields(c.registrationFields, 'roster-extra-')}</div>
       </div>
-    </details>
+      <button class="btn btn-main" onclick="submitAdminAddRegistration()">送出加報</button>
+    </div>
   `;
+}
+
+function toggleRosterAddPanel() {
+  rosterState.openAdd = !rosterState.openAdd;
+  renderRosterContent();
+  if (rosterState.openAdd) {
+    setTimeout(() => {
+      const input = document.getElementById('roster-add-name');
+      if (input) input.focus();
+    }, 80);
+  }
 }
 
 function getRosterAddLeaderOptions() {
