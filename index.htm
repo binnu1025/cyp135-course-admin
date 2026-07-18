@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.16</title>
+<title>CYP135 課程報名 V6.17</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -578,7 +578,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.16</small>
+    <small>CYP135 課程系統 V6.17</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -635,9 +635,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v78';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v79';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v78_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v79_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1226,7 +1226,7 @@ function courseCardHtml(c) {
   const full = c.statusBadge === '已額滿';
   const closed = c.statusBadge === '尚未開放';
   const canRegister = canCourseRegister(c);
-  const canManageAdd = userCanManageRoster();
+  const canManageAdd = userCanManageRoster() && !canRegister;
   const badgeClass = full ? 'red' : (closed || !canRegister ? 'gray' : '');
   const registerButton = canRegister
     ? `<button class="btn btn-main" onclick="renderCourseDetailPage('${esc(c.eventCode)}', true)">立即報名</button>`
@@ -1348,7 +1348,7 @@ function renderCourseDetailContent(c) {
       <div class="divider"></div>
       <div class="compact-actions">
         ${canRegister ? '<button class="btn btn-main" onclick="renderRegisterForm()">我要報名</button>' : '<button class="btn btn-warn" disabled>目前無法報名</button>'}
-        ${userCanManageRoster() ? `<button class="btn btn-main" onclick="openCourseAddRegistration('${esc(c.eventCode)}')">管理加報</button>` : ''}
+        ${userCanManageRoster() && !canRegister ? `<button class="btn btn-main" onclick="openCourseAddRegistration('${esc(c.eventCode)}')">管理加報</button>` : ''}
         <button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">查看名單</button>
       </div>
       ${isAdminUser ? '<button class="btn btn-ghost" style="margin-top:8px" onclick="renderHomePage({skipRefresh:true})">返回課程首頁</button>' : ''}
