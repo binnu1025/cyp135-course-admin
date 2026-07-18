@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.31</title>
+<title>CYP135 課程報名 V6.32</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -371,6 +371,10 @@ async function downloadTicketZip() {
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans TC',sans-serif;background:#f5f2eb;color:#2a2620;min-height:100vh}
+body.share-mode{background:#f8efe9}
+body.share-mode .hd{background:#174b34}
+body.share-mode .hd small:after{content:'｜分享入口'}
+body.share-mode .wrap{max-width:820px}
 .hd{background:linear-gradient(135deg,#2d5a3d,#1f3f2c);color:#fff;padding:18px 18px 16px;position:sticky;top:0;z-index:5;box-shadow:0 4px 16px rgba(0,0,0,.12)}
 .hd-home{display:inline-block;cursor:pointer;border-radius:10px;padding:2px 4px;margin:-2px -4px;max-width:calc(100% - 98px)}
 .hd-home:focus-visible{outline:2px solid rgba(255,255,255,.9);outline-offset:3px}
@@ -586,7 +590,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.31</small>
+    <small>CYP135 課程系統 V6.32</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -639,6 +643,8 @@ let externalImportState = { step: 1, rows: [], preview: null, fileName: '', even
 let excelParserLoading = null;
 let coursePrefillFromImport = null;
 let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grouped', query: '', classDetails: [], leaders: [], canManage: false, scopeText: '', scopeFlocks: [], add: null, loading: false, openAdd: false };
+let isSharedEntry = false;
+let sharedCourseToken = '';
 
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
@@ -701,6 +707,7 @@ function clearRegisterMsg() {
 }
 
 function userCanManageRoster() {
+  if (isSharedEntry) return false;
   const audit = (publicData && publicData.permissionAudit) || {};
   if (typeof audit.canManageRoster !== 'undefined') return !!audit.canManageRoster;
   return !!(publicData && publicData.canManageRoster);
@@ -822,6 +829,13 @@ function beginPage(view, title, wide) {
   clearMsg();
   setTitle(title);
   return token;
+}
+
+function setSharedEntryMode(on, token) {
+  isSharedEntry = !!on;
+  sharedCourseToken = on ? String(token || sharedCourseToken || '') : '';
+  document.body.classList.toggle('share-mode', isSharedEntry);
+  if (isSharedEntry) canViewRoster = false;
 }
 
 function isPageActive(token, view) {
@@ -1060,6 +1074,14 @@ function goHomeFromHeader() {
   toggleMenu(false);
   const clock = document.getElementById('clock-backdrop');
   if (clock) clock.classList.remove('on');
+  if (isSharedEntry) {
+    if (currentCourse) {
+      renderCourseDetailContent(currentCourse);
+    } else if (sharedCourseToken) {
+      renderSharedCourseDetail(sharedCourseToken);
+    }
+    return;
+  }
   renderHomePage({ skipRefresh: true });
 }
 
@@ -1077,6 +1099,21 @@ function setWideLayout(wide) {
 function renderMenu() {
   const menu = document.getElementById('side-menu');
   if (!menu) return;
+
+  if (isSharedEntry) {
+    const registerItem = currentCourse && canCourseRegister(currentCourse)
+      ? '<button class="menu-item" onclick="toggleMenu(false);renderRegisterForm()">我要報名</button>'
+      : '';
+    menu.innerHTML = `
+      <div class="menu-head">CYP135 課程系統</div>
+      <div class="menu-list">
+        <button class="menu-item" onclick="toggleMenu(false);goHomeFromHeader()">活動詳情</button>
+        ${registerItem}
+        <button class="menu-item" onclick="toggleMenu(false)">關閉選單</button>
+      </div>
+    `;
+    return;
+  }
 
   const adminBtns = isAdminUser
     ? `
@@ -1139,6 +1176,7 @@ async function initLiff(options) {
 
 window.addEventListener('DOMContentLoaded', async function() {
   const shareToken = getParam('share') || getParam('s');
+  setSharedEntryMode(!!shareToken, shareToken);
   const liffStatus = await initLiff({ allowGuest: !!shareToken });
   if (liffStatus === 'login' || liffStatus === 'error') return;
 
@@ -1257,6 +1295,9 @@ function courseCardHtml(c) {
   const addButton = canManageAdd
     ? `<button class="btn btn-main" onclick="openCourseAddRegistration('${esc(c.eventCode)}')">加報</button>`
     : '';
+  const rosterButton = (canViewRoster || isAdminUser)
+    ? `<button class="btn btn-ghost" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button>`
+    : '';
   const img = c.dmUrl
     ? `<img class="course-img" loading="lazy" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">`
     : `<div class="course-img placeholder"></div>`;
@@ -1282,7 +1323,7 @@ function courseCardHtml(c) {
           <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">查看詳情</button>
           ${addButton}
           ${registerButton}
-          <button class="btn btn-ghost" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button>
+          ${rosterButton}
           ${isAdminUser ? `<button class="btn btn-ghost" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>` : ''}
         </div>
       </div>
@@ -1398,6 +1439,7 @@ async function shareCourseLink(courseCode, event) {
 }
 
 async function renderSharedCourseDetail(shareToken) {
+  setSharedEntryMode(true, shareToken);
   const token = beginPage('share', '活動詳情', false);
   const app = document.getElementById('app');
   showLoading('開啟分享活動中');
@@ -1412,15 +1454,15 @@ async function renderSharedCourseDetail(shareToken) {
         <div class="card compact-card">
           <h2>分享連結無法使用</h2>
           <p class="meta">${esc((data && data.message) || '此連結已失效或不存在。')}</p>
-          <button class="btn btn-sub" onclick="renderHomePage()">返回課程首頁</button>
+          <button class="btn btn-sub" onclick="history.back()">返回上一頁</button>
         </div>
       `;
       return;
     }
 
+    currentCourse = data.course;
     mergeCourseToState(data.course);
     renderCourseDetailContent(data.course);
-    ensurePublicData(true).catch(() => {});
   } catch (err) {
     if (!isPageActive(token, 'share')) return;
     stopLoading();
@@ -1428,7 +1470,7 @@ async function renderSharedCourseDetail(shareToken) {
       <div class="card compact-card">
         <h2>分享連結載入失敗</h2>
         <p class="meta">${esc(err.message || err)}</p>
-        <button class="btn btn-sub" onclick="renderHomePage()">返回課程首頁</button>
+        <button class="btn btn-sub" onclick="history.back()">返回上一頁</button>
       </div>
     `;
   }
@@ -1493,10 +1535,20 @@ function renderCourseDetailContent(c) {
 
   const app = document.getElementById('app');
   const canRegister = canCourseRegister(c);
+  const showRosterButton = !isSharedEntry && (canViewRoster || isAdminUser);
+  const backButton = isSharedEntry
+    ? ''
+    : '<button class="btn btn-ghost" onclick="renderHomePage({skipRefresh:true})">← 返回報名課程</button>';
+  const rosterButton = showRosterButton
+    ? `<button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">查看名單</button>`
+    : '';
+  const addButton = !isSharedEntry && userCanManageRoster() && !canRegister
+    ? `<button class="btn btn-main" onclick="openCourseAddRegistration('${esc(c.eventCode)}')">管理加報</button>`
+    : '';
   const img = c.dmUrl ? `<img class="detail-hero" loading="lazy" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">` : '';
 
   app.innerHTML = `
-    <button class="btn btn-ghost" onclick="renderHomePage({skipRefresh:true})">← 返回報名課程</button>
+    ${backButton}
     <div class="card" style="margin-top:12px">
       ${img}
       <h2>${esc(c.eventName)}</h2>
@@ -1514,10 +1566,10 @@ function renderCourseDetailContent(c) {
       <div class="divider"></div>
       <div class="compact-actions">
         ${canRegister ? '<button class="btn btn-main" onclick="renderRegisterForm()">我要報名</button>' : '<button class="btn btn-warn" disabled>目前無法報名</button>'}
-        ${userCanManageRoster() && !canRegister ? `<button class="btn btn-main" onclick="openCourseAddRegistration('${esc(c.eventCode)}')">管理加報</button>` : ''}
-        <button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">查看名單</button>
+        ${addButton}
+        ${rosterButton}
       </div>
-      ${isAdminUser ? '<button class="btn btn-ghost" style="margin-top:8px" onclick="renderHomePage({skipRefresh:true})">返回課程首頁</button>' : ''}
+      ${!isSharedEntry && isAdminUser ? '<button class="btn btn-ghost" style="margin-top:8px" onclick="renderHomePage({skipRefresh:true})">返回課程首頁</button>' : ''}
     </div>
   `;
 }
@@ -1534,6 +1586,11 @@ function getCountText(c) {
 // 名單管理
 // ─────────────────────────────
 async function renderCourseRosterPage(courseCode, options) {
+  if (isSharedEntry) {
+    if (currentCourse) renderCourseDetailContent(currentCourse);
+    else if (sharedCourseToken) renderSharedCourseDetail(sharedCourseToken);
+    return;
+  }
   options = options || {};
   const token = beginPage('roster', '名單管理', true);
   const app = document.getElementById('app');
