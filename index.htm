@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.30</title>
+<title>CYP135 課程報名 V6.31</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -586,7 +586,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.30</small>
+    <small>CYP135 課程系統 V6.31</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -643,9 +643,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v92';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v93';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v92_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v93_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1301,8 +1301,14 @@ function getSharePageBaseUrl() {
   return url.toString();
 }
 
+function formatShareExpiryText(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return '約 7 天';
+  return raw.replace(/^\d{4}\//, '');
+}
+
 function buildCourseShareText(title, url, expiresAtText) {
-  return `【${title || '課程'}】快速報名\n${url}\n連結有效期限：${expiresAtText || '約 7 天'}`;
+  return `【${title || '課程'}】快速報名\n期限｜${formatShareExpiryText(expiresAtText)}\n報名連結\n${url}`;
 }
 
 function showShareLinkFallback(url, expiresAtText, title) {
@@ -1313,7 +1319,7 @@ function showShareLinkFallback(url, expiresAtText, title) {
     '分享連結已建立。若沒有自動開啟分享視窗，可以直接複製分享文字。' +
     '<a class="share-link-box" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + '</a>' +
     '<div class="share-copy-row"><button class="btn btn-sub" onclick="copyShareText(decodeURIComponent(\'' + encodedText + '\'))">複製分享文字</button></div>' +
-    '<span class="muted">有效期限：' + esc(expiresAtText || '約 7 天') + '</span>',
+    '<span class="muted">期限｜' + esc(formatShareExpiryText(expiresAtText)) + '</span>',
     'ok'
   );
 }
@@ -1370,8 +1376,8 @@ async function shareCourseLink(courseCode, event) {
 
     if (!shared && navigator.clipboard && navigator.clipboard.writeText) {
       try {
-        await navigator.clipboard.writeText(data.url);
-        showMsg('分享連結已複製，可貼到 LINE 傳給朋友。<br><span class="muted">有效期限：' + esc(data.expiresAtText || '約 7 天') + '</span>', 'ok');
+        await navigator.clipboard.writeText(text);
+        showMsg('分享文字已複製，可貼到 LINE 傳給朋友。<br><span class="muted">期限｜' + esc(formatShareExpiryText(data.expiresAtText)) + '</span>', 'ok');
         return;
       } catch (e) {
         showShareLinkFallback(data.url, data.expiresAtText, title);
@@ -1380,7 +1386,7 @@ async function shareCourseLink(courseCode, event) {
     }
 
     if (shared) {
-      showMsg('已開啟分享視窗。<br><span class="muted">有效期限：' + esc(data.expiresAtText || '約 7 天') + '</span>', 'ok');
+      showMsg('已開啟分享視窗。<br><span class="muted">期限｜' + esc(formatShareExpiryText(data.expiresAtText)) + '</span>', 'ok');
     } else {
       showShareLinkFallback(data.url, data.expiresAtText, title);
     }
