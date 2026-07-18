@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.28</title>
+<title>CYP135 課程報名 V6.29</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -428,6 +428,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .share-btn svg{width:24px;height:24px;display:block;stroke:currentColor;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .share-btn:disabled{opacity:.55;cursor:wait}
 .share-link-box{display:block;margin-top:8px;padding:10px;border-radius:10px;background:#fff;border:1px solid rgba(45,90,61,.18);color:#2d5a3d;word-break:break-all;font-size:13px;line-height:1.5}
+.share-copy-row{margin-top:8px;display:grid;grid-template-columns:1fr;gap:8px}
 .meta{font-size:13px;color:#666;line-height:1.75}
 .meta b{color:#2d5a3d}
 .badges{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
@@ -585,7 +586,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.28</small>
+    <small>CYP135 課程系統 V6.29</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -642,9 +643,9 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v90';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v91';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
-const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v90_';
+const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v91_';
 let currentView = '';
 let appState = {
   courses: [],
@@ -1105,11 +1106,14 @@ function toggleMenu(open) {
   menu.classList.toggle('on', !!open);
 }
 
-async function initLiff() {
+async function initLiff(options) {
+  options = options || {};
+  const allowGuest = !!options.allowGuest;
   try {
     await liff.init({ liffId: LIFF_ID });
 
     if (!liff.isLoggedIn()) {
+      if (allowGuest) return 'guest';
       liff.login();
       return 'login';
     }
@@ -1121,6 +1125,11 @@ async function initLiff() {
 
   } catch(e) {
     console.error('LIFF 初始化失敗：', e);
+    if (allowGuest) {
+      userId = '';
+      displayName = '';
+      return 'guest';
+    }
     document.getElementById('app').innerHTML =
       '<div class="card"><h2>LIFF 初始化失敗</h2>' +
       '<p class="meta">請確認 LIFF_ID、LINE Developers Endpoint URL，以及是否從 LINE LIFF 連結開啟。<br><br>錯誤訊息：' + esc(e.message || e) + '</p></div>';
@@ -1129,7 +1138,8 @@ async function initLiff() {
 }
 
 window.addEventListener('DOMContentLoaded', async function() {
-  const liffStatus = await initLiff();
+  const shareToken = getParam('share') || getParam('s');
+  const liffStatus = await initLiff({ allowGuest: !!shareToken });
   if (liffStatus === 'login' || liffStatus === 'error') return;
 
   loadPublicCache();
@@ -1138,7 +1148,6 @@ window.addEventListener('DOMContentLoaded', async function() {
 
   const mode = getParam('mode');
   const courseCode = getParam('course');
-  const shareToken = getParam('share') || getParam('s');
 
   if (shareToken) {
     renderSharedCourseDetail(shareToken);
@@ -1293,12 +1302,26 @@ function getSharePageBaseUrl() {
 }
 
 function showShareLinkFallback(url, expiresAtText) {
+  const encodedUrl = encodeURIComponent(url);
   showMsg(
     '分享連結已建立。若沒有自動開啟分享視窗，請長按或點開下方連結複製。' +
     '<a class="share-link-box" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + '</a>' +
+    '<div class="share-copy-row"><button class="btn btn-sub" onclick="copyShareUrl(decodeURIComponent(\'' + encodedUrl + '\'))">複製連結</button></div>' +
     '<span class="muted">有效期限：' + esc(expiresAtText || '約 7 天') + '</span>',
     'ok'
   );
+}
+
+async function copyShareUrl(url) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+      showMsg('分享連結已複製，可貼到 LINE 傳給朋友。', 'ok');
+      return;
+    }
+  } catch (e) {}
+
+  prompt('請複製這段分享連結', url);
 }
 
 async function shareCourseLink(courseCode, event) {
