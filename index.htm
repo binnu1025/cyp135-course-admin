@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.32</title>
+<title>CYP135 課程報名 V6.33</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -590,7 +590,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.32</small>
+    <small>CYP135 課程系統 V6.33</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -1762,21 +1762,15 @@ function renderRosterAddForm() {
   const classDetails = rosterState.classDetails || [];
   const needsClass = classDetails.length > 1;
   if (!rosterState.add) resetRosterAddState();
-  const leaderOptions = getRosterAddLeaderOptions().map(x => `<option value="${esc(x)}"></option>`).join('');
 
   return `
     <div class="card compact-card">
       <h2>管理加報</h2>
       <div id="roster-msg" class="msg"></div>
       <div class="form-grid">
-        <div class="field">
+        <div class="field full">
           <label>姓名</label>
           <input id="roster-add-name" placeholder="輸入加報姓名" oninput="handleRosterAddNameInput()">
-        </div>
-        <div class="field">
-          <label>上手白金/雁群組長</label>
-          <input id="roster-add-leader" list="roster-leader-options" placeholder="查無名冊時必填" value="${esc(rosterState.add.selectedLeader || '')}" onchange="handleRosterAddLeaderChange()">
-          <datalist id="roster-leader-options">${leaderOptions}</datalist>
         </div>
         <div id="roster-add-lookup" class="full"></div>
         ${needsClass ? `<div class="field full"><label>上課類別</label>${renderRosterAddClassChoices(classDetails)}</div>` : ''}
@@ -1820,6 +1814,18 @@ function updateRosterLeaderDatalist() {
   const list = document.getElementById('roster-leader-options');
   if (!list) return;
   list.innerHTML = getRosterAddLeaderOptions().map(x => `<option value="${esc(x)}"></option>`).join('');
+}
+
+function renderRosterAddLeaderSelect(selectedValue) {
+  const options = getRosterAddLeaderOptions();
+  return `
+    <div class="field">
+      <label>上手白金/雁群組長</label>
+      <select id="roster-add-leader" onchange="handleRosterAddLeaderChange()">
+        ${optionHtml(options, selectedValue || '', '請選擇上手白金/雁群組長')}
+      </select>
+    </div>
+  `;
 }
 
 function resetRosterAddState() {
@@ -1931,7 +1937,6 @@ function handleRosterAddNameInput() {
 async function lookupRosterAddName(clean, name) {
   const add = rosterState.add || (rosterState.add = {});
   const box = document.getElementById('roster-add-lookup');
-  const leaderInput = document.getElementById('roster-add-leader');
   if (!box || clean !== cleanNameLocal(val('roster-add-name'))) return;
 
   try {
@@ -1944,7 +1949,6 @@ async function lookupRosterAddName(clean, name) {
       const member = res.member || {};
       add.lookupMembers = [member];
       add.selectedLeader = member.leader || member.flock || member.uplinePlatinum || '';
-      if (leaderInput) leaderInput.value = add.selectedLeader;
       const duplicate = getRosterAddDuplicate(clean, add.selectedLeader);
       if (duplicate) {
         add.duplicate = true;
@@ -1960,18 +1964,17 @@ async function lookupRosterAddName(clean, name) {
           上手白金/雁群組長：${esc(add.selectedLeader || '—')}
           ${autoClassType ? `<br>上課類別：${esc(autoClassType)}` : ''}
         </div>
+        <input id="roster-add-leader" type="hidden" value="${esc(add.selectedLeader)}">
       `;
     } else if (res && res.status === 'multiple') {
       add.lookupMembers = res.members || [];
       add.selectedLeader = '';
-      if (leaderInput) leaderInput.value = '';
       box.innerHTML = `
         <div class="msg on warn">找到多筆同名資料，請選擇正確的名冊資料。若同組同名，請用電話末四碼辨識。</div>
         ${renderLookupMemberSelect(add.lookupMembers, 'roster-add-member-choice', 'selectRosterAddMember', '請選擇正確名冊資料')}
       `;
     } else {
       add.selectedLeader = '';
-      if (leaderInput) leaderInput.value = '';
       const autoClassType = applyRosterAddClassAutoSelection(null);
       box.innerHTML = `
         <div class="msg on warn">
@@ -1979,10 +1982,14 @@ async function lookupRosterAddName(clean, name) {
           建立資料
           ${autoClassType ? `<br>上課類別：${esc(autoClassType)}` : ''}
         </div>
+        ${renderRosterAddLeaderSelect()}
       `;
     }
   } catch (err) {
-    box.innerHTML = '<div class="msg on warn">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長。</div>';
+    box.innerHTML = `
+      <div class="msg on warn">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長。</div>
+      ${renderRosterAddLeaderSelect()}
+    `;
   }
 }
 
@@ -2022,12 +2029,10 @@ function selectRosterAddMember(value) {
   const add = rosterState.add || (rosterState.add = {});
   const member = Number.isInteger(index) ? (add.lookupMembers || [])[index] : null;
   const box = document.getElementById('roster-add-lookup');
-  const leaderInput = document.getElementById('roster-add-leader');
   if (!member || !box) return;
 
   add.selectedLeader = getLeaderText(member);
   add.duplicate = false;
-  if (leaderInput) leaderInput.value = add.selectedLeader;
   const duplicate = getRosterAddDuplicate(cleanNameLocal(val('roster-add-name')), add.selectedLeader);
   if (duplicate) {
     add.duplicate = true;
@@ -2045,6 +2050,7 @@ function selectRosterAddMember(value) {
       ${getPhoneTail(member) ? `<br>電話末四碼：${esc(getPhoneTail(member))}` : ''}
       ${autoClassType ? `<br>上課類別：${esc(autoClassType)}` : ''}
     </div>
+    <input id="roster-add-leader" type="hidden" value="${esc(add.selectedLeader)}">
   `;
 }
 
