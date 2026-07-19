@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>CYP135 課程報名 V6.35</title>
+  <title>CYP135 課程報名 V6.36</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -591,7 +591,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.35</small>
+    <small>CYP135 課程系統 V6.36</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -1781,7 +1781,7 @@ function renderRosterAddForm() {
         </div>
         <div class="full">${renderRegistrationExtraFields(c.registrationFields, 'roster-extra-')}</div>
       </div>
-      <button class="btn btn-main" onclick="submitAdminAddRegistration()">送出加報</button>
+      <button id="roster-add-submit-btn" class="btn btn-main" onclick="submitAdminAddRegistration()">送出加報</button>
     </div>
   `;
 }
@@ -1925,6 +1925,7 @@ function handleRosterAddNameInput() {
   add.selectedClassType = hasRosterAddPlatinumClassPair() ? '' : add.selectedClassType;
   add.lockedClassType = '';
   syncRosterAddClassChoices();
+  setRosterAddSubmitDisabled(false, '送出加報');
   clearExtraAnswerValues('roster-extra-');
 
   const box = document.getElementById('roster-add-lookup');
@@ -1959,12 +1960,14 @@ async function lookupRosterAddName(clean, name) {
           add.duplicate = false;
           const autoClassType = applyRosterAddClassAutoSelection(member);
           applyMemberProfileToRegistration(member, 'roster-extra-');
-          box.innerHTML = renderPhoneCheckNotice(add.selectedLeader) + `<input id="roster-add-leader" type="hidden" value="${esc(add.selectedLeader)}">`;
+          box.innerHTML = renderRosterAddPhoneCheckNotice(add.selectedLeader);
+          setRosterAddSubmitDisabled(true, '請核對電話');
           refreshRosterAddPhoneDuplicateState();
           return;
         }
         add.duplicate = true;
-        box.innerHTML = '<div class="msg on err">此姓名已在同一雁群有效報名，無法重複加報。</div>';
+        box.innerHTML = renderRosterAddDuplicateNotice(add.selectedLeader);
+        setRosterAddSubmitDisabled(true, '已重複加報');
         return;
       }
       const autoClassType = applyRosterAddClassAutoSelection(member);
@@ -1978,9 +1981,11 @@ async function lookupRosterAddName(clean, name) {
         </div>
         <input id="roster-add-leader" type="hidden" value="${esc(add.selectedLeader)}">
       `;
+      setRosterAddSubmitDisabled(false, '送出加報');
     } else if (res && res.status === 'multiple') {
       add.lookupMembers = res.members || [];
       add.selectedLeader = '';
+      setRosterAddSubmitDisabled(false, '送出加報');
       box.innerHTML = `
         <div class="msg on warn">找到多筆同名資料，請選擇正確的名冊資料。若同組同名，請用電話末四碼辨識。</div>
         ${renderLookupMemberSelect(add.lookupMembers, 'roster-add-member-choice', 'selectRosterAddMember', '請選擇正確名冊資料')}
@@ -1988,6 +1993,7 @@ async function lookupRosterAddName(clean, name) {
     } else {
       add.selectedLeader = '';
       const autoClassType = applyRosterAddClassAutoSelection(null);
+      setRosterAddSubmitDisabled(false, '送出加報');
       box.innerHTML = `
         <div class="msg on warn">
           查無名冊資料，請選擇上手白金/雁群組長<br>
@@ -1998,6 +2004,7 @@ async function lookupRosterAddName(clean, name) {
       `;
     }
   } catch (err) {
+    setRosterAddSubmitDisabled(false, '送出加報');
     box.innerHTML = `
       <div class="msg on warn">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長。</div>
       ${renderRosterAddLeaderSelect()}
@@ -2019,14 +2026,17 @@ function handleRosterAddLeaderChange() {
   if (duplicate) {
     if (courseUsesPhoneIdentity(rosterState.course && rosterState.course.registrationFields)) {
       add.duplicate = false;
-      if (box) box.innerHTML = renderPhoneCheckNotice(leader) + renderRosterAddLeaderSelect(leader);
+      if (box) box.innerHTML = renderRosterAddPhoneCheckNotice(leader, { includeSelect: true });
+      setRosterAddSubmitDisabled(true, '請核對電話');
       refreshRosterAddPhoneDuplicateState();
       return;
     }
     add.duplicate = true;
-    if (box) box.innerHTML = '<div class="msg on err">此姓名已在同一雁群有效報名，無法重複加報。</div>';
+    if (box) box.innerHTML = renderRosterAddDuplicateNotice(leader, { includeSelect: true });
+    setRosterAddSubmitDisabled(true, '已重複加報');
     return;
   }
+  setRosterAddSubmitDisabled(false, '送出加報');
   if (!leader || !Array.isArray(add.lookupMembers) || !add.lookupMembers.length) return;
   const member = add.lookupMembers.find(item => String(item.leader || item.flock || item.uplinePlatinum || '').trim() === leader);
   if (member) {
@@ -2069,12 +2079,14 @@ function selectRosterAddMember(value) {
       add.duplicate = false;
       const autoClassType = applyRosterAddClassAutoSelection(member);
       applyMemberProfileToRegistration(member, 'roster-extra-');
-      box.innerHTML = renderPhoneCheckNotice(add.selectedLeader) + `<input id="roster-add-leader" type="hidden" value="${esc(add.selectedLeader)}">`;
+      box.innerHTML = renderRosterAddPhoneCheckNotice(add.selectedLeader);
+      setRosterAddSubmitDisabled(true, '請核對電話');
       refreshRosterAddPhoneDuplicateState();
       return;
     }
     add.duplicate = true;
-    box.innerHTML = '<div class="msg on err">此姓名已在同一雁群有效報名，無法重複加報。</div>';
+    box.innerHTML = renderRosterAddDuplicateNotice(add.selectedLeader);
+    setRosterAddSubmitDisabled(true, '已重複加報');
     return;
   }
 
@@ -2090,6 +2102,7 @@ function selectRosterAddMember(value) {
     </div>
     <input id="roster-add-leader" type="hidden" value="${esc(add.selectedLeader)}">
   `;
+  setRosterAddSubmitDisabled(false, '送出加報');
 }
 
 function renderRosterFillAction() {
@@ -2485,6 +2498,10 @@ async function submitAdminAddRegistration() {
   const name = val('roster-add-name');
   if (!name) return showBoxMsg('roster-msg', '請輸入加報姓名。', 'err');
   const add = rosterState.add || {};
+  if (add.duplicate) {
+    setRosterAddSubmitDisabled(true, '已重複加報');
+    return showBoxMsg('roster-msg', '此姓名已在同一雁群有效報名，無法重複加報。', 'err');
+  }
   const classType = add.selectedClassType || val('roster-add-class');
   const leader = (add.selectedLeader || val('roster-add-leader') || '').trim();
   if (!leader) return showBoxMsg('roster-msg', '請選擇上手白金/雁群組長。', 'warn');
@@ -2496,8 +2513,10 @@ async function submitAdminAddRegistration() {
   });
   if (duplicateForSubmit) {
     if (rosterState.add) rosterState.add.duplicate = true;
+    setRosterAddSubmitDisabled(true, '已重複加報');
     return showBoxMsg('roster-msg', '此姓名已在同一雁群有效報名，無法重複加報。', 'err');
   }
+  setRosterAddSubmitDisabled(true, '送出中...');
   showBoxMsg('roster-msg', '加報中...', 'info');
   try {
     const res = await post('adminAddRegistration', {
@@ -2510,13 +2529,17 @@ async function submitAdminAddRegistration() {
       extraAnswers: extraCheck.answers,
       remark: val('roster-add-remark')
     }, 20000);
-    if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '加報失敗'), 'err');
+    if (!res || res.status !== 'ok') {
+      setRosterAddSubmitDisabled(false, '送出加報');
+      return showBoxMsg('roster-msg', esc((res && res.message) || '加報失敗'), 'err');
+    }
     applyRosterData(res);
     saveCurrentRosterCache();
     resetRosterAddState();
     renderRosterContent();
     showBoxMsg('roster-msg', esc(res.message || '已完成加報'), 'ok');
   } catch (err) {
+    setRosterAddSubmitDisabled(false, '送出加報');
     showBoxMsg('roster-msg', esc(err.message || err), 'err');
   }
 }
@@ -4630,6 +4653,28 @@ function renderPhoneCheckNotice(leader) {
   `;
 }
 
+function renderRosterAddPhoneCheckNotice(leader, options) {
+  const includeSelect = !options || options.includeSelect !== false;
+  return `
+    <div class="msg on warn">
+      此姓名已在 ${esc(leader || '同一雁群')} 小組有報名紀錄。<br><br>
+      請填寫電話，系統會用電話末四碼核對是否為同一人。若是同名同姓的另一個人，也可以改選他的上手白金/雁群組長。
+    </div>
+    ${includeSelect ? renderRosterAddLeaderSelect(leader) : `<input id="roster-add-leader" type="hidden" value="${esc(leader || '')}">`}
+  `;
+}
+
+function renderRosterAddDuplicateNotice(leader, options) {
+  const includeSelect = !options || options.includeSelect !== false;
+  return `
+    <div class="msg on err">
+      此姓名已在 ${esc(leader || '同一雁群')} 小組有效報名，無法重複加報。<br><br>
+      如果這是同名同姓的另一個人，請改選他的上手白金/雁群組長。
+    </div>
+    ${includeSelect ? renderRosterAddLeaderSelect(leader) : `<input id="roster-add-leader" type="hidden" value="${esc(leader || '')}">`}
+  `;
+}
+
 function refreshRegistrationPhoneDuplicateState() {
   if (!courseUsesPhoneIdentity(currentCourse && currentCourse.registrationFields)) return;
   const clean = cleanNameLocal(val('r-name'));
@@ -4676,9 +4721,11 @@ function refreshRosterAddPhoneDuplicateState() {
   const box = document.getElementById('roster-add-lookup');
   if (duplicate) {
     add.duplicate = true;
-    if (box && getEnteredPhoneTail('roster-extra-')) box.innerHTML = '<div class="msg on err">此姓名已在同一雁群有效報名，無法重複加報。</div>';
+    setRosterAddSubmitDisabled(true, getEnteredPhoneTail('roster-extra-') ? '已重複加報' : '請核對電話');
+    if (box && getEnteredPhoneTail('roster-extra-')) box.innerHTML = renderRosterAddDuplicateNotice(leader);
   } else {
     add.duplicate = false;
+    setRosterAddSubmitDisabled(false, '送出加報');
     if (box && getEnteredPhoneTail('roster-extra-')) {
       box.innerHTML = `
         <div class="msg on ok">
@@ -4714,6 +4761,13 @@ function setRegisterButtonDisabled(disabled, text) {
   if (!btn) return;
   btn.disabled = !!disabled;
   btn.textContent = text || '送出報名';
+}
+
+function setRosterAddSubmitDisabled(disabled, text) {
+  const btn = document.getElementById('roster-add-submit-btn');
+  if (!btn) return;
+  btn.disabled = !!disabled;
+  btn.textContent = text || '送出加報';
 }
 
 function setExtraAnswerValue(key, value, prefix = 'r-extra-') {
