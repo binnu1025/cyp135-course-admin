@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.39</title>
+  <title>CYP135 課程報名 V6.40</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -605,7 +605,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.39</small>
+    <small>CYP135 課程系統 V6.40</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -1818,7 +1818,7 @@ function renderRosterContent() {
       <h2>${esc(c.eventName || '課程名單')}</h2>
       <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>名額：${esc(stats.active || 0)} / ${esc(stats.maxCount || '不限')}</div>
       <div class="roster-summary">
-        <div class="roster-stat"><strong>${esc(stats.active || 0)}</strong><span>有效報名</span></div>
+        <div class="roster-stat"><strong>${esc(stats.active || 0)}</strong><span>報名</span></div>
         <div class="roster-stat"><strong>$${esc(money.total)}</strong><span>應收金額</span></div>
         <div class="roster-stat"><strong>${esc(stats.cancelled || 0)}</strong><span>取消</span></div>
         <div class="roster-stat"><strong>${stats.remaining === '' ? '不限' : esc(stats.remaining)}</strong><span>剩餘名額</span></div>
@@ -2266,7 +2266,7 @@ function renderRosterList() {
     const money = rosterMoneySummary(rows);
     box.innerHTML = `
       <div class="roster-list-total">
-        <span>有效 ${esc(money.active)} 人</span>
+        <span>報名 ${esc(money.active)} 人</span>
         <span>應收 $${esc(money.total)}</span>
       </div>
     ` + groups.map(group => `
@@ -2361,7 +2361,7 @@ function groupRosterRowsByClass(rows) {
 
 function renderRosterClassHead(classGroup) {
   const parts = [`共 ${Number(classGroup.rows.length || 0)} 人`];
-  if (Number(classGroup.active || 0)) parts.push(`有效 ${Number(classGroup.active || 0)} 人`);
+  if (Number(classGroup.active || 0)) parts.push(`報名 ${Number(classGroup.active || 0)} 人`);
   if (Number(classGroup.cancelled || 0)) parts.push(`取消 ${Number(classGroup.cancelled || 0)} 人`);
   parts.push(`合計 $${Number(classGroup.total || 0)}`);
   return `
@@ -2384,7 +2384,7 @@ function renderRosterCompactClassSections(rows) {
 
 function renderRosterGroupHead(group) {
   const parts = [`共 ${Number(group.rows.length || 0)} 人`];
-  if (Number(group.active || 0)) parts.push(`有效 ${Number(group.active || 0)} 人`);
+  if (Number(group.active || 0)) parts.push(`報名 ${Number(group.active || 0)} 人`);
   if (Number(group.cancelled || 0)) parts.push(`取消 ${Number(group.cancelled || 0)} 人`);
   parts.push(`合計 $${Number(group.total || 0)}`);
   if (group.classText) parts.push(group.classText);
@@ -2609,7 +2609,7 @@ async function submitAdminAddRegistration() {
   const add = rosterState.add || {};
   if (add.duplicate) {
     setRosterAddSubmitDisabled(true, '已重複加報');
-    return showBoxMsg('roster-msg', '此姓名已在同一雁群有效報名，無法重複加報。', 'err');
+    return showBoxMsg('roster-msg', '此姓名已在同一雁群報名，無法重複加報。', 'err');
   }
   const classType = add.selectedClassType || val('roster-add-class');
   const leader = (add.selectedLeader || val('roster-add-leader') || '').trim();
@@ -2630,9 +2630,10 @@ async function submitAdminAddRegistration() {
       ? renderRosterAddPhoneCheckNotice(leader)
       : renderRosterAddDuplicateNotice(leader);
     if (usesPhone && !phoneTail) return showBoxMsg('roster-msg', '請填寫電話，系統會用電話末四碼核對是否為同一人。', 'warn');
-    return showBoxMsg('roster-msg', '此姓名已在同一雁群有效報名，無法重複加報。', 'err');
+    return showBoxMsg('roster-msg', '此姓名已在同一雁群報名，無法重複加報。', 'err');
   }
   setRosterAddSubmitDisabled(true, '送出中...');
+  showActionLock('正在加報', '請稍候，正在寫入加報資料。');
   showBoxMsg('roster-msg', '加報中...', 'info');
   try {
     const res = await post('adminAddRegistration', {
@@ -2655,7 +2656,7 @@ async function submitAdminAddRegistration() {
           : renderRosterAddDuplicateNotice(leader);
         return showBoxMsg('roster-msg', usesPhone && !phoneTail
           ? '請填寫電話，系統會用電話末四碼核對是否為同一人。'
-          : '此姓名已在同一雁群有效報名，無法重複加報。', usesPhone && !phoneTail ? 'warn' : 'err');
+          : '此姓名已在同一雁群報名，無法重複加報。', usesPhone && !phoneTail ? 'warn' : 'err');
       }
       setRosterAddSubmitDisabled(false, '送出加報');
       return showBoxMsg('roster-msg', esc((res && res.message) || '加報失敗'), 'err');
@@ -2668,6 +2669,8 @@ async function submitAdminAddRegistration() {
   } catch (err) {
     setRosterAddSubmitDisabled(false, '送出加報');
     showBoxMsg('roster-msg', esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
   }
 }
 
@@ -4808,7 +4811,7 @@ function renderRosterAddDuplicateNotice(leader, options) {
   const includeSelect = !options || options.includeSelect !== false;
   return `
     <div class="msg on warn">
-      此姓名已在 ${esc(leader || '同一雁群')} 小組有效報名，無法重複加報。<br><br>
+      此姓名已在 ${esc(leader || '同一雁群')} 小組報名，無法重複加報。<br><br>
       如果這是同名同姓的另一個人，請改選他的上手白金/雁群組長。
     </div>
     ${includeSelect ? renderRosterAddLeaderSelect(leader) : `<input id="roster-add-leader" type="hidden" value="${esc(leader || '')}">`}
@@ -5496,6 +5499,7 @@ async function submitRegister() {
 
   isSubmittingRegistration = true;
   setRegisterButtonDisabled(true, '送出中...');
+  showActionLock('正在送出報名', '請稍候，正在寫入報名資料。');
   showRegisterMsg('送出中...', 'info');
 
   try {
@@ -5578,6 +5582,7 @@ async function submitRegister() {
     showRegisterMsg('⚠️ ' + esc(err.message || err), 'err');
   } finally {
     isSubmittingRegistration = false;
+    hideActionLock();
     if (!isCurrentNameDuplicate) setRegisterButtonDisabled(false, '送出報名');
   }
 }
