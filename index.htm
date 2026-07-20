@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.43</title>
+  <title>CYP135 課程報名 V6.44</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -605,7 +605,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.43</small>
+    <small>CYP135 課程系統 V6.44</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -1432,7 +1432,7 @@ function courseCardHtml(c) {
 }
 
 function openCourseAddRegistration(courseCode) {
-  renderCourseRosterPage(courseCode, { openAdd: true });
+  renderCourseAddRegistrationPage(courseCode);
 }
 
 function getSharePageBaseUrl() {
@@ -1744,6 +1744,54 @@ async function renderCourseRosterPage(courseCode, options) {
   }
 }
 
+async function renderCourseAddRegistrationPage(courseCode, forceRefresh) {
+  if (isSharedEntry) {
+    if (currentCourse) renderCourseDetailContent(currentCourse);
+    else if (sharedCourseToken) renderSharedCourseDetail(sharedCourseToken);
+    return;
+  }
+
+  const token = beginPage('roster', '管理加報', true);
+  const code = normalizeCode(courseCode);
+  const localCourse = getCourseFromState(code);
+  const cachedInit = !forceRefresh && appState.registrationInitByCode[code];
+
+  rosterState.openAdd = true;
+  if (cachedInit && cachedInit.status === 'ok') {
+    applyRosterAddInitData(cachedInit, { loading: false });
+    renderRosterContent();
+  } else if (localCourse) {
+    applyRosterAddInitData({
+      status: 'loading',
+      course: localCourse,
+      canManageRoster: userCanManageRoster(),
+      classDetails: localCourse.classDetails || [],
+      leaders: [],
+      platinumNames: [],
+      existingRegistrants: []
+    }, { loading: true });
+    renderRosterContent();
+  } else {
+    showLoading('載入加報資料中');
+  }
+
+  try {
+    const data = await ensureRegistrationData(code, !!forceRefresh);
+    if (!isPageActive(token, 'roster')) return;
+    stopLoading();
+    if (!data || data.status !== 'ok') {
+      showBoxMsg('roster-msg', esc((data && data.message) || '加報資料載入失敗'), 'err');
+      return;
+    }
+    applyRosterAddInitData(data, { loading: false });
+    renderRosterContent();
+  } catch (err) {
+    if (!isPageActive(token, 'roster')) return;
+    stopLoading();
+    showBoxMsg('roster-msg', esc(err.message || err), 'err');
+  }
+}
+
 async function hydrateRosterLeaderOptions(courseCode, token) {
   if (!rosterState.canManage || getRosterAddLeaderOptions().length) return;
   try {
@@ -1753,6 +1801,36 @@ async function hydrateRosterLeaderOptions(courseCode, token) {
     saveCurrentRosterCache();
     updateRosterLeaderDatalist();
   } catch (err) {}
+}
+
+function applyRosterAddInitData(data, options) {
+  options = options || {};
+  const course = data.course || rosterState.course || currentCourse || {};
+  const rows = data.existingRegistrants || [];
+  const canManage = typeof data.canManageRoster !== 'undefined'
+    ? !!data.canManageRoster
+    : (typeof data.canManage !== 'undefined' ? !!data.canManage : userCanManageRoster());
+  rosterState.openAdd = true;
+  rosterState.course = course;
+  rosterState.rows = rows;
+  rosterState.groups = [];
+  rosterState.stats = {
+    active: course.currentCount || rows.filter(row => row.status !== '取消' && row.rawStatus !== '取消').length,
+    added: 0,
+    cancelled: 0,
+    maxCount: course.maxCount || '',
+    remaining: course.remainingCount !== undefined ? course.remainingCount : ''
+  };
+  rosterState.classDetails = data.classDetails || course.classDetails || [];
+  rosterState.leaders = data.leaders || data.platinumNames || [];
+  rosterState.canManage = canManage;
+  rosterState.scopeText = data.rosterScopeText || '';
+  rosterState.scopeFlocks = data.rosterScopeFlocks || [];
+  rosterState.loading = !!options.loading;
+  initData = data;
+  currentCourse = course;
+  mergeCourseToState(course);
+  registrationIndex = buildRegistrationIndex(rows);
 }
 
 function buildRosterPlaceholderData(course) {
@@ -1856,7 +1934,13 @@ function openCourseRosterList(courseCode) {
 
 function renderRosterAddForm() {
   if (!rosterState.canManage) {
-    return '';
+    const text = rosterState.loading ? '正在確認加報權限...' : '沒有管理加報權限。';
+    return `
+      <div class="card compact-card">
+        <h2>管理加報</h2>
+        <div id="roster-msg" class="msg on ${rosterState.loading ? 'info' : 'err'}">${esc(text)}</div>
+      </div>
+    `;
   }
   const c = rosterState.course || {};
   const classDetails = rosterState.classDetails || [];
@@ -2541,6 +2625,10 @@ function renderRosterRow(row) {
 
 async function refreshRoster() {
   if (!rosterState.course) return;
+  if (rosterState.openAdd) {
+    await renderCourseAddRegistrationPage(rosterState.course.eventCode, true);
+    return;
+  }
   await renderCourseRosterPage(rosterState.course.eventCode, { openAdd: !!rosterState.openAdd });
 }
 
@@ -2618,7 +2706,8 @@ async function submitAdminAddRegistration() {
   if (!extraCheck.ok) return showBoxMsg('roster-msg', extraCheck.message, 'err');
   const usesPhone = courseUsesPhoneIdentity(rosterState.course && rosterState.course.registrationFields);
   const phoneTail = getPhoneTailFromValue(extraCheck.answers && extraCheck.answers.phone);
-  const duplicateForSubmit = getRosterAddDuplicate(cleanNameLocal(name), leader, {
+  const clean = cleanNameLocal(name);
+  const duplicateForSubmit = getRosterAddDuplicate(clean, leader, {
     usePhone: usesPhone,
     phoneTail
   });
@@ -2662,8 +2751,12 @@ async function submitAdminAddRegistration() {
       setRosterAddSubmitDisabled(false, '送出加報');
       return showBoxMsg('roster-msg', esc((res && res.message) || '加報失敗'), 'err');
     }
-    applyRosterData(res);
-    saveCurrentRosterCache();
+    if (res.rows || res.groups) {
+      applyRosterData(res);
+      saveCurrentRosterCache();
+    } else {
+      applyAdminAddSuccessResult(res, { name, clean, leader, classType, extraAnswers: extraCheck.answers });
+    }
     resetRosterAddState();
     renderRosterContent();
     showBoxMsg('roster-msg', esc(res.message || '已完成加報'), 'ok');
@@ -4841,6 +4934,48 @@ function renderRosterAddPhonePassNotice(leader) {
     </div>
     ${renderRosterAddLeaderSelect(leader)}
   `;
+}
+
+function applyAdminAddSuccessResult(res, context) {
+  res = res || {};
+  context = context || {};
+  const clean = context.clean || cleanNameLocal(res.name || context.name);
+  const leader = res.leader || res.flock || context.leader || '';
+  const classType = res.classType || context.classType || '';
+  const phone = (context.extraAnswers && context.extraAnswers.phone) || (res.registration && res.registration.phone) || '';
+  const newRegistrant = {
+    name: res.name || context.name || clean,
+    cleanName: clean,
+    leader,
+    classType,
+    phone,
+    status: '加報'
+  };
+  if (clean) {
+    if (!registrationIndex[clean]) registrationIndex[clean] = [];
+    if (!Array.isArray(registrationIndex[clean])) registrationIndex[clean] = [registrationIndex[clean]];
+    registrationIndex[clean].push(newRegistrant);
+  }
+  if (Array.isArray(rosterState.rows)) rosterState.rows.push(newRegistrant);
+  if (initData && Array.isArray(initData.existingRegistrants) && initData.existingRegistrants !== rosterState.rows) {
+    initData.existingRegistrants.push(newRegistrant);
+  }
+  const cacheCode = normalizeCode(rosterState.course && rosterState.course.eventCode);
+  const cached = cacheCode && appState.registrationInitByCode[cacheCode];
+  if (cached && cached !== initData && Array.isArray(cached.existingRegistrants) && cached.existingRegistrants !== rosterState.rows) {
+    cached.existingRegistrants.push(newRegistrant);
+  }
+  if (rosterState.course) {
+    rosterState.course.currentCount = res.currentCount !== undefined ? res.currentCount : Number(rosterState.course.currentCount || rosterState.rows.length || 0);
+    if (res.remainingCount !== undefined) rosterState.course.remainingCount = res.remainingCount;
+    if (res.statusBadge) rosterState.course.statusBadge = res.statusBadge;
+    currentCourse = rosterState.course;
+    mergeCourseToState(rosterState.course);
+  }
+  const nextStats = Object.assign({}, rosterState.stats || {});
+  nextStats.active = rosterState.course && rosterState.course.currentCount !== undefined ? rosterState.course.currentCount : (rosterState.rows || []).length;
+  nextStats.remaining = rosterState.course && rosterState.course.remainingCount !== undefined ? rosterState.course.remainingCount : ((rosterState.stats || {}).remaining);
+  rosterState.stats = nextStats;
 }
 
 function refreshRegistrationPhoneDuplicateState() {
