@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.49</title>
+  <title>CYP135 課程報名 V6.50</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -463,7 +463,28 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .divider{height:1px;background:#eee;margin:14px 0}
 .category-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(82px,.8fr) 38px;gap:8px;align-items:end;margin-bottom:8px}
 .custom-field-row{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(96px,.55fr) minmax(92px,.55fr) minmax(0,1fr) 38px;gap:8px;align-items:end;margin-bottom:8px}
+.course-form-card{padding:18px 16px}
+.course-form-card > h2{text-align:center;font-size:20px;margin-bottom:14px}
+.course-form-card .mini-section{background:transparent;border:0;border-radius:0;padding:16px 0 0;margin:16px 0 0;border-top:1px solid #ede7dc}
+.course-form-card .mini-section:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.course-form-card .section-title{font-size:16px;margin:0 0 12px;letter-spacing:0;display:flex;align-items:center;gap:8px}
+.course-form-card .section-title:before{content:"";width:4px;height:18px;border-radius:999px;background:#2d5a3d;display:inline-block}
+.course-form-card .form-grid .field,.course-form-card .field-setting-grid .field{margin-bottom:0}
+.course-form-card .fold{background:transparent;border:0;border-top:1px solid #ede7dc;border-radius:0;margin:16px 0 0;padding:14px 0 0}
+.course-form-card .fold summary{background:transparent;padding:0 0 12px;font-size:16px}
+.course-form-card .fold-content{padding:0}
+.course-form-card .edm-upload{background:transparent}
+.field-setting-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.custom-field-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.custom-field-empty{padding:12px 0;border-top:1px solid #eee7da;border-bottom:1px solid #eee7da}
+.course-form-card .custom-field-row{display:block;border-top:1px solid #eee7da;padding:14px 0;margin:0;background:transparent}
+.custom-field-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.custom-field-title{font-weight:900;color:#2d5a3d;font-size:15px}
+.custom-field-body{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(120px,.55fr) minmax(120px,.55fr);gap:10px;align-items:end}
+.custom-field-body .options{grid-column:1 / -1}
+.custom-field-options{min-height:76px}
 .icon-btn{border:none;border-radius:11px;background:#f3eeee;color:#9a3333;font-weight:900;height:43px;cursor:pointer}
+.custom-field-head .icon-btn{width:38px;height:38px;flex:0 0 38px}
 .success-box{text-align:left;font-size:14px;line-height:1.9;color:#4f4a43}
 .muted{font-size:12px;color:#888;line-height:1.6}
 .edm-upload{border:1px dashed rgba(45,90,61,.35);background:#fbfaf6;border-radius:14px;padding:12px}
@@ -598,14 +619,14 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:420px){.wrap.wide{padding-left:8px;padding-right:8px}.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:9px 10px;display:block}.roster-group-head strong{display:block;font-size:15px;margin-bottom:4px}.roster-group-head span{display:block;text-align:left}.roster-class-head{display:block;padding:7px 10px}.roster-class-head span{display:block;text-align:left}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
 
-@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}}
+@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}}
 </style>
 </head>
 <body>
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.49</small>
+    <small>CYP135 課程系統 V6.50</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -3040,7 +3061,7 @@ function renderCourseForm(course) {
   const regFields = normalizeRegistrationFieldsClient(course ? course.registrationFields : (prefill.registrationFields || null));
 
   document.getElementById('course-form-box').innerHTML = `
-    <div class="card">
+    <div class="card course-form-card">
       <h2>${isEdit ? '編輯課程' : '建立課程'}</h2>
       <div id="course-form-msg" class="msg"></div>
 
@@ -3158,17 +3179,18 @@ function renderCourseForm(course) {
 
       <div class="mini-section">
         <div class="section-title">報名欄位設定</div>
-        <div class="form-grid">
+        <div class="field-setting-grid">
           ${renderCourseFieldModeSelect('c-field-phone', '電話', regFields.phone)}
           ${renderCourseFieldModeSelect('c-field-gender', '性別', regFields.gender)}
           ${renderCourseFieldModeSelect('c-field-id', '身分證字號', regFields.idNumber)}
           ${renderCourseFieldModeSelect('c-field-birth', '出生年月日', regFields.birthDate)}
           ${renderCourseFieldModeSelect('c-field-meal', '葷素', regFields.meal)}
-          <div class="field full">
-            <label>自訂欄位</label>
-            <div id="custom-field-list">${renderCustomRegistrationFieldRows(regFields.customFields)}</div>
-            <button class="btn btn-sub" type="button" onclick="addCustomRegistrationField()">新增自訂欄位</button>
-          </div>
+        </div>
+        <div class="section-title" style="margin-top:18px">自訂問題</div>
+        <div id="custom-field-list">${renderCustomRegistrationFieldRows(regFields.customFields)}</div>
+        <div class="custom-field-tools">
+          <button class="btn btn-sub" type="button" onclick="addCustomRegistrationField(1)">新增 1 題</button>
+          <button class="btn btn-ghost" type="button" onclick="addCustomRegistrationField(3)">新增 3 題</button>
         </div>
       </div>
 
@@ -3642,33 +3664,42 @@ function renderCustomFieldModeOptions(selected) {
   `;
 }
 
+function renderCustomRegistrationFieldEditor(field, index) {
+  return `
+    <div class="custom-field-row" data-custom-field-row>
+      <input class="custom-field-id" type="hidden" value="${esc(field.id)}">
+      <div class="custom-field-head">
+        <div class="custom-field-title">問題 ${index + 1}</div>
+        <button class="icon-btn" type="button" onclick="removeCustomRegistrationField(${index})" aria-label="刪除問題 ${index + 1}">×</button>
+      </div>
+      <div class="custom-field-body">
+        <div class="field">
+          <label>題目名稱</label>
+          <input class="custom-field-label" placeholder="例如 接駁需求" value="${esc(field.label)}">
+        </div>
+        <div class="field">
+          <label>題型</label>
+          <select class="custom-field-type">${renderCustomFieldTypeOptions(field.type)}</select>
+        </div>
+        <div class="field">
+          <label>狀態</label>
+          <select class="custom-field-mode">${renderCustomFieldModeOptions(field.mode)}</select>
+        </div>
+        <div class="field options">
+          <label>下拉選項</label>
+          <textarea class="custom-field-options" placeholder="選擇下拉選單時填寫；每行或逗號分隔一個選項">${esc((field.options || []).join('\n'))}</textarea>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderCustomRegistrationFieldRows(customFields) {
   customFields = normalizeCustomRegistrationFieldsClient(customFields);
   if (!customFields.length) {
     return '<div class="muted custom-field-empty">尚未新增自訂欄位。</div>';
   }
-  return customFields.map((field, index) => `
-    <div class="custom-field-row" data-custom-field-row>
-      <input class="custom-field-id" type="hidden" value="${esc(field.id)}">
-      <div class="field wide">
-        <label>欄位名稱</label>
-        <input class="custom-field-label" placeholder="例如 接駁需求" value="${esc(field.label)}">
-      </div>
-      <div class="field">
-        <label>型態</label>
-        <select class="custom-field-type">${renderCustomFieldTypeOptions(field.type)}</select>
-      </div>
-      <div class="field">
-        <label>顯示方式</label>
-        <select class="custom-field-mode">${renderCustomFieldModeOptions(field.mode)}</select>
-      </div>
-      <div class="field wide">
-        <label>下拉選項</label>
-        <input class="custom-field-options" placeholder="下拉選單才需要，逗號分隔" value="${esc((field.options || []).join(','))}">
-      </div>
-      <button class="icon-btn" type="button" onclick="removeCustomRegistrationField(${index})">×</button>
-    </div>
-  `).join('');
+  return customFields.map(renderCustomRegistrationFieldEditor).join('');
 }
 
 function getCustomRegistrationFieldsFromForm() {
@@ -3691,35 +3722,17 @@ function setCustomRegistrationFieldRows(customFields) {
   box.innerHTML = renderCustomRegistrationFieldRows(customFields);
 }
 
-function addCustomRegistrationField() {
+function addCustomRegistrationField(count = 1) {
   const fields = getCustomRegistrationFieldsFromForm();
-  fields.push({ id: 'cf_' + Date.now().toString(36), label: '', type: 'text', mode: 'optional', options: [] });
+  const total = Math.max(1, Math.min(5, Number(count) || 1));
+  for (let i = 0; i < total; i++) {
+    fields.push({ id: 'cf_' + Date.now().toString(36) + '_' + i, label: '', type: 'text', mode: 'optional', options: [] });
+  }
   const box = document.getElementById('custom-field-list');
   if (!box) return;
-  box.innerHTML = fields.map((field, index) => `
-    <div class="custom-field-row" data-custom-field-row>
-      <input class="custom-field-id" type="hidden" value="${esc(field.id)}">
-      <div class="field wide">
-        <label>欄位名稱</label>
-        <input class="custom-field-label" placeholder="例如 接駁需求" value="${esc(field.label)}">
-      </div>
-      <div class="field">
-        <label>型態</label>
-        <select class="custom-field-type">${renderCustomFieldTypeOptions(field.type)}</select>
-      </div>
-      <div class="field">
-        <label>顯示方式</label>
-        <select class="custom-field-mode">${renderCustomFieldModeOptions(field.mode)}</select>
-      </div>
-      <div class="field wide">
-        <label>下拉選項</label>
-        <input class="custom-field-options" placeholder="下拉選單才需要，逗號分隔" value="${esc((field.options || []).join(','))}">
-      </div>
-      <button class="icon-btn" type="button" onclick="removeCustomRegistrationField(${index})">×</button>
-    </div>
-  `).join('');
+  box.innerHTML = fields.map(renderCustomRegistrationFieldEditor).join('');
   const inputs = box.querySelectorAll('.custom-field-label');
-  if (inputs.length) inputs[inputs.length - 1].focus();
+  if (inputs.length) inputs[Math.max(0, inputs.length - total)].focus();
 }
 
 function removeCustomRegistrationField(index) {
