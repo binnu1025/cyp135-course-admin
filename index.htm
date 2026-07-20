@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.48</title>
+  <title>CYP135 課程報名 V6.49</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -420,13 +420,13 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .action-lock-title,.dialog-title{font-size:19px;font-weight:900;color:#2d5a3d;margin-bottom:8px}
 .action-lock-text,.dialog-text{font-size:14px;line-height:1.7;color:#6f6a60;margin-bottom:12px}
 .action-lock-bar{height:8px;border-radius:999px;background:#e8f0ea;overflow:hidden;margin-top:12px}
-.action-lock-bar i{display:block;height:100%;width:34%;border-radius:999px;background:#2d5a3d;animation:lockBar 1.1s ease-in-out infinite}
+.action-lock-bar i{display:block;height:100%;width:8%;border-radius:999px;background:#2d5a3d;transition:width .25s ease}
+.action-lock-percent{font-size:12px;color:#888;margin-top:8px}
 .dialog-panel{text-align:left}
 .dialog-panel textarea{min-height:118px}
 .dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 .dialog-error{display:none;margin-top:8px;font-size:13px;color:#7a2020;font-weight:800}
 .dialog-error.on{display:block}
-@keyframes lockBar{0%{transform:translateX(-110%)}100%{transform:translateX(310%)}}
 .inline-loading{height:44px;border:1px solid #eadfce;border-radius:12px;background:#fbfaf6;overflow:hidden;position:relative;margin-bottom:12px}
 .inline-loading:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(45,90,61,.12) 35%,rgba(45,90,61,.28) 50%,rgba(45,90,61,.12) 65%,transparent 100%);transform:translateX(-100%);animation:slideLoading 1.2s ease-in-out infinite}
 @keyframes slideLoading{to{transform:translateX(100%)}}
@@ -605,7 +605,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.48</small>
+    <small>CYP135 課程系統 V6.49</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -621,7 +621,8 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <div class="loading-ring"></div>
     <div id="action-lock-title" class="action-lock-title">處理中</div>
     <div id="action-lock-text" class="action-lock-text">請稍候，正在更新資料。</div>
-    <div class="action-lock-bar"><i></i></div>
+    <div class="action-lock-bar"><i id="action-lock-fill"></i></div>
+    <div id="action-lock-percent" class="action-lock-percent">8%</div>
   </div>
 </div>
 
@@ -660,6 +661,8 @@ let activeClockMinute = 0;
 let pageSeq = 0;
 let loadingSeq = 0;
 let loadingTimer = null;
+let actionLockSeq = 0;
+let actionLockTimer = null;
 let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
@@ -867,6 +870,10 @@ function isPageActive(token, view) {
   return token === pageSeq && (!view || currentView === view);
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function loadingHtml(text) {
   return `
     <div class="loading">
@@ -904,6 +911,36 @@ function stopLoading() {
   loadingTimer = null;
 }
 
+function setActionLockProgress(percent, title, text) {
+  const fill = document.getElementById('action-lock-fill');
+  const label = document.getElementById('action-lock-percent');
+  const titleEl = document.getElementById('action-lock-title');
+  const textEl = document.getElementById('action-lock-text');
+  const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+  if (fill) fill.style.width = pct + '%';
+  if (label) label.textContent = pct + '%';
+  if (title && titleEl) titleEl.textContent = title;
+  if (text && textEl) textEl.textContent = text;
+}
+
+function startActionLockProgress(startAt) {
+  const seq = ++actionLockSeq;
+  let pct = Math.max(8, Math.min(80, Number(startAt) || 8));
+  setActionLockProgress(pct);
+  if (actionLockTimer) clearInterval(actionLockTimer);
+  actionLockTimer = setInterval(() => {
+    if (seq !== actionLockSeq) return clearInterval(actionLockTimer);
+    pct = Math.min(92, pct + Math.max(1, Math.round((92 - pct) * 0.16)));
+    setActionLockProgress(pct);
+  }, 280);
+}
+
+function stopActionLockProgress() {
+  actionLockSeq++;
+  if (actionLockTimer) clearInterval(actionLockTimer);
+  actionLockTimer = null;
+}
+
 function showActionLock(title, text) {
   const lock = document.getElementById('action-lock');
   const titleEl = document.getElementById('action-lock-title');
@@ -911,11 +948,13 @@ function showActionLock(title, text) {
   if (!lock) return;
   if (titleEl) titleEl.textContent = title || '處理中';
   if (textEl) textEl.textContent = text || '請稍候，正在更新資料。';
+  startActionLockProgress(8);
   lock.classList.add('on');
   document.body.style.overflow = 'hidden';
 }
 
 function hideActionLock() {
+  stopActionLockProgress();
   const lock = document.getElementById('action-lock');
   if (lock) lock.classList.remove('on');
   document.body.style.overflow = '';
@@ -1463,12 +1502,12 @@ function getSharePageBaseUrl() {
 
 function formatShareExpiryText(text) {
   const raw = String(text || '').trim();
-  if (!raw) return '依課程開放狀態';
+  if (!raw) return '約 7 天';
   return raw.replace(/^\d{4}\//, '');
 }
 
 function buildCourseShareText(title, url, expiresAtText) {
-  return `【${title || '課程'}】快速報名\n有效｜${formatShareExpiryText(expiresAtText)}\n報名連結\n${url}`;
+  return `【${title || '課程'}】快速報名\n期限｜${formatShareExpiryText(expiresAtText)}\n報名連結\n${url}`;
 }
 
 function showShareLinkFallback(url, expiresAtText, title) {
@@ -1479,7 +1518,7 @@ function showShareLinkFallback(url, expiresAtText, title) {
     '分享連結已建立。若沒有自動開啟分享視窗，可以直接複製分享文字。' +
     '<a class="share-link-box" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + '</a>' +
     '<div class="share-copy-row"><button class="btn btn-sub" onclick="copyShareText(decodeURIComponent(\'' + encodedText + '\'))">複製分享文字</button></div>' +
-    '<span class="muted">有效｜' + esc(formatShareExpiryText(expiresAtText)) + '</span>',
+    '<span class="muted">期限｜' + esc(formatShareExpiryText(expiresAtText)) + '</span>',
     'ok'
   );
 }
@@ -1502,6 +1541,7 @@ async function shareCourseLink(courseCode, event) {
   const course = getCourseFromState(code) || {};
   const btn = event && event.currentTarget;
   if (btn) btn.disabled = true;
+  showActionLock('正在產生分享連結', '請稍候，正在建立 7 天有效的分享連結。');
 
   try {
     const data = await post('createCourseShareLink', {
@@ -1516,9 +1556,12 @@ async function shareCourseLink(courseCode, event) {
       return;
     }
 
+    setActionLockProgress(100, '分享連結已產生', '正在開啟分享視窗。');
     const title = course.eventName || data.eventName || '課程報名';
     const text = buildCourseShareText(title, data.url, data.expiresAtText);
     let shared = false;
+    await sleep(180);
+    hideActionLock();
 
     try {
       if (window.liff && liff.isInClient && liff.isInClient() && liff.shareTargetPicker) {
@@ -1537,7 +1580,7 @@ async function shareCourseLink(courseCode, event) {
     if (!shared && navigator.clipboard && navigator.clipboard.writeText) {
       try {
         await navigator.clipboard.writeText(text);
-        showMsg('分享文字已複製，可貼到 LINE 傳給朋友。<br><span class="muted">有效｜' + esc(formatShareExpiryText(data.expiresAtText)) + '</span>', 'ok');
+        showMsg('分享文字已複製，可貼到 LINE 傳給朋友。<br><span class="muted">期限｜' + esc(formatShareExpiryText(data.expiresAtText)) + '</span>', 'ok');
         return;
       } catch (e) {
         showShareLinkFallback(data.url, data.expiresAtText, title);
@@ -1546,13 +1589,14 @@ async function shareCourseLink(courseCode, event) {
     }
 
     if (shared) {
-      showMsg('已開啟分享視窗。<br><span class="muted">有效｜' + esc(formatShareExpiryText(data.expiresAtText)) + '</span>', 'ok');
+      showMsg('已開啟分享視窗。<br><span class="muted">期限｜' + esc(formatShareExpiryText(data.expiresAtText)) + '</span>', 'ok');
     } else {
       showShareLinkFallback(data.url, data.expiresAtText, title);
     }
   } catch (err) {
     showMsg(esc(err.message || err), 'err');
   } finally {
+    hideActionLock();
     if (btn) btn.disabled = false;
   }
 }
