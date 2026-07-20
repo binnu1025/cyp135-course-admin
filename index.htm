@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.42</title>
+  <title>CYP135 課程報名 V6.43</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -605,7 +605,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.42</small>
+    <small>CYP135 課程系統 V6.43</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -2628,7 +2628,7 @@ async function submitAdminAddRegistration() {
     const lookupBox = document.getElementById('roster-add-lookup');
     if (lookupBox) lookupBox.innerHTML = usesPhone && !phoneTail
       ? renderRosterAddPhoneCheckNotice(leader)
-      : renderRosterAddDuplicateNotice(leader);
+      : renderRosterAddDuplicateNotice(leader, usesPhone && phoneTail ? { phoneTail } : null);
     if (usesPhone && !phoneTail) return showBoxMsg('roster-msg', '請填寫電話，系統會用電話末四碼核對是否為同一人。', 'warn');
     return showBoxMsg('roster-msg', '此姓名已在同一雁群報名，無法重複加報。', 'err');
   }
@@ -2648,15 +2648,16 @@ async function submitAdminAddRegistration() {
     }, 20000);
     if (!res || res.status !== 'ok') {
       if (res && res.status === 'duplicate') {
-        if (rosterState.add) rosterState.add.duplicate = !usesPhone || !!phoneTail;
-        setRosterAddSubmitDisabled(true, getDuplicateButtonText(usesPhone, phoneTail, '已重複加報'));
+        const duplicateTail = phoneTail || getPhoneTailFromValue(res.phoneTail || (res.registration && res.registration.phone));
+        if (rosterState.add) rosterState.add.duplicate = !usesPhone || !!duplicateTail;
+        setRosterAddSubmitDisabled(true, getDuplicateButtonText(usesPhone, duplicateTail, '已重複加報'));
         const lookupBox = document.getElementById('roster-add-lookup');
-        if (lookupBox) lookupBox.innerHTML = usesPhone && !phoneTail
+        if (lookupBox) lookupBox.innerHTML = usesPhone && !duplicateTail
           ? renderRosterAddPhoneCheckNotice(leader)
-          : renderRosterAddDuplicateNotice(leader);
-        return showBoxMsg('roster-msg', usesPhone && !phoneTail
+          : renderRosterAddDuplicateNotice(leader, usesPhone && duplicateTail ? { phoneTail: duplicateTail } : null);
+        return showBoxMsg('roster-msg', usesPhone && !duplicateTail
           ? '請填寫電話，系統會用電話末四碼核對是否為同一人。'
-          : '此姓名已在同一雁群報名，無法重複加報。', usesPhone && !phoneTail ? 'warn' : 'err');
+          : esc(res.message || '此姓名已在同一雁群報名，無法重複加報。').replace(/\n/g, '<br>'), usesPhone && !duplicateTail ? 'warn' : 'err');
       }
       setRosterAddSubmitDisabled(false, '送出加報');
       return showBoxMsg('roster-msg', esc((res && res.message) || '加報失敗'), 'err');
@@ -4809,9 +4810,13 @@ function renderRosterAddPhoneCheckNotice(leader, options) {
 
 function renderRosterAddDuplicateNotice(leader, options) {
   const includeSelect = !options || options.includeSelect !== false;
+  const phoneTail = options && options.phoneTail ? String(options.phoneTail || '').trim() : '';
+  const phoneReason = phoneTail
+    ? `<br>姓名、小組與電話末四碼 ${esc(phoneTail)} 都相同，因此判定為同一人。<br>`
+    : '<br>';
   return `
     <div class="msg on warn">
-      此姓名已在 ${esc(leader || '同一雁群')} 小組報名，無法重複加報。<br><br>
+      此姓名已在 ${esc(leader || '同一雁群')} 小組報名，無法重複加報。${phoneReason}<br>
       如果這是同名同姓的另一個人，請改選他的上手白金/雁群組長。
     </div>
     ${includeSelect ? renderRosterAddLeaderSelect(leader) : `<input id="roster-add-leader" type="hidden" value="${esc(leader || '')}">`}
@@ -4854,7 +4859,7 @@ function refreshRegistrationPhoneDuplicateState() {
   if (duplicate) {
     isCurrentNameDuplicate = true;
     setRegisterButtonDisabled(true, getDuplicateButtonText(true, phoneTail, '已重複報名'));
-    if (box) box.innerHTML = phoneTail ? duplicateNoticeHtml(leader) : renderPhoneCheckNotice(leader);
+    if (box) box.innerHTML = phoneTail ? duplicateNoticeHtml(leader, { phoneTail }) : renderPhoneCheckNotice(leader);
   } else {
     isCurrentNameDuplicate = false;
     setRegisterButtonDisabled(false, '送出報名');
@@ -4879,7 +4884,7 @@ function refreshRosterAddPhoneDuplicateState() {
   if (duplicate) {
     add.duplicate = true;
     setRosterAddSubmitDisabled(true, getDuplicateButtonText(true, phoneTail, '已重複加報'));
-    if (box) box.innerHTML = phoneTail ? renderRosterAddDuplicateNotice(leader) : renderRosterAddPhoneCheckNotice(leader);
+    if (box) box.innerHTML = phoneTail ? renderRosterAddDuplicateNotice(leader, { phoneTail }) : renderRosterAddPhoneCheckNotice(leader);
   } else {
     add.duplicate = false;
     setRosterAddSubmitDisabled(false, '送出加報');
@@ -4952,9 +4957,13 @@ function applyMemberProfileToRegistration(member, prefix = 'r-extra-') {
 
 function duplicateNoticeHtml(leader, options) {
   const includeSelect = !options || options.includeSelect !== false;
+  const phoneTail = options && options.phoneTail ? String(options.phoneTail || '').trim() : '';
+  const phoneReason = phoneTail
+    ? `<br>姓名、小組與電話末四碼 ${esc(phoneTail)} 都相同，因此判定為同一人。<br>`
+    : '<br>';
   return `
     <div class="msg on warn">
-      ⚠️ 此姓名已報名過本課程<br><br>
+      ⚠️ 此姓名已報名過本課程${phoneReason}<br>
       如果這是同名同姓的另一個人，請改選他的上手白金/雁群組長。
     </div>
     ${includeSelect ? renderLeaderSelect(getLeaderOptionsForForm(), leader || selectedLeader || '') : `<input id="r-leader" type="hidden" value="${esc(leader || selectedLeader || '')}">`}
@@ -5492,7 +5501,7 @@ async function submitRegister() {
     isCurrentNameDuplicate = !usesPhone || !!phoneTail;
     setRegisterButtonDisabled(true, getDuplicateButtonText(usesPhone, phoneTail, '已重複報名'));
     const box = document.getElementById('lookup-box');
-    if (box) box.innerHTML = usesPhone && !phoneTail ? renderPhoneCheckNotice(leader) : duplicateNoticeHtml(leader);
+    if (box) box.innerHTML = usesPhone && !phoneTail ? renderPhoneCheckNotice(leader) : duplicateNoticeHtml(leader, usesPhone && phoneTail ? { phoneTail } : null);
     if (usesPhone && !phoneTail) return showRegisterMsg('請填寫電話，系統會用電話末四碼核對是否為同一人。', 'warn');
     return showRegisterMsg('此姓名已報名過本課程，若是同名同姓的另一個人，請改選上手白金/雁群組長。', 'warn');
   }
@@ -5565,16 +5574,17 @@ async function submitRegister() {
       showRegisterMsg('查無名冊資料，請選擇上手白金/雁群組長', 'warn');
       autoLookupMemberLocal();
     } else if (res.status === 'duplicate') {
+      const duplicateTail = phoneTail || getPhoneTailFromValue(res.phoneTail || (res.registration && res.registration.phone));
       if (!registrationIndex[clean]) registrationIndex[clean] = [];
       if (!Array.isArray(registrationIndex[clean])) registrationIndex[clean] = [registrationIndex[clean]];
-      registrationIndex[clean].push({ name, cleanName: clean, leader });
-      isCurrentNameDuplicate = !usesPhone || !!phoneTail;
-      setRegisterButtonDisabled(true, getDuplicateButtonText(usesPhone, phoneTail, '已重複報名'));
+      registrationIndex[clean].push({ name, cleanName: clean, leader, phone: (res.registration && res.registration.phone) || '' });
+      isCurrentNameDuplicate = !usesPhone || !!duplicateTail;
+      setRegisterButtonDisabled(true, getDuplicateButtonText(usesPhone, duplicateTail, '已重複報名'));
       const box = document.getElementById('lookup-box');
-      if (box) box.innerHTML = usesPhone && !phoneTail ? renderPhoneCheckNotice(leader) : duplicateNoticeHtml(leader);
-      showRegisterMsg(usesPhone && !phoneTail
+      if (box) box.innerHTML = usesPhone && !duplicateTail ? renderPhoneCheckNotice(leader) : duplicateNoticeHtml(leader, usesPhone && duplicateTail ? { phoneTail: duplicateTail } : null);
+      showRegisterMsg(usesPhone && !duplicateTail
         ? '請填寫電話，系統會用電話末四碼核對是否為同一人。'
-        : '此姓名已報名過本課程，若是同名同姓的另一個人，請改選上手白金/雁群組長。', 'warn');
+        : esc(res.message || '此姓名已報名過本課程，若是同名同姓的另一個人，請改選上手白金/雁群組長。').replace(/\n/g, '<br>'), 'warn');
     } else {
       showRegisterMsg('⚠️ ' + esc(res.message || '報名失敗'), 'err');
     }
