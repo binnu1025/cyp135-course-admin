@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.53</title>
+  <title>CYP135 課程報名 V6.54</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -82,7 +82,8 @@ async function renderTicketGeneratorPage() {
         <button class="btn btn-sub" onclick="renderTicketPreview()">預覽前兩張</button>
       </div>
       <button class="btn btn-main" style="width:100%" onclick="downloadTicketZip()">下載全部票券 ZIP</button>
-      <button class="btn btn-sub" style="width:100%" onclick="uploadTicketsToDrive()">一鍵分配到雲端</button>
+      <button class="btn btn-sub" style="width:100%" onclick="uploadTicketsToDrive(false)">補缺到雲端</button>
+      <button class="btn btn-ghost" style="width:100%" onclick="uploadTicketsToDrive(true)">重新覆蓋全部</button>
       <div class="ticket-progress" id="ticket-progress"><div id="ticket-progress-fill"></div></div>
       <div class="ticket-member-note" id="ticket-summary">尚未同步名單。</div>
     </div>
@@ -650,7 +651,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.53</small>
+    <small>CYP135 課程系統 V6.54</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -5941,7 +5942,8 @@ async function renderTicketGeneratorPage() {
         <button class="btn btn-sub" onclick="renderTicketPreview()">預覽前兩張</button>
       </div>
       <button class="btn btn-main" style="width:100%" onclick="downloadTicketZip()">下載全部票券 ZIP</button>
-      <button class="btn btn-sub" style="width:100%" onclick="uploadTicketsToDrive()">一鍵分配到雲端</button>
+      <button class="btn btn-sub" style="width:100%" onclick="uploadTicketsToDrive(false)">補缺到雲端</button>
+      <button class="btn btn-ghost" style="width:100%" onclick="uploadTicketsToDrive(true)">重新覆蓋全部</button>
       <div class="ticket-progress" id="ticket-progress"><div id="ticket-progress-fill"></div></div>
       <div class="ticket-member-note" id="ticket-summary">尚未同步名單。</div>
     </div>
@@ -6280,10 +6282,27 @@ function ticketDriveFileName(member, used) {
   return name;
 }
 
+function buildTicketDriveUploadPlan(members) {
+  const usedNames = {};
+  return (members || []).map((member, index) => {
+    const fileName = ticketDriveFileName(member, usedNames);
+    return {
+      uploadId: String(index) + '_' + (member.code || '') + '_' + fileName,
+      member,
+      name: member.name || '',
+      leader: member.flock || member.leader || '未分組',
+      flock: member.flock || '',
+      code: member.code || '',
+      fileName
+    };
+  });
+}
+
 function mergeTicketDriveSummary(target, source) {
   target.uploaded += Number(source.uploaded || 0);
   target.foldersCreated += Number(source.foldersCreated || 0);
   target.overwritten += Number(source.overwritten || 0);
+  target.skipped += Number(source.skipped || 0);
   const groups = source.groups || {};
   Object.keys(groups).forEach(key => {
     target.groups[key] = (target.groups[key] || 0) + Number(groups[key] || 0);
@@ -6295,7 +6314,7 @@ function ticketDriveSummaryHtml(summary, rootUrl) {
   const groups = Object.keys(summary.groups || {}).sort();
   const groupText = groups.length
     ? groups.map(name => `${esc(name)}：${Number(summary.groups[name] || 0)} 張`).join('<br>')
-    : '沒有成功分配的資料夾。';
+    : (Number(summary.skipped || 0) ? '雲端已有本次需要的票券。' : '沒有成功分配的資料夾。');
   const errorText = summary.errors.length
     ? '<br><br><b>未完成</b><br>' + summary.errors.slice(0, 8).map(item => {
         const label = [item.leader, item.name].filter(Boolean).join(' / ') || '未命名';
@@ -6307,15 +6326,18 @@ function ticketDriveSummaryHtml(summary, rootUrl) {
     : '';
   return `
     已分配 ${Number(summary.uploaded || 0)} 張票券到 Google Drive。<br>
-    新建資料夾 ${Number(summary.foldersCreated || 0)} 個，覆蓋舊檔 ${Number(summary.overwritten || 0)} 個。<br><br>
+    已存在略過 ${Number(summary.skipped || 0)} 張，新建資料夾 ${Number(summary.foldersCreated || 0)} 個，覆蓋舊檔 ${Number(summary.overwritten || 0)} 個。<br><br>
     ${groupText}
     ${errorText}
     ${link}
   `;
 }
 
-async function uploadTicketsToDrive() {
-  showActionLock('正在準備雲端分配', '請稍候，正在確認票券名單。');
+async function uploadTicketsToDrive(forceOverwrite) {
+  forceOverwrite = !!forceOverwrite;
+  if (forceOverwrite && !confirm('確認重新覆蓋這堂課所有雲端票券？')) return;
+
+  showActionLock(forceOverwrite ? '正在準備覆蓋票券' : '正在檢查雲端票券', '請稍候，正在確認票券名單。');
   clearBoxMsg('ticket-msg');
 
   try {
@@ -6324,37 +6346,68 @@ async function uploadTicketsToDrive() {
 
     const members = ticketState.members || [];
     const info = ticketInfo();
-    const canvas = document.createElement('canvas');
-    const usedNames = {};
-    const batchSize = 3;
-    const summary = { uploaded: 0, groups: {}, foldersCreated: 0, overwritten: 0, errors: [] };
+    const plan = buildTicketDriveUploadPlan(members);
+    const summary = { uploaded: 0, groups: {}, foldersCreated: 0, overwritten: 0, skipped: 0, errors: [] };
+    let uploadPlan = plan;
     let rootUrl = '';
 
-    for (let start = 0; start < members.length; start += batchSize) {
+    if (!forceOverwrite) {
+      setActionLockProgress(18, '正在檢查雲端票券', '請稍候，正在比對已存在的票券。');
+      const check = await post('getTicketDriveExistingFiles', {
+        userId,
+        eventCode,
+        courseName: info.eventName,
+        files: plan.map(item => ({
+          uploadId: item.uploadId,
+          name: item.name,
+          leader: item.leader,
+          flock: item.flock,
+          fileName: item.fileName
+        }))
+      }, 90000);
+      if (!check || check.status !== 'ok') throw new Error((check && check.message) || '雲端票券檢查失敗');
+      rootUrl = check.rootFolderUrl || '';
+      const existingIds = new Set((check.existing || []).map(item => item.uploadId));
+      summary.skipped = existingIds.size;
+      uploadPlan = plan.filter(item => !existingIds.has(item.uploadId));
+      if (!uploadPlan.length) {
+        setActionLockProgress(100, '雲端票券已完整', '這堂課目前沒有缺少的票券。');
+        showBoxMsg('ticket-msg', ticketDriveSummaryHtml(summary, rootUrl), 'ok');
+        return;
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    const batchSize = 3;
+
+    for (let start = 0; start < uploadPlan.length; start += batchSize) {
       const batch = [];
-      const end = Math.min(start + batchSize, members.length);
+      const end = Math.min(start + batchSize, uploadPlan.length);
       for (let i = start; i < end; i++) {
-        const member = members[i];
-        const drawPct = 14 + Math.round((i / Math.max(1, members.length)) * 56);
-        setActionLockProgress(drawPct, '正在產生雲端票券', `已產生 ${i + 1} / ${members.length} 張票券。`);
+        const planItem = uploadPlan[i];
+        const member = planItem.member;
+        const drawPct = 24 + Math.round((i / Math.max(1, uploadPlan.length)) * 48);
+        setActionLockProgress(drawPct, forceOverwrite ? '正在重新產生票券' : '正在產生缺少票券', `已產生 ${i + 1} / ${uploadPlan.length} 張票券。`);
         await drawTicketCanvas(canvas, member, info);
         batch.push({
-          name: member.name || '',
-          leader: member.flock || member.leader || '未分組',
-          flock: member.flock || '',
-          code: member.code || '',
-          fileName: ticketDriveFileName(member, usedNames),
+          uploadId: planItem.uploadId,
+          name: planItem.name,
+          leader: planItem.leader,
+          flock: planItem.flock,
+          code: planItem.code,
+          fileName: planItem.fileName,
           dataUrl: canvas.toDataURL('image/png')
         });
         await sleep(8);
       }
 
-      const uploadPct = 72 + Math.round((end / Math.max(1, members.length)) * 22);
+      const uploadPct = 74 + Math.round((end / Math.max(1, uploadPlan.length)) * 20);
       setActionLockProgress(uploadPct, '正在上傳到 Google Drive', `正在上傳第 ${start + 1} - ${end} 張票券。`);
       const res = await post('uploadTicketDriveFiles', {
         userId,
         eventCode,
         courseName: info.eventName,
+        skipExisting: !forceOverwrite,
         files: batch
       }, 90000);
       if (!res || (res.status !== 'ok' && !(res.summary && res.summary.uploaded))) {
