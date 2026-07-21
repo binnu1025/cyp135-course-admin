@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.51</title>
+  <title>CYP135 課程報名 V6.52</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -128,6 +128,7 @@ async function syncTicketMembers() {
   const code = normalizeCode(val('ticket-course-select'));
   if (!code) return showBoxMsg('ticket-msg', '請先選擇活動。', 'err');
   clearBoxMsg('ticket-msg');
+  showActionLock('正在同步票券名單', '請稍候，正在同步報名名單並補 CODE。');
   showBoxMsg('ticket-msg', '同步中，請稍候...', 'info');
   try {
     const data = await post('syncTicketQrFromRegistrations', { userId, eventCode: code }, 30000);
@@ -141,6 +142,8 @@ async function syncTicketMembers() {
     await renderTicketPreview();
   } catch(e) {
     showBoxMsg('ticket-msg', e.message || '同步失敗', 'err');
+  } finally {
+    hideActionLock();
   }
 }
 
@@ -300,34 +303,47 @@ async function renderTicketPreview() {
   if (!ticketState.members.length) {
     return showBoxMsg('ticket-msg', '請先同步報名名單。', 'err');
   }
-  await ensureTicketScripts();
-  const holder = document.getElementById('ticket-preview-list');
-  const card = document.getElementById('ticket-preview-card');
-  if (!holder || !card) return;
-  holder.innerHTML = '';
-  card.style.display = 'block';
-  const info = ticketInfo();
-  const sample = ticketState.members.slice(0,2);
-  for (const m of sample) {
-    const wrap = document.createElement('div');
-    wrap.className = 'ticket-preview-card';
-    const canvas = document.createElement('canvas');
-    wrap.appendChild(canvas);
-    holder.appendChild(wrap);
-    await drawTicketCanvas(canvas, m, info);
+  showActionLock('正在產生票券預覽', '請稍候，正在繪製前兩張票券。');
+  try {
+    await ensureTicketScripts();
+    const holder = document.getElementById('ticket-preview-list');
+    const card = document.getElementById('ticket-preview-card');
+    if (!holder || !card) return;
+    holder.innerHTML = '';
+    card.style.display = 'block';
+    const info = ticketInfo();
+    const sample = ticketState.members.slice(0,2);
+    for (let i = 0; i < sample.length; i++) {
+      const m = sample[i];
+      setActionLockProgress(Math.round((i / Math.max(1, sample.length)) * 80) + 12, '正在產生票券預覽', '請稍候，正在繪製前兩張票券。');
+      const wrap = document.createElement('div');
+      wrap.className = 'ticket-preview-card';
+      const canvas = document.createElement('canvas');
+      wrap.appendChild(canvas);
+      holder.appendChild(wrap);
+      await drawTicketCanvas(canvas, m, info);
+    }
+    setActionLockProgress(100, '票券預覽完成', '已完成前兩張票券預覽。');
+  } finally {
+    hideActionLock();
   }
 }
 
 async function downloadTicketZip() {
   if (!ticketState.members.length) return showBoxMsg('ticket-msg', '請先同步報名名單。', 'err');
-  await ensureTicketScripts();
-  const progress = document.getElementById('ticket-progress');
-  const fill = document.getElementById('ticket-progress-fill');
-  progress.classList.add('on'); fill.style.width = '0%';
-  clearBoxMsg('ticket-msg');
-  showBoxMsg('ticket-msg', '正在產生票券...', 'info');
+  showActionLock('正在產生票券 ZIP', '請稍候，正在逐張產生票券。');
+  let progress = null;
+  let fill = null;
 
   try {
+    await ensureTicketScripts();
+    progress = document.getElementById('ticket-progress');
+    fill = document.getElementById('ticket-progress-fill');
+    if (progress) progress.classList.add('on');
+    if (fill) fill.style.width = '0%';
+    clearBoxMsg('ticket-msg');
+    showBoxMsg('ticket-msg', '正在產生票券...', 'info');
+
     const zip = new JSZip();
     const canvas = document.createElement('canvas');
     const info = ticketInfo();
@@ -346,10 +362,13 @@ async function downloadTicketZip() {
         used[fname] = 1;
       }
       zip.file(fname, blob);
-      fill.style.width = Math.round((i+1)/ticketState.members.length*100) + '%';
+      const pct = Math.round((i+1)/ticketState.members.length*92);
+      if (fill) fill.style.width = pct + '%';
+      setActionLockProgress(pct, '正在產生票券 ZIP', `已完成 ${i + 1} / ${ticketState.members.length} 張票券。`);
       await new Promise(r => setTimeout(r, 8));
     }
 
+    setActionLockProgress(96, '正在打包票券 ZIP', '票券已產生，正在打包下載檔。');
     const content = await zip.generateAsync({ type: 'blob' });
     const zipName = '雁群票券_' + ticketSafeName(info.eventName) + (info.session ? '_' + ticketSafeName(info.session) : '') + '.zip';
     const a = document.createElement('a');
@@ -357,12 +376,14 @@ async function downloadTicketZip() {
     a.download = zipName;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    setActionLockProgress(100, '票券 ZIP 已產生', '下載已開始。');
     showBoxMsg('ticket-msg', '票券 ZIP 已產生。', 'ok');
   } catch(e) {
     showBoxMsg('ticket-msg', e.message || '產生失敗', 'err');
   } finally {
-    progress.classList.remove('on');
-    fill.style.width = '0%';
+    if (progress) progress.classList.remove('on');
+    if (fill) fill.style.width = '0%';
+    hideActionLock();
   }
 }
 
@@ -628,7 +649,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.51</small>
+    <small>CYP135 課程系統 V6.52</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -2761,6 +2782,7 @@ async function updateRosterStatus(rowNumber, status) {
 async function fillRosterDerivedData() {
   if (!rosterState.course) return;
   if (!confirm('確認整理本課名單資料？')) return;
+  showActionLock('正在整理名單', '請稍候，正在補齊名單資料。');
   showBoxMsg('roster-msg', '整理中...', 'info');
   try {
     const res = await post('fillCourseRosterDerivedData', {
@@ -2774,6 +2796,8 @@ async function fillRosterDerivedData() {
     showBoxMsg('roster-msg', esc(res.message || '已整理完成'), 'ok');
   } catch (err) {
     showBoxMsg('roster-msg', esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
   }
 }
 
@@ -4045,7 +4069,10 @@ async function handleExternalExcelFile(input) {
 
   if (!file) return;
 
+  let locked = false;
   try {
+    locked = true;
+    showActionLock('正在讀取 Excel', '請稍候，正在解析外部名單。');
     showBoxMsg('external-import-msg', '讀取 Excel 中...', 'info');
     await ensureExcelParser();
     const parsed = await parseExternalExcelFile(file);
@@ -4076,6 +4103,8 @@ async function handleExternalExcelFile(input) {
     };
     renderExternalImportSuggestion();
     updateExternalImportSteps(eventCode ? 3 : 2);
+    hideActionLock();
+    locked = false;
     if (eventCode) {
       await applyExternalColumnMapping();
     } else {
@@ -4083,6 +4112,8 @@ async function handleExternalExcelFile(input) {
     }
   } catch (err) {
     showBoxMsg('external-import-msg', esc(err.message || err), 'err');
+  } finally {
+    if (locked) hideActionLock();
   }
 }
 
@@ -4097,22 +4128,29 @@ async function previewExternalImportRows() {
     return showBoxMsg('external-import-msg', '請先上傳 Excel。', 'err');
   }
 
+  showActionLock('正在檢查匯入資料', '請稍候，正在比對重複與欄位內容。');
   showBoxMsg('external-import-msg', '檢查匯入資料中...', 'info');
-  const data = await post('previewExternalImport', {
-    userId,
-    eventCode,
-    fileName: state.fileName,
-    rows: state.rows
-  }, 60000);
-  if (!data || data.status !== 'ok') {
-    return showBoxMsg('external-import-msg', esc((data && data.message) || '預覽失敗'), 'err');
-  }
+  try {
+    const data = await post('previewExternalImport', {
+      userId,
+      eventCode,
+      fileName: state.fileName,
+      rows: state.rows
+    }, 60000);
+    if (!data || data.status !== 'ok') {
+      return showBoxMsg('external-import-msg', esc((data && data.message) || '預覽失敗'), 'err');
+    }
 
-  externalImportState.eventCode = eventCode;
-  externalImportState.preview = data;
-  clearBoxMsg('external-import-msg');
-  updateExternalImportSteps(4);
-  renderExternalImportPreview(data);
+    externalImportState.eventCode = eventCode;
+    externalImportState.preview = data;
+    clearBoxMsg('external-import-msg');
+    updateExternalImportSteps(4);
+    renderExternalImportPreview(data);
+  } catch (err) {
+    showBoxMsg('external-import-msg', esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
 }
 
 function parseExternalExcelFile(file) {
@@ -4516,6 +4554,7 @@ async function commitExternalImport() {
   if (!okCount) return showBoxMsg('external-import-msg', '目前沒有可匯入資料。', 'err');
   if (!confirm('確認匯入 ' + okCount + ' 筆資料？')) return;
 
+  showActionLock('正在匯入名單', '請稍候，正在寫入可匯入資料。');
   try {
     showBoxMsg('external-import-msg', '匯入中，請不要關閉頁面...', 'info');
     const data = await post('commitExternalImport', {
@@ -4535,6 +4574,8 @@ async function commitExternalImport() {
     renderExternalImportPreview(data);
   } catch (err) {
     showBoxMsg('external-import-msg', esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
   }
 }
 
@@ -4546,6 +4587,7 @@ async function syncImportedRowsFromMaster() {
     return showBoxMsg('external-sync-msg', '找不到剛匯入的列號，無法同步母版。', 'err');
   }
 
+  showActionLock('正在同步母版', '請稍候，正在用雁群總名冊補齊資料。');
   try {
     showBoxMsg('external-sync-msg', '同步母版中...', 'info');
     const res = await post('syncImportedRowsFromMaster', {
@@ -4561,6 +4603,8 @@ async function syncImportedRowsFromMaster() {
     showBoxMsg('external-sync-msg', esc(res.message || '同步完成'), 'ok');
   } catch (err) {
     showBoxMsg('external-sync-msg', esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
   }
 }
 
@@ -4697,9 +4741,12 @@ async function submitCourseForm() {
     categoryNormalized = checked;
   }
 
+  const actionText = editingCourseCode ? '更新課程' : '建立課程';
+  showActionLock('正在' + actionText, '請稍候，正在準備課程資料。');
   try {
     let dmUrl = val('c-dm');
     if (selectedEdmFile && !uploadedEdmUrl) {
+      setActionLockProgress(24, '正在上傳 EDM', '請稍候，正在上傳課程圖片。');
       showFormMsg('EDM 圖片上傳中...', 'info');
       dmUrl = await uploadEdmIfNeeded(eventName, activityDate);
     }
@@ -4729,10 +4776,12 @@ async function submitCourseForm() {
       applyEnd: val('c-apply-end')
     };
 
+    setActionLockProgress(52, '正在' + actionText, '請稍候，正在寫入課程設定。');
     showFormMsg(editingCourseCode ? '更新中...' : '建立中...', 'info');
     const res = await post(editingCourseCode ? 'updateCourse' : 'createCourse', payload);
 
     if (res.status === 'ok') {
+      setActionLockProgress(82, '正在更新畫面', '課程已儲存，正在重新整理課程資料。');
       const isExternalCourse = payload.coursePurpose === '外部匯入';
       clearCourseClientCache(res.eventCode);
       document.getElementById('create-result').innerHTML = `
@@ -4756,11 +4805,14 @@ async function submitCourseForm() {
         const list = document.getElementById('admin-course-list');
         if (list) renderAdminCourseList(adminCourseData);
       } catch(e) {}
+      setActionLockProgress(100, '課程已儲存', '已完成課程資料更新。');
     } else {
       showFormMsg('⚠️ ' + esc(res.message || '儲存失敗'), 'err');
     }
   } catch (err) {
     showFormMsg('⚠️ ' + esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
   }
 }
 
@@ -5934,6 +5986,7 @@ async function syncTicketMembers() {
   const code = normalizeCode(val('ticket-course-select'));
   if (!code) return showBoxMsg('ticket-msg', '請先選擇活動。', 'err');
   clearBoxMsg('ticket-msg');
+  showActionLock('正在同步票券名單', '請稍候，正在同步報名名單並補 CODE。');
   showBoxMsg('ticket-msg', '同步中，請稍候...', 'info');
   try {
     const data = await post('syncTicketQrFromRegistrations', { userId, eventCode: code }, 30000);
@@ -5947,6 +6000,8 @@ async function syncTicketMembers() {
     await renderTicketPreview();
   } catch(e) {
     showBoxMsg('ticket-msg', e.message || '同步失敗', 'err');
+  } finally {
+    hideActionLock();
   }
 }
 
@@ -6106,34 +6161,47 @@ async function renderTicketPreview() {
   if (!ticketState.members.length) {
     return showBoxMsg('ticket-msg', '請先同步報名名單。', 'err');
   }
-  await ensureTicketScripts();
-  const holder = document.getElementById('ticket-preview-list');
-  const card = document.getElementById('ticket-preview-card');
-  if (!holder || !card) return;
-  holder.innerHTML = '';
-  card.style.display = 'block';
-  const info = ticketInfo();
-  const sample = ticketState.members.slice(0,2);
-  for (const m of sample) {
-    const wrap = document.createElement('div');
-    wrap.className = 'ticket-preview-card';
-    const canvas = document.createElement('canvas');
-    wrap.appendChild(canvas);
-    holder.appendChild(wrap);
-    await drawTicketCanvas(canvas, m, info);
+  showActionLock('正在產生票券預覽', '請稍候，正在繪製前兩張票券。');
+  try {
+    await ensureTicketScripts();
+    const holder = document.getElementById('ticket-preview-list');
+    const card = document.getElementById('ticket-preview-card');
+    if (!holder || !card) return;
+    holder.innerHTML = '';
+    card.style.display = 'block';
+    const info = ticketInfo();
+    const sample = ticketState.members.slice(0,2);
+    for (let i = 0; i < sample.length; i++) {
+      const m = sample[i];
+      setActionLockProgress(Math.round((i / Math.max(1, sample.length)) * 80) + 12, '正在產生票券預覽', '請稍候，正在繪製前兩張票券。');
+      const wrap = document.createElement('div');
+      wrap.className = 'ticket-preview-card';
+      const canvas = document.createElement('canvas');
+      wrap.appendChild(canvas);
+      holder.appendChild(wrap);
+      await drawTicketCanvas(canvas, m, info);
+    }
+    setActionLockProgress(100, '票券預覽完成', '已完成前兩張票券預覽。');
+  } finally {
+    hideActionLock();
   }
 }
 
 async function downloadTicketZip() {
   if (!ticketState.members.length) return showBoxMsg('ticket-msg', '請先同步報名名單。', 'err');
-  await ensureTicketScripts();
-  const progress = document.getElementById('ticket-progress');
-  const fill = document.getElementById('ticket-progress-fill');
-  progress.classList.add('on'); fill.style.width = '0%';
-  clearBoxMsg('ticket-msg');
-  showBoxMsg('ticket-msg', '正在產生票券...', 'info');
+  showActionLock('正在產生票券 ZIP', '請稍候，正在逐張產生票券。');
+  let progress = null;
+  let fill = null;
 
   try {
+    await ensureTicketScripts();
+    progress = document.getElementById('ticket-progress');
+    fill = document.getElementById('ticket-progress-fill');
+    if (progress) progress.classList.add('on');
+    if (fill) fill.style.width = '0%';
+    clearBoxMsg('ticket-msg');
+    showBoxMsg('ticket-msg', '正在產生票券...', 'info');
+
     const zip = new JSZip();
     const canvas = document.createElement('canvas');
     const info = ticketInfo();
@@ -6152,10 +6220,13 @@ async function downloadTicketZip() {
         used[fname] = 1;
       }
       zip.file(fname, blob);
-      fill.style.width = Math.round((i+1)/ticketState.members.length*100) + '%';
+      const pct = Math.round((i+1)/ticketState.members.length*92);
+      if (fill) fill.style.width = pct + '%';
+      setActionLockProgress(pct, '正在產生票券 ZIP', `已完成 ${i + 1} / ${ticketState.members.length} 張票券。`);
       await new Promise(r => setTimeout(r, 8));
     }
 
+    setActionLockProgress(96, '正在打包票券 ZIP', '票券已產生，正在打包下載檔。');
     const content = await zip.generateAsync({ type: 'blob' });
     const zipName = '雁群票券_' + ticketSafeName(info.eventName) + (info.session ? '_' + ticketSafeName(info.session) : '') + '.zip';
     const a = document.createElement('a');
@@ -6163,12 +6234,14 @@ async function downloadTicketZip() {
     a.download = zipName;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    setActionLockProgress(100, '票券 ZIP 已產生', '下載已開始。');
     showBoxMsg('ticket-msg', '票券 ZIP 已產生。', 'ok');
   } catch(e) {
     showBoxMsg('ticket-msg', e.message || '產生失敗', 'err');
   } finally {
-    progress.classList.remove('on');
-    fill.style.width = '0%';
+    if (progress) progress.classList.remove('on');
+    if (fill) fill.style.width = '0%';
+    hideActionLock();
   }
 }
 
