@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.54</title>
+  <title>CYP135 課程報名 V6.55</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -651,10 +651,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.54</small>
+    <small>CYP135 課程系統 V6.55</small>
     <h1 id="page-title">課程報名</h1>
   </div>
-  <button class="menu-btn" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
+  <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
 </div>
 <div id="menu-backdrop" class="menu-backdrop" onclick="toggleMenu(false)"></div>
 <div id="side-menu" class="side-menu"></div>
@@ -722,8 +722,8 @@ let sharedCourseToken = '';
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v93';
-const ADMIN_CACHE_KEY = 'cyp135_admin_init_v64';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v94';
+const ADMIN_CACHE_KEY = 'cyp135_admin_init_v65';
 const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v93_';
 let currentView = '';
 let appState = {
@@ -1172,6 +1172,19 @@ function getCourseFromState(courseCode) {
   return appState.courseMap[normalizeCode(courseCode)] || null;
 }
 
+function isCoursePublished(c) {
+  const status = String((c && (c.publishStatus || c.frontendStatus)) || '').trim();
+  return status !== '下架';
+}
+
+function isCourseHidden(c) {
+  return !isCoursePublished(c);
+}
+
+function visibleCoursesOnly(courses) {
+  return (courses || []).filter(isCoursePublished);
+}
+
 function reconcileCourseStatus(c) {
   if (!c) return c;
   const max = Number(c.maxCount || 0);
@@ -1199,10 +1212,50 @@ function mergeCourseToState(course) {
 
 function clearCourseClientCache(courseCode) {
   try { localStorage.removeItem(PUBLIC_CACHE_KEY); } catch (e) {}
+  try { localStorage.removeItem(ADMIN_CACHE_KEY); } catch (e) {}
   const code = normalizeCode(courseCode);
   if (code) delete appState.registrationInitByCode[code];
   appState.publicLoaded = false;
   appState.lastPublicRefresh = 0;
+}
+
+function upsertAdminCourse(course) {
+  if (!course || !course.eventCode) return;
+  const code = normalizeCode(course.eventCode);
+  const idx = (adminCourseData || []).findIndex(c => normalizeCode(c.eventCode) === code);
+  if (idx >= 0) adminCourseData[idx] = Object.assign({}, adminCourseData[idx], course);
+  else adminCourseData.unshift(course);
+}
+
+function removeCourseFromPublicState(courseCode) {
+  const code = normalizeCode(courseCode);
+  appState.courses = (appState.courses || []).filter(c => normalizeCode(c.eventCode) !== code);
+  if (publicData && Array.isArray(publicData.courses)) {
+    publicData.courses = publicData.courses.filter(c => normalizeCode(c.eventCode) !== code);
+  }
+  rebuildCourseMap();
+}
+
+function upsertPublicCourse(course) {
+  if (!course || !course.eventCode) return;
+  const code = normalizeCode(course.eventCode);
+  if (!publicData) publicData = { status: 'ok', courses: [] };
+  if (!Array.isArray(publicData.courses)) publicData.courses = [];
+  const idx = publicData.courses.findIndex(c => normalizeCode(c.eventCode) === code);
+  if (idx >= 0) publicData.courses[idx] = Object.assign({}, publicData.courses[idx], course);
+  else publicData.courses.unshift(course);
+}
+
+function applyCoursePublishChange(course) {
+  if (!course || !course.eventCode) return;
+  upsertAdminCourse(course);
+  if (isCourseHidden(course)) removeCourseFromPublicState(course.eventCode);
+  else {
+    mergeCourseToState(course);
+    upsertPublicCourse(course);
+  }
+  clearCourseClientCache(course.eventCode);
+  renderMenu();
 }
 
 function ensurePublicData(force) {
@@ -1298,9 +1351,16 @@ function setWideLayout(wide) {
   if (wrap) wrap.classList.toggle('wide', !!wide);
 }
 
+function updateMenuButtonVisibility() {
+  const btn = document.querySelector('.menu-btn');
+  if (!btn) return;
+  btn.style.display = isAdminUser ? '' : 'none';
+}
+
 function renderMenu() {
   const menu = document.getElementById('side-menu');
   if (!menu) return;
+  updateMenuButtonVisibility();
 
   if (isSharedEntry) {
     const registerItem = currentCourse && canCourseRegister(currentCourse)
@@ -1320,6 +1380,7 @@ function renderMenu() {
   const adminBtns = isAdminUser
     ? `
       <button class="menu-item" onclick="toggleMenu(false);renderCreateCoursePage()">建立課程</button>
+      <button class="menu-item" onclick="toggleMenu(false);renderPastCoursesPage()">以往課程</button>
       <button class="menu-item" onclick="toggleMenu(false);renderExternalImportPage()">外部名單匯入</button>
       <button class="menu-item" onclick="toggleMenu(false);renderTicketGeneratorPage()">票券產生</button>
     `
@@ -1400,6 +1461,9 @@ window.addEventListener('DOMContentLoaded', async function() {
   } else if (mode === 'courses' || mode === 'manage') {
     renderHomePage();
     ensurePublicData(true).catch(() => {});
+  } else if (mode === 'past') {
+    renderPastCoursesPage();
+    ensurePublicData(true).catch(() => {});
   } else if (mode === 'import') {
     renderExternalImportPage(courseCode);
     ensurePublicData(true).catch(() => {});
@@ -1416,7 +1480,7 @@ function renderHomePage(options) {
   const token = beginPage('home', '課程報名', true);
   const app = document.getElementById('app');
 
-  const courses = (publicData && publicData.courses) || appState.courses || [];
+  const courses = visibleCoursesOnly((publicData && publicData.courses) || appState.courses || []);
   if (courses.length) {
     renderHomeShell(courses);
     if (!options.skipRefresh) refreshPublicInBackground();
@@ -1446,6 +1510,7 @@ function renderHomeShell(courses) {
   const adminTools = isAdminUser
     ? `<div class="top-actions single">
         <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
+        <button class="btn btn-sub" onclick="renderPastCoursesPage()">以往課程</button>
       </div>`
     : '';
 
@@ -1457,12 +1522,12 @@ function renderHomeShell(courses) {
     <div id="course-list"></div>
   `;
 
-  renderPublicCourseList(courses || []);
+  renderPublicCourseList(visibleCoursesOnly(courses || []));
 }
 
 function filterPublicCourses() {
   const q = val('course-search').toLowerCase();
-  const courses = ((publicData && publicData.courses && publicData.courses.length) ? publicData.courses : appState.courses) || [];
+  const courses = visibleCoursesOnly(((publicData && publicData.courses && publicData.courses.length) ? publicData.courses : appState.courses) || []);
   if (!q) return renderPublicCourseList(courses);
   renderPublicCourseList(courses.filter(c => {
     return [c.eventName, c.eventCode, c.dateTime, c.session, c.ticketType, c.statusBadge]
@@ -1472,7 +1537,7 @@ function filterPublicCourses() {
 
 function renderPublicCourseList(courses) {
   const el = document.getElementById('course-list');
-  courses = (courses || []).map(c => reconcileCourseStatus(Object.assign({}, c)));
+  courses = visibleCoursesOnly(courses || []).map(c => reconcileCourseStatus(Object.assign({}, c)));
 
   if (!courses.length) {
     el.innerHTML = '<div class="card"><h2>目前沒有活動</h2><p class="meta">有新課程開放時會顯示在這裡。</p></div>';
@@ -1502,6 +1567,9 @@ function courseCardHtml(c) {
   const rosterButton = (canViewRoster || isAdminUser)
     ? `<button class="btn btn-ghost" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button>`
     : '';
+  const publishButton = isAdminUser
+    ? `<button class="btn btn-warn" onclick="toggleCoursePublishStatus(event, '${esc(c.eventCode)}', '下架')">下架</button>`
+    : '';
   const img = c.dmUrl
     ? `<img class="course-img" loading="lazy" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">`
     : `<div class="course-img placeholder"></div>`;
@@ -1529,6 +1597,7 @@ function courseCardHtml(c) {
           ${registerButton}
           ${rosterButton}
           ${isAdminUser ? `<button class="btn btn-ghost" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>` : ''}
+          ${publishButton}
         </div>
       </div>
     </div>
@@ -1537,6 +1606,48 @@ function courseCardHtml(c) {
 
 function openCourseAddRegistration(courseCode) {
   renderCourseAddRegistrationPage(courseCode);
+}
+
+async function toggleCoursePublishStatus(event, courseCode, publishStatus) {
+  if (event) event.stopPropagation();
+  const code = normalizeCode(courseCode);
+  const nextStatus = publishStatus === '下架' ? '下架' : '上架';
+  const course = (adminCourseData || []).find(c => normalizeCode(c.eventCode) === code) || getCourseFromState(code) || {};
+
+  if (nextStatus === '下架') {
+    const ok = confirm('下架後前台與分享入口不會顯示這堂課，但後台資料與名單都會保留。確認下架？');
+    if (!ok) return;
+  }
+
+  showActionLock(nextStatus === '下架' ? '正在下架課程' : '正在上架課程', '請稍候，正在更新前台顯示狀態。');
+  try {
+    const res = await post('setCoursePublishStatus', {
+      userId,
+      eventCode: code,
+      publishStatus: nextStatus
+    }, 16000);
+
+    if (!res || res.status !== 'ok') {
+      showMsg(esc((res && res.message) || '更新失敗'), 'err');
+      return;
+    }
+
+    const updated = Object.assign({}, course, res.course || {}, {
+      eventCode: res.eventCode || code,
+      publishStatus: res.publishStatus || nextStatus
+    });
+    applyCoursePublishChange(updated);
+    setActionLockProgress(100, nextStatus === '下架' ? '課程已下架' : '課程已上架', '正在更新畫面。');
+    await sleep(180);
+
+    if (currentView === 'pastCourses') renderPastCoursesShell(adminCourseData);
+    else renderHomePage({ skipRefresh: true });
+    showMsg(nextStatus === '下架' ? '課程已下架，已移到以往課程。' : '課程已上架，已回到課程首頁。', 'ok');
+  } catch (err) {
+    showMsg(esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
 }
 
 function getSharePageBaseUrl() {
@@ -1734,6 +1845,7 @@ async function renderCourseDetailPage(courseCode, openRegisterNow, forceRefresh)
 function canCourseRegister(c) {
   if (!c) return false;
   c = reconcileCourseStatus(c);
+  if (!isCoursePublished(c)) return false;
   return c.openFlag === '是' && (c.statusBadge || '報名中') === '報名中';
 }
 
@@ -2925,6 +3037,115 @@ async function renderAdminCoursesPage() {
   return renderHomePage({skipRefresh:true});
 }
 
+async function renderPastCoursesPage() {
+  const token = beginPage('pastCourses', '以往課程', true);
+  const app = document.getElementById('app');
+
+  if (initData && initData.allowed && Array.isArray(adminCourseData)) {
+    renderPastCoursesShell(adminCourseData);
+  } else {
+    showLoading('載入以往課程中');
+  }
+
+  let data;
+  try {
+    data = await getCachedAdminData_(true);
+  } catch (err) {
+    if (!isPageActive(token, 'pastCourses')) return;
+    stopLoading();
+    app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+    return;
+  }
+
+  if (!isPageActive(token, 'pastCourses')) return;
+  stopLoading();
+  if (!data.allowed) return renderNoAdminPage();
+  renderPastCoursesShell(data.courses || []);
+}
+
+function renderPastCoursesShell(courses) {
+  adminCourseData = courses || [];
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="top-actions">
+      <button class="btn btn-sub" onclick="renderHomePage({skipRefresh:true})">課程首頁</button>
+      <button class="btn btn-main" onclick="renderPastCoursesPage()">以往課程</button>
+      <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
+    </div>
+
+    <div class="card">
+      <h2>以往課程</h2>
+      <div class="searchbar"><input id="past-course-search" placeholder="搜尋課程名稱 / 代碼 / 場次 / 票種" oninput="filterPastCourses()"></div>
+      <div id="past-course-list"></div>
+    </div>
+  `;
+  renderPastCourseList(adminCourseData);
+}
+
+function filterPastCourses() {
+  const q = val('past-course-search').toLowerCase();
+  const courses = adminCourseData || [];
+  if (!q) return renderPastCourseList(courses);
+  renderPastCourseList(courses.filter(c => {
+    return [c.eventName, c.eventCode, c.dateTime, c.session, c.ticketType, c.applyStart, c.applyEnd]
+      .join(' ').toLowerCase().includes(q);
+  }));
+}
+
+function renderPastCourseList(courses) {
+  const el = document.getElementById('past-course-list');
+  if (!el) return;
+  const hiddenCourses = (courses || []).filter(isCourseHidden);
+  if (!hiddenCourses.length) {
+    el.innerHTML = '<p class="muted">目前沒有下架課程。</p>';
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="import-table-wrap">
+      <table class="import-table">
+        <thead>
+          <tr>
+            <th>課程名稱</th>
+            <th>類型</th>
+            <th>報名時間</th>
+            <th>狀態</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${hiddenCourses.map(c => `
+            <tr>
+              <td>
+                <b>${esc(c.eventName || '未命名活動')}</b><br>
+                <span class="muted">${esc(c.eventCode || '')}</span>
+              </td>
+              <td>${esc(c.ticketType || '一般票')}<br><span class="muted">${esc(c.session || '場次未設定')}</span></td>
+              <td>${esc(formatCourseApplyPeriod(c))}</td>
+              <td><span class="badge gray">下架</span></td>
+              <td>
+                <div class="inline-actions">
+                  <button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button>
+                  <button class="btn btn-ghost" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>
+                  <button class="btn btn-main" onclick="toggleCoursePublishStatus(event, '${esc(c.eventCode)}', '上架')">上架</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function formatCourseApplyPeriod(c) {
+  if (!c) return '—';
+  const start = c.applyStart || '';
+  const end = c.applyEnd || '';
+  if (start || end) return `${start || '未設定'} ～ ${end || '未設定'}`;
+  return c.dateTime || '—';
+}
+
 async function renderLegacyAdminCoursesPage() {
   currentView = 'adminCourses';
   setWideLayout(false);
@@ -3086,6 +3307,9 @@ function renderCourseForm(course) {
   const purposeValue = isEdit
     ? (course.coursePurpose || '報名網站')
     : (prefill.coursePurpose || '報名網站');
+  const publishValue = isEdit
+    ? (course.publishStatus || course.frontendStatus || '上架')
+    : (prefill.publishStatus || '上架');
   const regFields = normalizeRegistrationFieldsClient(course ? course.registrationFields : (prefill.registrationFields || null));
 
   document.getElementById('course-form-box').innerHTML = `
@@ -3113,6 +3337,13 @@ function renderCourseForm(course) {
             <select id="c-purpose">
               <option value="報名網站" ${purposeValue !== '外部匯入' ? 'selected' : ''}>報名網站，會出現在課程首頁</option>
               <option value="外部匯入" ${purposeValue === '外部匯入' ? 'selected' : ''}>外部匯入</option>
+            </select>
+          </div>
+          <div class="field full">
+            <label>前台顯示</label>
+            <select id="c-publish">
+              <option value="上架" ${publishValue !== '下架' ? 'selected' : ''}>上架，顯示在前台課程首頁</option>
+              <option value="下架" ${publishValue === '下架' ? 'selected' : ''}>下架，只保留後台資料</option>
             </select>
           </div>
         </div>
@@ -4762,6 +4993,7 @@ async function submitCourseForm() {
       ticketType: val('c-ticket'),
       ticketTypeOther: val('c-ticket-other'),
       coursePurpose: val('c-purpose'),
+      publishStatus: val('c-publish'),
       registrationFields: collectRegistrationFieldSettings(),
       maxCount: val('c-max'),
       pricingMode,
