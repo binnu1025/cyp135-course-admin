@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.55</title>
+  <title>CYP135 課程報名 V6.56</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -520,6 +520,18 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .price-box{background:#edf7ee;border:1px solid #b9d8bf;color:#1f4d2c;border-radius:14px;padding:12px;font-weight:900;text-align:center;margin:10px 0}
 .admin-course-row{background:#fafafa;border:1px solid #eee;border-radius:14px;padding:12px;margin-bottom:10px}
 .inline-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.confirm-panel{text-align:center;padding:22px 20px 18px}
+.confirm-panel .dialog-title{font-size:20px;margin-bottom:10px}
+.confirm-panel .dialog-text{font-size:15px;color:#4f4a43;line-height:1.75;margin-bottom:16px}
+.past-course-list{display:grid;gap:8px;margin-top:12px}
+.past-course-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid #eee7da;border-radius:13px;background:#fff;padding:10px}
+.past-course-main{min-width:0}
+.past-course-title{font-size:14px;font-weight:900;color:#2d5a3d;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.past-course-meta{font-size:11px;color:#777;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.past-course-actions{display:grid;grid-template-columns:56px 56px 56px;gap:6px;align-items:center}
+.past-course-actions .btn{padding:8px 6px;font-size:12px;border-radius:10px}
+.past-course-actions .btn + .btn{margin-top:0}
+.past-course-status{font-size:11px;padding:4px 8px;border-radius:999px;background:#eee;color:#666;font-weight:900;justify-self:start}
 .readonly-box{background:#f7f7f7;border:1px solid #e0e0e0;border-radius:12px;padding:12px;font-size:15px;color:#333}
 .quick-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .compact-card{padding:14px}
@@ -651,7 +663,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.55</small>
+    <small>CYP135 課程系統 V6.56</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -1062,6 +1074,46 @@ function requestCancelReason() {
     message: '請輸入原因',
     placeholder: '請輸入取消原因',
     required: true
+  });
+}
+
+function openConfirmDialog(options) {
+  options = options || {};
+  return new Promise(resolve => {
+    const backdrop = document.getElementById('dialog-backdrop');
+    if (!backdrop) return resolve(false);
+
+    backdrop.innerHTML = `
+      <div class="dialog-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="confirm-title" onclick="event.stopPropagation()">
+        <div id="confirm-title" class="dialog-title">${esc(options.title || 'CYP135課程管理')}</div>
+        <div class="dialog-text">${esc(options.message || '確認執行這個操作？')}</div>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-sub" id="confirm-cancel">${esc(options.cancelText || '取消')}</button>
+          <button type="button" class="btn btn-main" id="confirm-ok">${esc(options.okText || '確定')}</button>
+        </div>
+      </div>
+    `;
+    backdrop.classList.add('on');
+    document.body.style.overflow = 'hidden';
+
+    const cleanup = value => {
+      backdrop.classList.remove('on');
+      backdrop.innerHTML = '';
+      document.body.style.overflow = '';
+      resolve(value);
+    };
+
+    document.getElementById('confirm-cancel').onclick = () => cleanup(false);
+    document.getElementById('confirm-ok').onclick = () => cleanup(true);
+    backdrop.onclick = () => cleanup(false);
+    backdrop.onkeydown = event => {
+      if (event.key === 'Escape') cleanup(false);
+      if (event.key === 'Enter') cleanup(true);
+    };
+    setTimeout(() => {
+      const ok = document.getElementById('confirm-ok');
+      if (ok) ok.focus();
+    }, 30);
   });
 }
 
@@ -1615,7 +1667,12 @@ async function toggleCoursePublishStatus(event, courseCode, publishStatus) {
   const course = (adminCourseData || []).find(c => normalizeCode(c.eventCode) === code) || getCourseFromState(code) || {};
 
   if (nextStatus === '下架') {
-    const ok = confirm('下架後前台與分享入口不會顯示這堂課，但後台資料與名單都會保留。確認下架？');
+    const ok = await openConfirmDialog({
+      title: 'CYP135課程管理',
+      message: '下架後前台與分享入口不會顯示這堂課，但後台資料與名單都會保留。確認下架？',
+      okText: '確認下架',
+      cancelText: '取消'
+    });
     if (!ok) return;
   }
 
@@ -3102,40 +3159,32 @@ function renderPastCourseList(courses) {
   }
 
   el.innerHTML = `
-    <div class="import-table-wrap">
-      <table class="import-table">
-        <thead>
-          <tr>
-            <th>課程名稱</th>
-            <th>類型</th>
-            <th>報名時間</th>
-            <th>狀態</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${hiddenCourses.map(c => `
-            <tr>
-              <td>
-                <b>${esc(c.eventName || '未命名活動')}</b><br>
-                <span class="muted">${esc(c.eventCode || '')}</span>
-              </td>
-              <td>${esc(c.ticketType || '一般票')}<br><span class="muted">${esc(c.session || '場次未設定')}</span></td>
-              <td>${esc(formatCourseApplyPeriod(c))}</td>
-              <td><span class="badge gray">下架</span></td>
-              <td>
-                <div class="inline-actions">
-                  <button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button>
-                  <button class="btn btn-ghost" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>
-                  <button class="btn btn-main" onclick="toggleCoursePublishStatus(event, '${esc(c.eventCode)}', '上架')">上架</button>
-                </div>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+    <div class="past-course-list">
+      ${hiddenCourses.map(c => `
+        <div class="past-course-row">
+          <div class="past-course-main">
+            <div class="past-course-title">${esc(c.eventName || '未命名活動')}</div>
+            <div class="past-course-meta">${esc(buildPastCourseMeta(c))}</div>
+            <div class="past-course-status">下架</div>
+          </div>
+          <div class="past-course-actions">
+            <button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button>
+            <button class="btn btn-ghost" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯</button>
+            <button class="btn btn-main" onclick="toggleCoursePublishStatus(event, '${esc(c.eventCode)}', '上架')">上架</button>
+          </div>
+        </div>
+      `).join('')}
     </div>
   `;
+}
+
+function buildPastCourseMeta(c) {
+  return [
+    c.eventCode || '',
+    c.ticketType || '一般票',
+    c.session || '場次未設定',
+    formatCourseApplyPeriod(c)
+  ].filter(Boolean).join('｜');
 }
 
 function formatCourseApplyPeriod(c) {
