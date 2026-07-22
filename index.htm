@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.57</title>
+  <title>CYP135 課程報名 V6.58</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -663,7 +663,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.57</small>
+    <small>CYP135 課程系統 V6.58</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -734,8 +734,8 @@ let sharedCourseToken = '';
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v95';
-const ADMIN_CACHE_KEY = 'cyp135_admin_init_v66';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v96';
+const ADMIN_CACHE_KEY = 'cyp135_admin_init_v67';
 const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v93_';
 let currentView = '';
 let appState = {
@@ -2984,7 +2984,7 @@ async function updateRosterStatus(rowNumber, status) {
       rowNumber,
       status,
       cancelReason
-    }, 18000);
+    }, 65000);
     if (!res || res.status !== 'ok') return showBoxMsg('roster-msg', esc((res && res.message) || '更新失敗'), 'err');
     applyRosterData(res);
     saveCurrentRosterCache();
@@ -3063,7 +3063,7 @@ async function submitAdminAddRegistration() {
       classType,
       extraAnswers: extraCheck.answers,
       remark: val('roster-add-remark')
-    }, 20000);
+    }, 65000);
     if (!res || res.status !== 'ok') {
       if (res && res.status === 'duplicate') {
         const duplicateTail = phoneTail || getPhoneTailFromValue(res.phoneTail || (res.registration && res.registration.phone));
@@ -6119,7 +6119,7 @@ async function submitRegister() {
       classType: priceInfo.classType,
       remark: val('r-remark'),
       extraAnswers: extraCheck.answers
-    });
+    }, 65000);
 
     if (res.status === 'ok') {
       const newRegistrant = {
