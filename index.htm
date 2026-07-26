@@ -603,12 +603,19 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .yaya-plant{background-position:calc(var(--yaya-size) * -1) calc(var(--yaya-size) * -1)}
 .yaya-tree{background-position:calc(var(--yaya-size) * -2) calc(var(--yaya-size) * -1)}
 .yaya-bubble{max-width:112px;border:1px solid rgba(45,90,61,.18);border-radius:14px;background:#fbfaf6;color:#2d5a3d;font-size:12px;font-weight:900;line-height:1.45;padding:7px 9px}
-.home-yaya-strip{display:flex;align-items:center;justify-content:center;gap:10px;margin:10px 0 12px;padding:8px 12px;border:1px solid rgba(45,90,61,.12);border-radius:16px;background:rgba(237,247,238,.72)}
-.home-yaya-strip .yaya-sprite{--yaya-size:64px}
-.home-yaya-strip .yaya-home-loop{animation:yaya-home-frames 7.2s steps(1,end) infinite,yaya-home-bob 1.8s ease-in-out infinite}
-.home-yaya-strip .yaya-bubble{max-width:none;background:#fffdf8}
-@keyframes yaya-home-frames{0%,15%{background-position:0 0}16%,31%{background-position:calc(var(--yaya-size) * -1) 0}32%,47%{background-position:calc(var(--yaya-size) * -2) 0}48%,63%{background-position:0 calc(var(--yaya-size) * -1)}64%,79%{background-position:calc(var(--yaya-size) * -1) calc(var(--yaya-size) * -1)}80%,100%{background-position:calc(var(--yaya-size) * -2) calc(var(--yaya-size) * -1)}}
-@keyframes yaya-home-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.floating-yaya{position:fixed;right:18px;bottom:18px;z-index:12;display:none;align-items:flex-end;gap:8px;pointer-events:none}
+.floating-yaya.on{display:flex}
+.floating-yaya .yaya-sprite{--yaya-size:72px}
+.floating-yaya .yaya-bubble{max-width:128px;background:#fffdf8;box-shadow:0 4px 14px rgba(0,0,0,.08)}
+.floating-yaya.home .yaya-sprite{animation:yaya-walk 5.8s ease-in-out infinite,yaya-idle-frames 7.2s steps(1,end) infinite}
+.floating-yaya.search .yaya-sprite{animation:yaya-focus-bob 1.6s ease-in-out infinite}
+.floating-yaya.submitting{z-index:61}
+.floating-yaya.submitting .yaya-sprite{animation:yaya-submit-growth 3.9s steps(1,end) infinite,yaya-focus-bob 1.3s ease-in-out infinite}
+.floating-yaya.submitting .yaya-bubble{display:block}
+@keyframes yaya-idle-frames{0%,42%{background-position:0 0}43%,65%{background-position:calc(var(--yaya-size) * -1) 0}66%,82%{background-position:0 calc(var(--yaya-size) * -1)}83%,100%{background-position:0 0}}
+@keyframes yaya-submit-growth{0%,33%{background-position:calc(var(--yaya-size) * -1) 0}34%,66%{background-position:calc(var(--yaya-size) * -1) calc(var(--yaya-size) * -1)}67%,100%{background-position:calc(var(--yaya-size) * -2) calc(var(--yaya-size) * -1)}}
+@keyframes yaya-walk{0%,100%{transform:translateX(0) translateY(0)}35%{transform:translateX(-22px) translateY(-2px)}70%{transform:translateX(8px) translateY(0)}}
+@keyframes yaya-focus-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 .submit-sticky{position:sticky;bottom:10px;z-index:4;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .btn[disabled]{opacity:.55;cursor:not-allowed}
 .hide{display:none!important}
@@ -673,7 +680,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:420px){.wrap.wide{padding-left:8px;padding-right:8px}.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:9px 10px;display:block}.roster-group-head strong{display:block;font-size:15px;margin-bottom:4px}.roster-group-head span{display:block;text-align:left}.roster-class-head{display:block;padding:7px 10px}.roster-class-head span{display:block;text-align:left}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
 
-@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}.register-card-head{gap:8px}.yaya-sprite{--yaya-size:54px}.yaya-bubble{max-width:92px;font-size:11px;padding:6px 8px}.home-yaya-strip{justify-content:flex-start;padding:7px 10px}.home-yaya-strip .yaya-sprite{--yaya-size:48px}.home-yaya-strip .yaya-bubble{max-width:none}}
+@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}.register-card-head{gap:8px}.yaya-sprite{--yaya-size:54px}.yaya-bubble{max-width:92px;font-size:11px;padding:6px 8px}.floating-yaya{right:10px;bottom:12px}.floating-yaya .yaya-sprite{--yaya-size:56px}.floating-yaya .yaya-bubble{display:none}}
 </style>
 </head>
 <body>
@@ -699,6 +706,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <div class="action-lock-bar"><i id="action-lock-fill"></i></div>
     <div id="action-lock-percent" class="action-lock-percent">8%</div>
   </div>
+</div>
+<div id="floating-yaya" class="floating-yaya" aria-label="報名芽芽小助手">
+  <div class="yaya-bubble" id="floating-yaya-text">芽芽陪你找課程</div>
+  <div class="yaya-sprite yaya-sleep" id="floating-yaya-sprite" aria-hidden="true"></div>
 </div>
 
 <div class="wrap">
@@ -937,6 +948,7 @@ function beginPage(view, title, wide) {
   setWideLayout(!!wide);
   clearMsg();
   setTitle(title);
+  setFloatingYaya('', '');
   return token;
 }
 
@@ -987,6 +999,22 @@ function setYayaAssistant(state, text) {
   box.dataset.state = safeState;
   sprite.className = 'yaya-sprite yaya-' + safeState;
   if (label && text) label.textContent = text;
+}
+
+function setFloatingYaya(mode, text) {
+  const box = document.getElementById('floating-yaya');
+  const sprite = document.getElementById('floating-yaya-sprite');
+  const label = document.getElementById('floating-yaya-text');
+  if (!box || !sprite) return;
+  const safeMode = ['home','search','submitting'].includes(mode) ? mode : '';
+  if (!safeMode) {
+    box.className = 'floating-yaya';
+    return;
+  }
+  const state = safeMode === 'search' ? 'think' : 'sleep';
+  box.className = 'floating-yaya on ' + safeMode;
+  sprite.className = 'yaya-sprite yaya-' + state;
+  if (label) label.textContent = text || '芽芽陪你找課程';
 }
 
 function showLoading(text) {
@@ -1660,16 +1688,19 @@ function renderHomeShell(courses) {
   app.innerHTML = `
     ${adminTools}
     <div class="searchbar">
-      <input id="course-search" placeholder="搜尋活動名稱 / 日期 / 場次" oninput="filterPublicCourses()">
-    </div>
-    <div class="home-yaya-strip" aria-label="報名芽芽首頁提示">
-      <div class="yaya-sprite yaya-sleep yaya-home-loop" aria-hidden="true"></div>
-      <div class="yaya-bubble">芽芽在這裡陪你找課程</div>
+      <input id="course-search" placeholder="搜尋活動名稱 / 日期 / 場次" oninput="handleHomeSearchInput()">
     </div>
     <div id="course-list"></div>
   `;
 
+  setFloatingYaya('home', '芽芽陪你找課程');
   renderPublicCourseList(visibleCoursesOnly(courses || []));
+}
+
+function handleHomeSearchInput() {
+  const q = val('course-search');
+  setFloatingYaya(q ? 'search' : 'home', q ? '芽芽正在找課程' : '芽芽陪你找課程');
+  filterPublicCourses();
 }
 
 function filterPublicCourses() {
@@ -6158,9 +6189,11 @@ async function submitRegister() {
 
   isSubmittingRegistration = true;
   setRegisterButtonDisabled(true, '送出中...');
+  setFloatingYaya('submitting', '報名小樹成長中');
   showActionLock('正在送出報名', '請稍候，正在寫入報名資料。');
   showRegisterMsg('送出中...', 'info');
 
+  let submittedOk = false;
   try {
     const res = await post('submitRegistration', {
       userId,
@@ -6176,6 +6209,8 @@ async function submitRegister() {
     }, 65000);
 
     if (res.status === 'ok') {
+      submittedOk = true;
+      setFloatingYaya('submitting', '報名小樹長大了');
       const newRegistrant = {
         name: res.name || name,
         cleanName: clean,
@@ -6243,6 +6278,8 @@ async function submitRegister() {
   } finally {
     isSubmittingRegistration = false;
     hideActionLock();
+    if (submittedOk) setTimeout(() => { if (currentView === 'register') setFloatingYaya('', ''); }, 3200);
+    else setFloatingYaya('', '');
     if (!isCurrentNameDuplicate) setRegisterButtonDisabled(false, '送出報名');
   }
 }
