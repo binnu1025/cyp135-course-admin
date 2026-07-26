@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.61</title>
+  <title>CYP135 課程報名 V6.62</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -601,17 +601,19 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .yaya-tree{background-image:url("assets/baoming-yaya-frames/tree.webp")}
 .floating-yaya{position:fixed;right:14px;bottom:14px;z-index:12;display:none;align-items:flex-end;pointer-events:none}
 .floating-yaya.on{display:flex}
-.floating-yaya .yaya-sprite{--yaya-size:72px}
+.floating-yaya .yaya-sprite{--yaya-size:72px;cursor:pointer;pointer-events:auto;touch-action:manipulation}
 .floating-yaya.home .yaya-sprite{animation:yaya-walk 5.8s ease-in-out infinite,yaya-idle-frames 7.2s steps(1,end) infinite}
 .floating-yaya.search .yaya-sprite{animation:yaya-focus-bob 1.6s ease-in-out infinite}
 .floating-yaya.form .yaya-sprite{animation:yaya-focus-bob 1.8s ease-in-out infinite}
 .floating-yaya.submitting{z-index:61}
 .floating-yaya.submitting .yaya-sprite{animation:yaya-submit-growth 3.9s steps(1,end) infinite,yaya-focus-bob 1.3s ease-in-out infinite}
 .floating-yaya.success .yaya-sprite{animation:yaya-focus-bob 1.2s ease-in-out infinite}
+.floating-yaya.manual .yaya-sprite{animation:yaya-click-pop .45s ease}
 @keyframes yaya-idle-frames{0%,42%{background-image:url("assets/baoming-yaya-frames/sleep.webp")}43%,65%{background-image:url("assets/baoming-yaya-frames/think.webp")}66%,82%{background-image:url("assets/baoming-yaya-frames/success.webp")}83%,100%{background-image:url("assets/baoming-yaya-frames/sleep.webp")}}
 @keyframes yaya-submit-growth{0%,33%{background-image:url("assets/baoming-yaya-frames/think.webp")}34%,66%{background-image:url("assets/baoming-yaya-frames/plant.webp")}67%,100%{background-image:url("assets/baoming-yaya-frames/tree.webp")}}
 @keyframes yaya-walk{0%,100%{transform:translateX(0) translateY(0)}35%{transform:translateX(-22px) translateY(-2px)}70%{transform:translateX(8px) translateY(0)}}
 @keyframes yaya-focus-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes yaya-click-pop{0%,100%{transform:translateY(0) scale(1)}45%{transform:translateY(-6px) scale(1.08)}}
 .submit-sticky{position:sticky;bottom:10px;z-index:4;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .btn[disabled]{opacity:.55;cursor:not-allowed}
 .hide{display:none!important}
@@ -683,7 +685,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.61</small>
+    <small>CYP135 課程系統 V6.62</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -704,7 +706,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   </div>
 </div>
 <div id="floating-yaya" class="floating-yaya" aria-label="報名芽芽小助手">
-  <div class="yaya-sprite yaya-sleep" id="floating-yaya-sprite" aria-hidden="true"></div>
+  <div class="yaya-sprite yaya-sleep" id="floating-yaya-sprite" role="button" tabindex="0" aria-label="切換芽芽動作" onclick="handleFloatingYayaClick(event)" onkeydown="handleFloatingYayaKey(event)"></div>
 </div>
 
 <div class="wrap">
@@ -973,7 +975,12 @@ function loadingHtml(text) {
   `;
 }
 
-function setFloatingYaya(mode) {
+let floatingYayaMode = '';
+let floatingYayaClickIndex = -1;
+let floatingYayaClickTimer = null;
+const FLOATING_YAYA_CLICK_STATES = ['sleep', 'think', 'submit', 'success', 'plant', 'tree'];
+
+function renderFloatingYayaMode(mode) {
   const box = document.getElementById('floating-yaya');
   const sprite = document.getElementById('floating-yaya-sprite');
   if (!box || !sprite) return;
@@ -985,6 +992,41 @@ function setFloatingYaya(mode) {
   const state = safeMode === 'search' || safeMode === 'form' ? 'think' : (safeMode === 'success' ? 'success' : 'sleep');
   box.className = 'floating-yaya on ' + safeMode;
   sprite.className = 'yaya-sprite yaya-' + state;
+}
+
+function setFloatingYaya(mode) {
+  const safeMode = ['home','search','form','submitting','success'].includes(mode) ? mode : '';
+  floatingYayaMode = safeMode;
+  if (!safeMode && floatingYayaClickTimer) {
+    clearTimeout(floatingYayaClickTimer);
+    floatingYayaClickTimer = null;
+  }
+  if (floatingYayaClickTimer && safeMode) return;
+  renderFloatingYayaMode(safeMode);
+}
+
+function handleFloatingYayaClick(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const box = document.getElementById('floating-yaya');
+  const sprite = document.getElementById('floating-yaya-sprite');
+  if (!box || !sprite || !box.classList.contains('on')) return;
+  floatingYayaClickIndex = (floatingYayaClickIndex + 1) % FLOATING_YAYA_CLICK_STATES.length;
+  const state = FLOATING_YAYA_CLICK_STATES[floatingYayaClickIndex];
+  box.className = 'floating-yaya on manual';
+  sprite.className = 'yaya-sprite yaya-' + state;
+  if (floatingYayaClickTimer) clearTimeout(floatingYayaClickTimer);
+  floatingYayaClickTimer = setTimeout(() => {
+    floatingYayaClickTimer = null;
+    renderFloatingYayaMode(floatingYayaMode);
+  }, 2800);
+}
+
+function handleFloatingYayaKey(event) {
+  if (!event || (event.key !== 'Enter' && event.key !== ' ')) return;
+  handleFloatingYayaClick(event);
 }
 
 function showLoading(text) {
