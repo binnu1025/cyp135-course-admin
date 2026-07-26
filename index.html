@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.62</title>
+  <title>CYP135 課程報名 V6.63</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -602,6 +602,8 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .floating-yaya{position:fixed;right:14px;bottom:14px;z-index:12;display:none;align-items:flex-end;pointer-events:none}
 .floating-yaya.on{display:flex}
 .floating-yaya .yaya-sprite{--yaya-size:72px;cursor:pointer;pointer-events:auto;touch-action:manipulation}
+.yaya-click-message{display:none;max-width:160px;margin-right:8px;border:1px solid rgba(45,90,61,.18);border-radius:14px;background:#fffdf8;color:#2d5a3d;box-shadow:0 6px 18px rgba(0,0,0,.1);font-size:12px;font-weight:900;line-height:1.45;padding:8px 10px;pointer-events:none}
+.floating-yaya.show-nudge .yaya-click-message{display:block;animation:yaya-message-pop .22s ease}
 .floating-yaya.home .yaya-sprite{animation:yaya-walk 5.8s ease-in-out infinite,yaya-idle-frames 7.2s steps(1,end) infinite}
 .floating-yaya.search .yaya-sprite{animation:yaya-focus-bob 1.6s ease-in-out infinite}
 .floating-yaya.form .yaya-sprite{animation:yaya-focus-bob 1.8s ease-in-out infinite}
@@ -614,6 +616,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @keyframes yaya-walk{0%,100%{transform:translateX(0) translateY(0)}35%{transform:translateX(-22px) translateY(-2px)}70%{transform:translateX(8px) translateY(0)}}
 @keyframes yaya-focus-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 @keyframes yaya-click-pop{0%,100%{transform:translateY(0) scale(1)}45%{transform:translateY(-6px) scale(1.08)}}
+@keyframes yaya-message-pop{0%{opacity:0;transform:translateY(4px) scale(.96)}100%{opacity:1;transform:translateY(0) scale(1)}}
 .submit-sticky{position:sticky;bottom:10px;z-index:4;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .btn[disabled]{opacity:.55;cursor:not-allowed}
 .hide{display:none!important}
@@ -678,14 +681,14 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:420px){.wrap.wide{padding-left:8px;padding-right:8px}.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:9px 10px;display:block}.roster-group-head strong{display:block;font-size:15px;margin-bottom:4px}.roster-group-head span{display:block;text-align:left}.roster-class-head{display:block;padding:7px 10px}.roster-class-head span{display:block;text-align:left}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
 
-@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}.yaya-sprite{--yaya-size:54px}.floating-yaya{right:8px;bottom:calc(10px + env(safe-area-inset-bottom, 0px))}.floating-yaya .yaya-sprite{--yaya-size:58px}}
+@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}.yaya-sprite{--yaya-size:54px}.floating-yaya{right:8px;bottom:calc(10px + env(safe-area-inset-bottom, 0px))}.floating-yaya .yaya-sprite{--yaya-size:58px}.yaya-click-message{max-width:138px;font-size:11px;padding:7px 9px}}
 </style>
 </head>
 <body>
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.62</small>
+    <small>CYP135 課程系統 V6.63</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -706,6 +709,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   </div>
 </div>
 <div id="floating-yaya" class="floating-yaya" aria-label="報名芽芽小助手">
+  <div class="yaya-click-message" id="floating-yaya-message" aria-live="polite">不要再點我了，要點擊報名唷!</div>
   <div class="yaya-sprite yaya-sleep" id="floating-yaya-sprite" role="button" tabindex="0" aria-label="切換芽芽動作" onclick="handleFloatingYayaClick(event)" onkeydown="handleFloatingYayaKey(event)"></div>
 </div>
 
@@ -978,6 +982,9 @@ function loadingHtml(text) {
 let floatingYayaMode = '';
 let floatingYayaClickIndex = -1;
 let floatingYayaClickTimer = null;
+let floatingYayaTapCount = 0;
+let floatingYayaTapTimer = null;
+let floatingYayaMessageTimer = null;
 const FLOATING_YAYA_CLICK_STATES = ['sleep', 'think', 'submit', 'success', 'plant', 'tree'];
 
 function renderFloatingYayaMode(mode) {
@@ -987,6 +994,7 @@ function renderFloatingYayaMode(mode) {
   const safeMode = ['home','search','form','submitting','success'].includes(mode) ? mode : '';
   if (!safeMode) {
     box.className = 'floating-yaya';
+    hideFloatingYayaMessage();
     return;
   }
   const state = safeMode === 'search' || safeMode === 'form' ? 'think' : (safeMode === 'success' ? 'success' : 'sleep');
@@ -1005,6 +1013,38 @@ function setFloatingYaya(mode) {
   renderFloatingYayaMode(safeMode);
 }
 
+function hideFloatingYayaMessage() {
+  const box = document.getElementById('floating-yaya');
+  if (box) box.classList.remove('show-nudge');
+  if (floatingYayaMessageTimer) {
+    clearTimeout(floatingYayaMessageTimer);
+    floatingYayaMessageTimer = null;
+  }
+}
+
+function showFloatingYayaMessage() {
+  const box = document.getElementById('floating-yaya');
+  const message = document.getElementById('floating-yaya-message');
+  if (!box || !message) return;
+  message.textContent = '不要再點我了，要點擊報名唷!';
+  box.classList.add('show-nudge');
+  if (floatingYayaMessageTimer) clearTimeout(floatingYayaMessageTimer);
+  floatingYayaMessageTimer = setTimeout(hideFloatingYayaMessage, 3200);
+}
+
+function countFloatingYayaTap() {
+  floatingYayaTapCount += 1;
+  if (floatingYayaTapTimer) clearTimeout(floatingYayaTapTimer);
+  floatingYayaTapTimer = setTimeout(() => {
+    floatingYayaTapCount = 0;
+    floatingYayaTapTimer = null;
+  }, 3600);
+  if (floatingYayaTapCount >= 5) {
+    floatingYayaTapCount = 0;
+    showFloatingYayaMessage();
+  }
+}
+
 function handleFloatingYayaClick(event) {
   if (event) {
     event.preventDefault();
@@ -1013,9 +1053,11 @@ function handleFloatingYayaClick(event) {
   const box = document.getElementById('floating-yaya');
   const sprite = document.getElementById('floating-yaya-sprite');
   if (!box || !sprite || !box.classList.contains('on')) return;
+  countFloatingYayaTap();
   floatingYayaClickIndex = (floatingYayaClickIndex + 1) % FLOATING_YAYA_CLICK_STATES.length;
   const state = FLOATING_YAYA_CLICK_STATES[floatingYayaClickIndex];
-  box.className = 'floating-yaya on manual';
+  const keepMessage = box.classList.contains('show-nudge');
+  box.className = 'floating-yaya on manual' + (keepMessage ? ' show-nudge' : '');
   sprite.className = 'yaya-sprite yaya-' + state;
   if (floatingYayaClickTimer) clearTimeout(floatingYayaClickTimer);
   floatingYayaClickTimer = setTimeout(() => {
