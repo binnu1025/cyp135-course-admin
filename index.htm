@@ -592,6 +592,17 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .class-choice.on .class-choice-price{color:#2d5a3d}
 
 #r-name{font-size:18px;font-weight:700}
+.register-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.register-card-head h2{margin:0}
+.yaya-assistant{flex:0 0 auto;display:flex;align-items:center;gap:8px;min-width:0}
+.yaya-sprite{--yaya-size:72px;width:var(--yaya-size);height:var(--yaya-size);flex:0 0 var(--yaya-size);background-image:url("assets/baoming-yaya-spritesheet-128.webp");background-repeat:no-repeat;background-size:calc(var(--yaya-size) * 3) calc(var(--yaya-size) * 2);image-rendering:auto}
+.yaya-sleep{background-position:0 0}
+.yaya-think{background-position:calc(var(--yaya-size) * -1) 0}
+.yaya-submit{background-position:calc(var(--yaya-size) * -2) 0}
+.yaya-success{background-position:0 calc(var(--yaya-size) * -1)}
+.yaya-plant{background-position:calc(var(--yaya-size) * -1) calc(var(--yaya-size) * -1)}
+.yaya-tree{background-position:calc(var(--yaya-size) * -2) calc(var(--yaya-size) * -1)}
+.yaya-bubble{max-width:112px;border:1px solid rgba(45,90,61,.18);border-radius:14px;background:#fbfaf6;color:#2d5a3d;font-size:12px;font-weight:900;line-height:1.45;padding:7px 9px}
 .submit-sticky{position:sticky;bottom:10px;z-index:4;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .btn[disabled]{opacity:.55;cursor:not-allowed}
 .hide{display:none!important}
@@ -656,7 +667,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:420px){.wrap.wide{padding-left:8px;padding-right:8px}.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:9px 10px;display:block}.roster-group-head strong{display:block;font-size:15px;margin-bottom:4px}.roster-group-head span{display:block;text-align:left}.roster-class-head{display:block;padding:7px 10px}.roster-class-head span{display:block;text-align:left}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
 
-@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}}
+@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}.register-card-head{gap:8px}.yaya-sprite{--yaya-size:54px}.yaya-bubble{max-width:92px;font-size:11px;padding:6px 8px}}
 </style>
 </head>
 <body>
@@ -784,10 +795,16 @@ function clearFormMsg() {
 }
 
 function showRegisterMsg(text, type) {
+  if (type === 'ok') setYayaAssistant('success', '報名成功');
+  else if (type === 'warn') setYayaAssistant('think', '再確認一下');
+  else if (type === 'err') setYayaAssistant('think', '需要修正資料');
+  else if (String(text || '').includes('送出')) setYayaAssistant('submit', '送出報名中');
+  else setYayaAssistant('think', '芽芽正在確認');
   showBoxMsg('registration-result', text, type);
 }
 
 function clearRegisterMsg() {
+  setYayaAssistant('think', '芽芽陪你填寫報名');
   clearBoxMsg('registration-result');
 }
 
@@ -943,6 +960,27 @@ function loadingHtml(text) {
       </div>
     </div>
   `;
+}
+
+function renderYayaAssistant(state, text) {
+  const safeState = ['sleep','think','submit','success','plant','tree'].includes(state) ? state : 'think';
+  return `
+    <div class="yaya-assistant" id="register-yaya" data-state="${safeState}" aria-label="報名芽芽">
+      <div class="yaya-sprite yaya-${safeState}" aria-hidden="true"></div>
+      <div class="yaya-bubble" id="register-yaya-text">${esc(text || '芽芽陪你填寫報名')}</div>
+    </div>
+  `;
+}
+
+function setYayaAssistant(state, text) {
+  const box = document.getElementById('register-yaya');
+  const sprite = box ? box.querySelector('.yaya-sprite') : null;
+  const label = document.getElementById('register-yaya-text');
+  if (!box || !sprite) return;
+  const safeState = ['sleep','think','submit','success','plant','tree'].includes(state) ? state : 'think';
+  box.dataset.state = safeState;
+  sprite.className = 'yaya-sprite yaya-' + safeState;
+  if (label && text) label.textContent = text;
 }
 
 function showLoading(text) {
@@ -5221,7 +5259,10 @@ function renderRegisterFormBody(isBackgroundLoading) {
     </div>
 
     <div class="card compact-card">
-      <h2>填寫報名資料</h2>
+      <div class="register-card-head">
+        <h2>填寫報名資料</h2>
+        ${renderYayaAssistant(isBackgroundLoading ? 'think' : 'sleep', isBackgroundLoading ? '載入報名表' : '芽芽陪你填寫')}
+      </div>
       <div id="registration-result" class="msg"></div>
 
       <div class="field">
@@ -5511,6 +5552,7 @@ function setRegisterButtonDisabled(disabled, text) {
   if (!btn) return;
   btn.disabled = !!disabled;
   btn.textContent = text || '送出報名';
+  if (disabled && String(text || '').includes('送出')) setYayaAssistant('submit', '送出報名中');
 }
 
 function setRosterAddSubmitDisabled(disabled, text) {
@@ -5579,10 +5621,12 @@ function autoLookupMemberDebounced() {
 
   if (!clean) {
     if (box) box.innerHTML = '';
+    setYayaAssistant('sleep', '芽芽陪你填寫');
     setRegisterButtonDisabled(false, '送出報名');
     return;
   }
 
+  setYayaAssistant('think', '查詢名冊中');
   setRegisterButtonDisabled(false, '送出報名');
   if (box) box.innerHTML = '<div class="msg on info">查詢名冊中...</div>';
   lookupTimer = setTimeout(() => autoLookupMemberRemote(clean, name), 180);
