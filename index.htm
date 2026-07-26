@@ -603,6 +603,9 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .yaya-plant{background-position:calc(var(--yaya-size) * -1) calc(var(--yaya-size) * -1)}
 .yaya-tree{background-position:calc(var(--yaya-size) * -2) calc(var(--yaya-size) * -1)}
 .yaya-bubble{max-width:112px;border:1px solid rgba(45,90,61,.18);border-radius:14px;background:#fbfaf6;color:#2d5a3d;font-size:12px;font-weight:900;line-height:1.45;padding:7px 9px}
+.home-yaya-strip{display:flex;align-items:center;justify-content:center;gap:10px;margin:10px 0 12px;padding:8px 12px;border:1px solid rgba(45,90,61,.12);border-radius:16px;background:rgba(237,247,238,.72)}
+.home-yaya-strip .yaya-sprite{--yaya-size:64px}
+.home-yaya-strip .yaya-bubble{max-width:none;background:#fffdf8}
 .submit-sticky{position:sticky;bottom:10px;z-index:4;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .btn[disabled]{opacity:.55;cursor:not-allowed}
 .hide{display:none!important}
@@ -667,7 +670,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:420px){.wrap.wide{padding-left:8px;padding-right:8px}.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:9px 10px;display:block}.roster-group-head strong{display:block;font-size:15px;margin-bottom:4px}.roster-group-head span{display:block;text-align:left}.roster-class-head{display:block;padding:7px 10px}.roster-class-head span{display:block;text-align:left}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
 
-@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}.register-card-head{gap:8px}.yaya-sprite{--yaya-size:54px}.yaya-bubble{max-width:92px;font-size:11px;padding:6px 8px}}
+@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}.register-card-head{gap:8px}.yaya-sprite{--yaya-size:54px}.yaya-bubble{max-width:92px;font-size:11px;padding:6px 8px}.home-yaya-strip{justify-content:flex-start;padding:7px 10px}.home-yaya-strip .yaya-sprite{--yaya-size:48px}.home-yaya-strip .yaya-bubble{max-width:none}}
 </style>
 </head>
 <body>
@@ -1655,6 +1658,10 @@ function renderHomeShell(courses) {
     ${adminTools}
     <div class="searchbar">
       <input id="course-search" placeholder="搜尋活動名稱 / 日期 / 場次" oninput="filterPublicCourses()">
+    </div>
+    <div class="home-yaya-strip" aria-label="報名芽芽首頁提示">
+      <div class="yaya-sprite yaya-sleep" aria-hidden="true"></div>
+      <div class="yaya-bubble">芽芽在這裡陪你找課程</div>
     </div>
     <div id="course-list"></div>
   `;
