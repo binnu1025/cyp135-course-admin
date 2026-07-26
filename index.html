@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.60</title>
+  <title>CYP135 課程報名 V6.61</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -599,17 +599,14 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .yaya-success{background-image:url("assets/baoming-yaya-frames/success.webp")}
 .yaya-plant{background-image:url("assets/baoming-yaya-frames/plant.webp")}
 .yaya-tree{background-image:url("assets/baoming-yaya-frames/tree.webp")}
-.yaya-bubble{max-width:112px;border:1px solid rgba(45,90,61,.18);border-radius:14px;background:#fbfaf6;color:#2d5a3d;font-size:12px;font-weight:900;line-height:1.45;padding:7px 9px}
-.floating-yaya{position:fixed;right:18px;bottom:18px;z-index:12;display:none;align-items:flex-end;gap:8px;pointer-events:none}
+.floating-yaya{position:fixed;right:14px;bottom:14px;z-index:12;display:none;align-items:flex-end;pointer-events:none}
 .floating-yaya.on{display:flex}
 .floating-yaya .yaya-sprite{--yaya-size:72px}
-.floating-yaya .yaya-bubble{max-width:128px;background:#fffdf8;box-shadow:0 4px 14px rgba(0,0,0,.08)}
 .floating-yaya.home .yaya-sprite{animation:yaya-walk 5.8s ease-in-out infinite,yaya-idle-frames 7.2s steps(1,end) infinite}
 .floating-yaya.search .yaya-sprite{animation:yaya-focus-bob 1.6s ease-in-out infinite}
 .floating-yaya.form .yaya-sprite{animation:yaya-focus-bob 1.8s ease-in-out infinite}
 .floating-yaya.submitting{z-index:61}
 .floating-yaya.submitting .yaya-sprite{animation:yaya-submit-growth 3.9s steps(1,end) infinite,yaya-focus-bob 1.3s ease-in-out infinite}
-.floating-yaya.submitting .yaya-bubble{display:block}
 .floating-yaya.success .yaya-sprite{animation:yaya-focus-bob 1.2s ease-in-out infinite}
 @keyframes yaya-idle-frames{0%,42%{background-image:url("assets/baoming-yaya-frames/sleep.webp")}43%,65%{background-image:url("assets/baoming-yaya-frames/think.webp")}66%,82%{background-image:url("assets/baoming-yaya-frames/success.webp")}83%,100%{background-image:url("assets/baoming-yaya-frames/sleep.webp")}}
 @keyframes yaya-submit-growth{0%,33%{background-image:url("assets/baoming-yaya-frames/think.webp")}34%,66%{background-image:url("assets/baoming-yaya-frames/plant.webp")}67%,100%{background-image:url("assets/baoming-yaya-frames/tree.webp")}}
@@ -679,14 +676,14 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @media(max-width:420px){.ticket-toolbar{grid-template-columns:1fr}.ticket-stat-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:420px){.wrap.wide{padding-left:8px;padding-right:8px}.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:9px 10px;display:block}.roster-group-head strong{display:block;font-size:15px;margin-bottom:4px}.roster-group-head span{display:block;text-align:left}.roster-class-head{display:block;padding:7px 10px}.roster-class-head span{display:block;text-align:left}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
 
-@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}.yaya-sprite{--yaya-size:54px}.yaya-bubble{max-width:92px;font-size:11px;padding:6px 8px}.floating-yaya{right:10px;bottom:12px}.floating-yaya .yaya-sprite{--yaya-size:56px}.floating-yaya .yaya-bubble{display:none}}
+@media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}.yaya-sprite{--yaya-size:54px}.floating-yaya{right:8px;bottom:calc(10px + env(safe-area-inset-bottom, 0px))}.floating-yaya .yaya-sprite{--yaya-size:58px}}
 </style>
 </head>
 <body>
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.60</small>
+    <small>CYP135 課程系統 V6.61</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -707,7 +704,6 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   </div>
 </div>
 <div id="floating-yaya" class="floating-yaya" aria-label="報名芽芽小助手">
-  <div class="yaya-bubble" id="floating-yaya-text">芽芽陪你找課程</div>
   <div class="yaya-sprite yaya-sleep" id="floating-yaya-sprite" aria-hidden="true"></div>
 </div>
 
@@ -811,16 +807,14 @@ function clearFormMsg() {
 }
 
 function showRegisterMsg(text, type) {
-  if (String(text || '').includes('送出')) setFloatingYaya('submitting', '報名小樹成長中');
-  else if (type === 'ok') setFloatingYaya('submitting', '報名小樹長大了');
-  else if (type === 'warn') setFloatingYaya('form', '再確認一下');
-  else if (type === 'err') setFloatingYaya('form', '需要修正資料');
-  else setFloatingYaya('form', '芽芽正在確認');
+  if (String(text || '').includes('送出')) setFloatingYaya('submitting');
+  else if (type === 'ok') setFloatingYaya('submitting');
+  else setFloatingYaya('form');
   showBoxMsg('registration-result', text, type);
 }
 
 function clearRegisterMsg() {
-  if (currentView === 'register') setFloatingYaya('form', '芽芽陪你填寫報名');
+  if (currentView === 'register') setFloatingYaya('form');
   clearBoxMsg('registration-result');
 }
 
@@ -947,7 +941,7 @@ function beginPage(view, title, wide) {
   setWideLayout(!!wide);
   clearMsg();
   setTitle(title);
-  setFloatingYaya('', '');
+  setFloatingYaya('');
   return token;
 }
 
@@ -979,10 +973,9 @@ function loadingHtml(text) {
   `;
 }
 
-function setFloatingYaya(mode, text) {
+function setFloatingYaya(mode) {
   const box = document.getElementById('floating-yaya');
   const sprite = document.getElementById('floating-yaya-sprite');
-  const label = document.getElementById('floating-yaya-text');
   if (!box || !sprite) return;
   const safeMode = ['home','search','form','submitting','success'].includes(mode) ? mode : '';
   if (!safeMode) {
@@ -992,7 +985,6 @@ function setFloatingYaya(mode, text) {
   const state = safeMode === 'search' || safeMode === 'form' ? 'think' : (safeMode === 'success' ? 'success' : 'sleep');
   box.className = 'floating-yaya on ' + safeMode;
   sprite.className = 'yaya-sprite yaya-' + state;
-  if (label) label.textContent = text || '芽芽陪你找課程';
 }
 
 function showLoading(text) {
@@ -1671,13 +1663,13 @@ function renderHomeShell(courses) {
     <div id="course-list"></div>
   `;
 
-  setFloatingYaya('home', '芽芽陪你找課程');
+  setFloatingYaya('home');
   renderPublicCourseList(visibleCoursesOnly(courses || []));
 }
 
 function handleHomeSearchInput() {
   const q = val('course-search');
-  setFloatingYaya(q ? 'search' : 'home', q ? '芽芽正在找課程' : '芽芽陪你找課程');
+  setFloatingYaya(q ? 'search' : 'home');
   filterPublicCourses();
 }
 
@@ -5306,7 +5298,7 @@ function renderRegisterFormBody(isBackgroundLoading) {
     </div>
   `;
 
-  setFloatingYaya('form', isBackgroundLoading ? '載入報名表' : '芽芽陪你填寫報名');
+  setFloatingYaya('form');
   setTimeout(() => {
     const nameInput = document.getElementById('r-name');
     if (nameInput) nameInput.focus();
@@ -5569,7 +5561,7 @@ function setRegisterButtonDisabled(disabled, text) {
   if (!btn) return;
   btn.disabled = !!disabled;
   btn.textContent = text || '送出報名';
-  if (disabled && String(text || '').includes('送出')) setFloatingYaya('submitting', '報名小樹成長中');
+  if (disabled && String(text || '').includes('送出')) setFloatingYaya('submitting');
 }
 
 function setRosterAddSubmitDisabled(disabled, text) {
@@ -5638,12 +5630,12 @@ function autoLookupMemberDebounced() {
 
   if (!clean) {
     if (box) box.innerHTML = '';
-    setFloatingYaya('form', '芽芽陪你填寫報名');
+    setFloatingYaya('form');
     setRegisterButtonDisabled(false, '送出報名');
     return;
   }
 
-  setFloatingYaya('form', '查詢名冊中');
+  setFloatingYaya('form');
   setRegisterButtonDisabled(false, '送出報名');
   if (box) box.innerHTML = '<div class="msg on info">查詢名冊中...</div>';
   lookupTimer = setTimeout(() => autoLookupMemberRemote(clean, name), 180);
@@ -6165,7 +6157,7 @@ async function submitRegister() {
 
   isSubmittingRegistration = true;
   setRegisterButtonDisabled(true, '送出中...');
-  setFloatingYaya('submitting', '報名小樹成長中');
+  setFloatingYaya('submitting');
   showActionLock('正在送出報名', '請稍候，正在寫入報名資料。');
   showRegisterMsg('送出中...', 'info');
 
@@ -6186,7 +6178,7 @@ async function submitRegister() {
 
     if (res.status === 'ok') {
       submittedOk = true;
-      setFloatingYaya('submitting', '報名小樹長大了');
+      setFloatingYaya('submitting');
       const newRegistrant = {
         name: res.name || name,
         cleanName: clean,
@@ -6254,8 +6246,8 @@ async function submitRegister() {
   } finally {
     isSubmittingRegistration = false;
     hideActionLock();
-    if (submittedOk) setTimeout(() => { if (currentView === 'register') setFloatingYaya('', ''); }, 3200);
-    else setFloatingYaya('', '');
+    if (submittedOk) setTimeout(() => { if (currentView === 'register') setFloatingYaya(''); }, 3200);
+    else setFloatingYaya('');
     if (!isCurrentNameDuplicate) setRegisterButtonDisabled(false, '送出報名');
   }
 }
