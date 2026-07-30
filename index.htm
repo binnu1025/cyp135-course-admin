@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.63</title>
+  <title>CYP135 課程報名 V6.64</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -688,7 +688,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.63</small>
+    <small>CYP135 課程系統 V6.64</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -1555,7 +1555,7 @@ function setWideLayout(wide) {
 function updateMenuButtonVisibility() {
   const btn = document.querySelector('.menu-btn');
   if (!btn) return;
-  btn.style.display = isAdminUser ? '' : 'none';
+  btn.style.display = isSharedEntry ? 'none' : '';
 }
 
 function renderMenu() {
@@ -1564,20 +1564,19 @@ function renderMenu() {
   updateMenuButtonVisibility();
 
   if (isSharedEntry) {
-    const registerItem = currentCourse && canCourseRegister(currentCourse)
-      ? '<button class="menu-item" onclick="toggleMenu(false);renderRegisterForm()">我要報名</button>'
-      : '';
-    menu.innerHTML = `
-      <div class="menu-head">CYP135 課程系統</div>
-      <div class="menu-list">
-        <button class="menu-item" onclick="toggleMenu(false);goHomeFromHeader()">活動詳情</button>
-        ${registerItem}
-        <button class="menu-item" onclick="toggleMenu(false)">關閉選單</button>
-      </div>
-    `;
+    menu.innerHTML = '';
     return;
   }
 
+  const courseBtns = currentCourse
+    ? `
+      <button class="menu-item" onclick="toggleMenu(false);renderCourseDetailPage('${esc(currentCourse.eventCode)}')">活動詳情</button>
+      ${canCourseRegister(currentCourse) ? '<button class="menu-item" onclick="toggleMenu(false);renderRegisterForm()">我要報名</button>' : ''}
+    `
+    : '';
+  const rosterBtns = currentCourse && (canViewRoster || isAdminUser)
+    ? `<button class="menu-item" onclick="toggleMenu(false);renderCourseRosterPage('${esc(currentCourse.eventCode)}')">名單</button>`
+    : '';
   const adminBtns = isAdminUser
     ? `
       <button class="menu-item" onclick="toggleMenu(false);renderCreateCoursePage()">建立課程</button>
@@ -1592,10 +1591,12 @@ function renderMenu() {
     <div class="menu-head">CYP135 課程系統</div>
     <div class="menu-list">
       <button class="menu-item" onclick="toggleMenu(false);renderHomePage({skipRefresh:true})">報名課程</button>
+      ${courseBtns}
+      ${rosterBtns}
       ${adminBtns}
       <button class="menu-item" onclick="toggleMenu(false)">關閉選單</button>
     </div>
-    <div class="menu-note">首頁顯示所有課程；會長可直接從課程卡片編輯。</div>
+    <div class="menu-note">${isAdminUser ? '會長可使用課程建立、以往課程、票券與匯入工具。' : '分享入口不顯示選單；管理項目依權限顯示。'}</div>
   `;
 }
 
