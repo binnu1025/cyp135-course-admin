@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.63</title>
+  <title>CYP135 課程報名 V6.65</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
 
 // ─────────────────────────────────────────────
@@ -523,6 +523,12 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .confirm-panel{text-align:center;padding:22px 20px 18px}
 .confirm-panel .dialog-title{font-size:20px;margin-bottom:10px}
 .confirm-panel .dialog-text{font-size:15px;color:#4f4a43;line-height:1.75;margin-bottom:16px}
+.permission-debug-panel{text-align:left}
+.permission-debug-list{margin:14px 0;border:1px solid #ece5d8;border-radius:12px;overflow:hidden;background:#fff}
+.permission-debug-row{display:grid;grid-template-columns:104px minmax(0,1fr);gap:8px;padding:10px 12px;border-bottom:1px solid #f0eadf;font-size:13px;line-height:1.55}
+.permission-debug-row:last-child{border-bottom:none}
+.permission-debug-row strong{color:#2d5a3d}
+.permission-debug-value{word-break:break-all;color:#4f4a43}
 .past-course-list{display:grid;gap:8px;margin-top:12px}
 .past-course-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid #eee7da;border-radius:13px;background:#fff;padding:10px}
 .past-course-main{min-width:0}
@@ -688,7 +694,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.63</small>
+    <small>CYP135 課程系統 V6.65</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -763,8 +769,8 @@ let sharedCourseToken = '';
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v96';
-const ADMIN_CACHE_KEY = 'cyp135_admin_init_v67';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v97';
+const ADMIN_CACHE_KEY = 'cyp135_admin_init_v68';
 const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v93_';
 let currentView = '';
 let appState = {
@@ -1555,7 +1561,89 @@ function setWideLayout(wide) {
 function updateMenuButtonVisibility() {
   const btn = document.querySelector('.menu-btn');
   if (!btn) return;
-  btn.style.display = isAdminUser ? '' : 'none';
+  btn.style.display = isSharedEntry ? 'none' : '';
+}
+
+function permissionDebugRow(label, value) {
+  const text = value === undefined || value === null || value === '' ? '未取得' : value;
+  return `<div class="permission-debug-row"><strong>${esc(label)}</strong><span class="permission-debug-value">${esc(text)}</span></div>`;
+}
+
+function getPermissionDebugHtml() {
+  const audit = (publicData && publicData.permissionAudit) || {};
+  let liffEnv = '未確認';
+  let liffLogin = '未確認';
+  try {
+    if (window.liff) {
+      liffEnv = liff.isInClient && liff.isInClient() ? 'LINE 內建 LIFF' : '外部瀏覽器';
+      liffLogin = liff.isLoggedIn && liff.isLoggedIn() ? '已登入' : '未登入';
+    }
+  } catch (e) {}
+
+  const rows = [
+    ['LINE 名稱', displayName],
+    ['前端 UID', userId],
+    ['後端 UID', audit.userId],
+    ['LIFF 環境', liffEnv],
+    ['LIFF 登入', liffLogin],
+    ['目前入口', isSharedEntry ? '分享入口 / 訪客模式' : '一般課程入口'],
+    ['會長權限', isAdminUser ? '是' : '否'],
+    ['名單查看', canViewRoster ? '是' : '否'],
+    ['名單管理', userCanManageRoster() ? '是' : '否'],
+    ['權限角色', audit.role || (publicData && publicData.role) || ''],
+    ['可看雁群', (audit.rosterScopeFlocks || []).join('、')],
+    ['資料來源', publicData ? (publicData.cached ? '本機快取' : '後端回傳') : '尚未載入']
+  ];
+  return rows.map(row => permissionDebugRow(row[0], row[1])).join('');
+}
+
+function openPermissionDebugDialog() {
+  if (isSharedEntry) return;
+  const backdrop = document.getElementById('dialog-backdrop');
+  if (!backdrop) return;
+  backdrop.innerHTML = `
+    <div class="dialog-panel confirm-panel permission-debug-panel" role="dialog" aria-modal="true" aria-labelledby="permission-debug-title" onclick="event.stopPropagation()">
+      <div id="permission-debug-title" class="dialog-title">權限狀態</div>
+      <div class="dialog-text">這裡顯示本裝置這次實際取得的 LINE 身分與後端權限判定。</div>
+      <div class="permission-debug-list">${getPermissionDebugHtml()}</div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-sub" id="permission-debug-refresh">重新檢查</button>
+        <button type="button" class="btn btn-main" id="permission-debug-close">關閉</button>
+      </div>
+    </div>
+  `;
+  backdrop.classList.add('on');
+  document.body.style.overflow = 'hidden';
+  const cleanup = () => {
+    backdrop.classList.remove('on');
+    backdrop.innerHTML = '';
+    document.body.style.overflow = '';
+  };
+  document.getElementById('permission-debug-close').onclick = cleanup;
+  document.getElementById('permission-debug-refresh').onclick = async () => {
+    cleanup();
+    await refreshPermissionDebug();
+  };
+  backdrop.onclick = cleanup;
+}
+
+async function refreshPermissionDebug() {
+  if (isSharedEntry) return;
+  showActionLock('正在重新檢查權限', '請稍候，正在重新讀取 LINE 權限與課程資料。');
+  try {
+    try { localStorage.removeItem(PUBLIC_CACHE_KEY); } catch (e) {}
+    const data = await ensurePublicData(true);
+    if (data && data.status === 'ok') {
+      renderMenu();
+      openPermissionDebugDialog();
+    } else {
+      showMsg(esc((data && data.message) || '重新檢查權限失敗'), 'err');
+    }
+  } catch (err) {
+    showMsg(esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
 }
 
 function renderMenu() {
@@ -1564,20 +1652,19 @@ function renderMenu() {
   updateMenuButtonVisibility();
 
   if (isSharedEntry) {
-    const registerItem = currentCourse && canCourseRegister(currentCourse)
-      ? '<button class="menu-item" onclick="toggleMenu(false);renderRegisterForm()">我要報名</button>'
-      : '';
-    menu.innerHTML = `
-      <div class="menu-head">CYP135 課程系統</div>
-      <div class="menu-list">
-        <button class="menu-item" onclick="toggleMenu(false);goHomeFromHeader()">活動詳情</button>
-        ${registerItem}
-        <button class="menu-item" onclick="toggleMenu(false)">關閉選單</button>
-      </div>
-    `;
+    menu.innerHTML = '';
     return;
   }
 
+  const courseBtns = currentCourse
+    ? `
+      <button class="menu-item" onclick="toggleMenu(false);renderCourseDetailPage('${esc(currentCourse.eventCode)}')">活動詳情</button>
+      ${canCourseRegister(currentCourse) ? '<button class="menu-item" onclick="toggleMenu(false);renderRegisterForm()">我要報名</button>' : ''}
+    `
+    : '';
+  const rosterBtns = currentCourse && (canViewRoster || isAdminUser)
+    ? `<button class="menu-item" onclick="toggleMenu(false);renderCourseRosterPage('${esc(currentCourse.eventCode)}')">名單</button>`
+    : '';
   const adminBtns = isAdminUser
     ? `
       <button class="menu-item" onclick="toggleMenu(false);renderCreateCoursePage()">建立課程</button>
@@ -1592,10 +1679,13 @@ function renderMenu() {
     <div class="menu-head">CYP135 課程系統</div>
     <div class="menu-list">
       <button class="menu-item" onclick="toggleMenu(false);renderHomePage({skipRefresh:true})">報名課程</button>
+      <button class="menu-item" onclick="toggleMenu(false);openPermissionDebugDialog()">權限狀態</button>
+      ${courseBtns}
+      ${rosterBtns}
       ${adminBtns}
       <button class="menu-item" onclick="toggleMenu(false)">關閉選單</button>
     </div>
-    <div class="menu-note">首頁顯示所有課程；會長可直接從課程卡片編輯。</div>
+    <div class="menu-note">${isAdminUser ? '會長可使用課程建立、以往課程、票券與匯入工具。' : '分享入口不顯示選單；管理項目依權限顯示。'}</div>
   `;
 }
 
