@@ -6743,9 +6743,10 @@ async function renderPortalPage() {
   const token = beginPage('portal', '系統入口', true);
   renderPortalShell();
 
-  // 會長需要 links / seatMembers，若尚未載入就補抓一次再重畫
+  // 會長需要 links；undefined 代表是舊版快取（沒有這個欄位），強制重抓一次再重畫
   if (isAdminUser && !(initData && initData.links)) {
-    try { await getCachedAdminData_(); } catch (e) {}
+    const stale = initData && typeof initData.links === 'undefined';
+    try { await getCachedAdminData_(stale); } catch (e) {}
     if (!isPageActive(token, 'portal')) return;
     renderPortalShell();
   }
@@ -6866,6 +6867,13 @@ async function renderSeatPage() {
   if (!isPageActive(token, 'seat')) return;
   stopLoading();
   if (!allowed) return;
+
+  // 舊版快取沒有 seatMembers 欄位，會誤判成「沒設定」。undefined 代表快取過期，強制重抓一次；
+  // 空陣列才是真的沒設定。links 同理（排課表磚會變成「未啟用」）。
+  if (initData && (typeof initData.seatMembers === 'undefined' || typeof initData.links === 'undefined')) {
+    try { await getCachedAdminData_(true); } catch (e) {}
+    if (!isPageActive(token, 'seat')) return;
+  }
 
   sMembers = ((initData && initData.seatMembers) || []).filter(m => m && m.name && m.color);
   sBigGroups = sBuildBigGroups();
