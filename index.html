@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.67</title>
+  <title>CYP135 課程報名 V6.68</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -412,7 +412,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.67</small>
+    <small>CYP135 課程系統 V6.68</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -6743,18 +6743,25 @@ async function renderPortalPage() {
   const token = beginPage('portal', '系統入口', true);
   renderPortalShell();
 
-  // 會長需要 links；undefined 代表是舊版快取（沒有這個欄位），強制重抓一次再重畫
-  if (isAdminUser && !(initData && initData.links)) {
-    const stale = initData && typeof initData.links === 'undefined';
-    try { await getCachedAdminData_(stale); } catch (e) {}
+  // 會長需要 links。同樣不依賴 initData，直接用回傳值；沒拿到就強制重抓一次。
+  if (isAdminUser && !portalLinks.schedule) {
+    let d = null;
+    try { d = await getCachedAdminData_(false); } catch (e) {}
     if (!isPageActive(token, 'portal')) return;
+    if (!d || !d.links || !d.links.schedule) {
+      try { d = await getCachedAdminData_(true); } catch (e) {}
+      if (!isPageActive(token, 'portal')) return;
+    }
+    portalLinks = (d && d.links) || {};
     renderPortalShell();
   }
 }
 
+let portalLinks = {};
+
 function renderPortalShell() {
   const app = document.getElementById('app');
-  const links = (initData && initData.links) || {};
+  const links = (portalLinks && portalLinks.schedule) ? portalLinks : ((initData && initData.links) || {});
 
   const mainTiles = [
     portalTile({
@@ -6839,6 +6846,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
+const SEAT_DIAG_VERSION = 'V6.68';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -6868,14 +6876,27 @@ async function renderSeatPage() {
   stopLoading();
   if (!allowed) return;
 
-  // 舊版快取沒有 seatMembers 欄位，會誤判成「沒設定」。undefined 代表快取過期，強制重抓一次；
-  // 空陣列才是真的沒設定。links 同理（排課表磚會變成「未啟用」）。
-  if (initData && (typeof initData.seatMembers === 'undefined' || typeof initData.links === 'undefined')) {
-    try { await getCachedAdminData_(true); } catch (e) {}
+  // 直接用回傳值，不依賴 initData 被正確更新（快取路徑不一定會寫回去）。
+  // 名單空的就一定再強制抓一次真的，這頁只有會長會開，多一次請求無所謂。
+  let seatData = null;
+  let seatDiag = { source: '', raw: 0, err: '' };
+  try {
+    seatData = await getCachedAdminData_(false);
+  } catch (e) { seatDiag.err = e.message || String(e); }
+  if (!isPageActive(token, 'seat')) return;
+
+  seatDiag.source = '快取';
+  if (!seatData || !Array.isArray(seatData.seatMembers) || !seatData.seatMembers.length) {
+    try {
+      seatData = await getCachedAdminData_(true);
+      seatDiag.source = '重新抓取';
+    } catch (e) { seatDiag.err = e.message || String(e); }
     if (!isPageActive(token, 'seat')) return;
   }
 
-  sMembers = ((initData && initData.seatMembers) || []).filter(m => m && m.name && m.color);
+  const rawMembers = (seatData && seatData.seatMembers) || [];
+  seatDiag.raw = Array.isArray(rawMembers) ? rawMembers.length : -1;
+  sMembers = rawMembers.filter(m => m && m.name && m.color);
   sBigGroups = sBuildBigGroups();
   sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
   sState = null;
@@ -6888,6 +6909,14 @@ async function renderSeatPage() {
         <p class="meta">請在試算表「上手白金名單」分頁填好標題為<b>姓名</b>、<b>大組</b>、<b>顏色</b>、<b>圖示</b>的欄位。<br>
         只有「姓名」與「顏色」都有填的人才會出現在座位系統。<br><br>
         改完之後，回到系統入口按一次「清除前台快取」即可生效。</p>
+        <p class="meta" style="margin-top:12px;padding-top:10px;border-top:1px solid #eee;font-size:12px;color:#999">
+          診斷資訊（回報問題時請一起截圖）<br>
+          前端版本：${esc(SEAT_DIAG_VERSION)}　資料來源：${esc(seatDiag.source || '無')}<br>
+          後端有無 seatMembers 欄位：${seatData && typeof seatData.seatMembers !== 'undefined' ? '有' : '沒有'}
+          筆數：${seatDiag.raw}<br>
+          會長權限：${seatData && seatData.allowed ? '是' : '否'}
+          ${seatDiag.err ? '<br>錯誤：' + esc(seatDiag.err) : ''}
+        </p>
       </div>`;
     return;
   }
