@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.68</title>
+  <title>CYP135 課程報名 V6.69</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -406,13 +406,74 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   #page-seat .s-seat{color:#000 !important;border:1px solid #999}
   #page-seat h1{-webkit-background-clip:initial;background:none;color:#000}
 }
+/* ═══ 首頁主視覺 Hero ═══ */
+.hero{position:relative;margin:-14px -14px 0;min-height:56vh;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;background:#1b2a20}
+.hero-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 34%}
+.hero-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(12,22,16,.42) 0%,rgba(12,22,16,.10) 34%,rgba(12,22,16,.62) 74%,rgba(12,22,16,.90) 100%)}
+.hero-inner{position:relative;text-align:center;padding:0 18px 84px;width:100%}
+.hero-title{font-size:clamp(25px,7.2vw,38px);font-weight:900;color:#fff;letter-spacing:.03em;line-height:1.25;text-shadow:0 2px 14px rgba(0,0,0,.55)}
+.hero-sub{margin-top:7px;font-size:13px;color:rgba(255,255,255,.9);text-shadow:0 1px 8px rgba(0,0,0,.6);line-height:1.7}
+.hero-badge{display:inline-block;margin-top:11px;font-size:11.5px;font-weight:900;color:#12351f;background:rgba(255,255,255,.9);border-radius:999px;padding:4px 13px}
+
+/* 圓形快捷鍵：壓在主視覺下緣 */
+.quick-row{position:relative;margin:-62px 0 18px;display:flex;justify-content:center;gap:14px;padding:0 6px;z-index:2}
+.quick-btn{flex:0 1 104px;background:none;border:none;padding:0;font-family:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px}
+.quick-btn .qc{width:74px;height:74px;border-radius:50%;background:rgba(28,52,36,.9);border:1.5px solid rgba(255,255,255,.28);display:flex;align-items:center;justify-content:center;font-size:27px;box-shadow:0 6px 18px rgba(0,0,0,.3);backdrop-filter:blur(3px)}
+.quick-btn:active .qc{transform:scale(.94)}
+.quick-btn .ql{font-size:13px;font-weight:900;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.7)}
+@media(max-width:359px){.quick-row{gap:9px}.quick-btn .qc{width:64px;height:64px;font-size:23px}.quick-btn .ql{font-size:12px}}
+
+.home-section{margin-bottom:16px}
+.home-section-title{font-size:13px;font-weight:900;color:#2d5a3d;margin:0 0 9px;display:flex;align-items:center;gap:7px}
+.home-section-title::before{content:"";width:5px;height:5px;border-radius:50%;background:#2d5a3d;flex-shrink:0}
+
+/* ═══ 月曆課表 ═══ */
+.cal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}
+.cal-title{font-size:16px;font-weight:900;color:#2a2620}
+.cal-nav{display:flex;gap:7px}
+.cal-nav button{width:38px;height:38px;border-radius:11px;border:1px solid rgba(45,90,61,.2);background:#fff;color:#2d5a3d;font-size:16px;font-weight:900;cursor:pointer;font-family:inherit;padding:0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-dow{text-align:center;font-size:11px;font-weight:900;color:#8a8a8a;padding:5px 0}
+.cal-cell{aspect-ratio:1/1;border-radius:11px;border:1px solid transparent;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:default;font-family:inherit;padding:0;position:relative}
+.cal-cell.blank{background:transparent}
+.cal-cell .d{font-size:13.5px;color:#3a3a3a;font-weight:700}
+.cal-cell.has{background:#eef5f0;border-color:rgba(45,90,61,.22);cursor:pointer}
+.cal-cell.has .d{color:#1f4630;font-weight:900}
+.cal-cell .dots{display:flex;gap:2.5px}
+.cal-cell .dot{width:5px;height:5px;border-radius:50%;background:#4a8062}
+.cal-cell.today{border-color:#d8a13a;border-width:2px}
+.cal-cell.sel{background:#2d5a3d;border-color:#2d5a3d}
+.cal-cell.sel .d{color:#fff}
+.cal-cell.sel .dot{background:rgba(255,255,255,.9)}
+.cal-empty{text-align:center;color:#999;font-size:13px;padding:22px 10px;line-height:1.8}
+
+/* 課程卡 */
+.cls-card{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:16px;padding:14px;margin-bottom:11px;box-shadow:0 3px 12px rgba(0,0,0,.045)}
+.cls-card .cls-when{font-size:12px;color:#4a8062;font-weight:900;letter-spacing:.02em}
+.cls-card h4{font-size:16.5px;font-weight:900;color:#2a2620;margin:4px 0 7px;line-height:1.4}
+.cls-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.cls-tag{font-size:11.5px;color:#3c6b4d;background:#eef5f0;border-radius:999px;padding:3px 10px}
+.cls-edm{width:100%;border-radius:12px;display:block;margin:9px 0;background:#f0ede8}
+.cls-promo{font-size:13.5px;color:#444;line-height:1.85;white-space:pre-wrap;word-break:break-word;background:#faf9f6;border-radius:11px;padding:11px 12px;margin-bottom:9px}
+.cls-actions{display:flex;flex-wrap:wrap;gap:7px}
+.cls-actions .btn{width:auto;flex:1 1 auto;min-width:112px;padding:10px 13px;font-size:13.5px}
+.cls-meet{display:inline-block;font-size:12.5px;color:#2d5a3d;word-break:break-all;margin-bottom:8px}
+.cls-admin{border-top:1px dashed rgba(45,90,61,.22);margin-top:11px;padding-top:11px}
+.cls-admin .btn{width:auto;flex:1 1 auto;min-width:104px;padding:9px 12px;font-size:13px}
+
+/* ═══ 我的報名 ═══ */
+.reg-row{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:14px;padding:12px 13px;margin-bottom:9px}
+.reg-row .rn{font-size:15px;font-weight:900;color:#2a2620}
+.reg-row .re{font-size:13px;color:#4a8062;font-weight:700;margin-top:2px}
+.reg-row .rm{font-size:12px;color:#777;margin-top:5px;line-height:1.7}
+.reg-empty{text-align:center;color:#999;font-size:13.5px;padding:26px 12px;line-height:1.9}
 </style>
 </head>
 <body>
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.68</small>
+    <small>CYP135 課程系統 V6.69</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -1256,15 +1317,12 @@ function goHomeFromHeader() {
   toggleMenu(false);
   const clock = document.getElementById('clock-backdrop');
   if (clock) clock.classList.remove('on');
+  // 訪客（分享入口）也給一條回首頁的路：離開分享模式再進首頁。
   if (isSharedEntry) {
-    if (currentCourse) {
-      renderCourseDetailContent(currentCourse);
-    } else if (sharedCourseToken) {
-      renderSharedCourseDetail(sharedCourseToken);
-    }
-    return;
+    setSharedEntryMode(false);
+    renderMenu();
   }
-  renderHomePage({ skipRefresh: true });
+  renderPortalPage();
 }
 
 function handleHeaderHomeKey(event) {
@@ -1407,7 +1465,8 @@ function renderMenu() {
   menu.innerHTML = `
     <div class="menu-head">CYP135 課程系統</div>
     <div class="menu-list">
-      <button class="menu-item" onclick="toggleMenu(false);renderPortalPage()">系統入口</button>
+      <button class="menu-item" onclick="toggleMenu(false);renderPortalPage()">首頁</button>
+      <button class="menu-item" onclick="toggleMenu(false);renderSchedulePage()">課表</button>
       <button class="menu-item" onclick="toggleMenu(false);renderHomePage({skipRefresh:true})">報名課程</button>
       <button class="menu-item" onclick="toggleMenu(false);openPermissionDebugDialog()">權限狀態</button>
       ${courseBtns}
@@ -1512,8 +1571,12 @@ window.addEventListener('DOMContentLoaded', async function() {
   } else if (mode === 'import') {
     renderExternalImportPage(courseCode);
     ensurePublicData(true).catch(() => {});
+  } else if (mode === 'home' || mode === 'portal') {
+    renderPortalPage();
+    ensurePublicData(true).catch(() => {});
   } else {
-    renderHomePage();
+    renderPortalPage();
+    ensurePublicData(true).catch(() => {});
   }
 });
 
@@ -6763,12 +6826,7 @@ function renderPortalShell() {
   const app = document.getElementById('app');
   const links = (portalLinks && portalLinks.schedule) ? portalLinks : ((initData && initData.links) || {});
 
-  const mainTiles = [
-    portalTile({
-      ico: '📚', title: '報名課程', desc: '瀏覽課程、報名、轉貼給朋友',
-      onclick: 'renderHomePage({skipRefresh:true})'
-    })
-  ];
+  const mainTiles = [];
 
   if (currentCourse && (canViewRoster || isAdminUser)) {
     mainTiles.push(portalTile({
@@ -6795,12 +6853,12 @@ function renderPortalShell() {
 
     if (links.schedule) {
       toolTiles.push(portalTile({
-        ico: '🗓️', title: '排課表', desc: '課程排程管理', admin: true, ext: true,
+        ico: '✏️', title: '課表編輯', desc: '排課程、產生課表圖', admin: true, ext: true,
         href: links.schedule
       }));
     } else {
       toolTiles.push(portalTile({
-        ico: '🗓️', title: '排課表', desc: '尚未設定網址', admin: true,
+        ico: '✏️', title: '課表編輯', desc: '尚未設定網址', admin: true,
         tag: '未啟用', onclick: 'showMsg(\'排課表網址尚未設定，請聯絡系統維護者。\',\'err\')'
       }));
     }
@@ -6825,16 +6883,18 @@ function renderPortalShell() {
   }
 
   app.innerHTML = `
-    <div class="portal-hero">
-      <h2>CYP135 系統入口</h2>
-      <p>${esc(displayName ? displayName + '，歡迎回來。' : '歡迎。')}${isAdminUser ? '你目前具有會長權限。' : ''}</p>
+    ${heroHtml()}
+    <div class="home-section">
+      <p class="home-section-title">近期課程</p>
+      <div id="portal-upcoming"><div class="cal-empty">載入課表中…</div></div>
     </div>
-    <div class="portal-section">
-      <p class="portal-section-title">常用</p>
+    ${mainTiles.length ? `<div class="home-section">
+      <p class="home-section-title">其他</p>
       <div class="portal-grid">${mainTiles.join('')}</div>
-    </div>
+    </div>` : ''}
     ${adminHtml}
   `;
+  renderPortalUpcoming();
   setFloatingYaya('home');
 }
 
@@ -6846,7 +6906,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.68';
+const SEAT_DIAG_VERSION = 'V6.69';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -7477,6 +7537,402 @@ function sCopyExport() {
     } else { document.execCommand('copy'); status.textContent = '已複製到剪貼簿！'; }
   } catch (e) { status.textContent = '複製失敗，請手動選取文字後複製。'; }
   setTimeout(() => { status.textContent = ''; }, 2500);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   首頁主視覺（D12：入口＝首頁，不是多疊一層）
+   一般人零額外點擊就看得到課，會長往下滑才有工具。
+═══════════════════════════════════════════════════════════════ */
+
+const HERO_IMAGE = 'assets/chainyen-hero.jpg';
+
+function heroHtml() {
+  return `
+    <div class="hero">
+      <img class="hero-bg" src="${HERO_IMAGE}" alt="群雁桃園空間">
+      <div class="hero-scrim"></div>
+      <div class="hero-inner">
+        <div class="hero-title">CYP135 課程系統</div>
+        <div class="hero-sub">${esc(displayName ? displayName + '，歡迎回來' : '群雁桃園空間')}</div>
+        ${isAdminUser ? '<div class="hero-badge">會長權限</div>' : ''}
+      </div>
+    </div>
+    <div class="quick-row">
+      <button type="button" class="quick-btn" onclick="renderHomePage({skipRefresh:true})">
+        <span class="qc">📚</span><span class="ql">報名課程</span>
+      </button>
+      <button type="button" class="quick-btn" onclick="renderSchedulePage()">
+        <span class="qc">🗓️</span><span class="ql">課表</span>
+      </button>
+      <button type="button" class="quick-btn" onclick="renderMyRegistrationsPage()">
+        <span class="qc">📋</span><span class="ql">我的報名</span>
+      </button>
+    </div>`;
+}
+
+/* ═══ 月曆課表 ═══ */
+
+let scheduleState = { month: '', courses: [], selected: '', loading: false };
+
+function monthKey(d) {
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+}
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+function shiftMonth(key, delta) {
+  const [y, m] = key.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return monthKey(d);
+}
+
+async function renderSchedulePage(month) {
+  const token = beginPage('schedule', '課表', true);
+  const app = document.getElementById('app');
+  const target = month || scheduleState.month || monthKey(new Date());
+
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+    <div id="cal-wrap" style="margin-top:12px"></div>`;
+  renderCalendarShell(target, true);
+
+  try {
+    const data = await post('getClassSchedule', { month: target, userId }, 15000);
+    if (!isPageActive(token, 'schedule')) return;
+    if (!data || data.status !== 'ok') {
+      document.getElementById('cal-wrap').innerHTML =
+        '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc((data && data.message) || '') + '</p></div>';
+      return;
+    }
+    scheduleState.month = data.month || target;
+    scheduleState.courses = data.courses || [];
+    // 預設選今天；今天沒課就選當月第一個有課的日子
+    const t = todayKey();
+    const days = scheduleState.courses.map(c => c.date);
+    scheduleState.selected = days.indexOf(t) >= 0 ? t : (days.length ? days.sort()[0] : '');
+    renderCalendarShell(scheduleState.month, false);
+  } catch (err) {
+    if (!isPageActive(token, 'schedule')) return;
+    document.getElementById('cal-wrap').innerHTML =
+      '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+  }
+}
+
+function renderCalendarShell(month, loading) {
+  const wrap = document.getElementById('cal-wrap');
+  if (!wrap) return;
+  const [y, m] = month.split('-').map(Number);
+  const label = y + ' 年 ' + m + ' 月';
+
+  if (loading) {
+    wrap.innerHTML = `
+      <div class="cal-head"><div class="cal-title">${label}</div></div>
+      <div class="cal-empty">載入課表中…</div>`;
+    return;
+  }
+
+  const byDate = {};
+  scheduleState.courses.forEach(c => { (byDate[c.date] = byDate[c.date] || []).push(c); });
+
+  const first = new Date(y, m - 1, 1);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const lead = first.getDay();
+  const dows = ['日', '一', '二', '三', '四', '五', '六'];
+
+  let cells = dows.map(d => `<div class="cal-dow">${d}</div>`).join('');
+  for (let i = 0; i < lead; i++) cells += '<div class="cal-cell blank"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = month + '-' + ('0' + d).slice(-2);
+    const list = byDate[key] || [];
+    const cls = ['cal-cell'];
+    if (list.length) cls.push('has');
+    if (key === todayKey()) cls.push('today');
+    if (key === scheduleState.selected) cls.push('sel');
+    const dots = list.slice(0, 3).map(() => '<span class="dot"></span>').join('');
+    cells += `<button type="button" class="${cls.join(' ')}" ${list.length ? `onclick="selectScheduleDay('${key}')"` : 'disabled'}>
+      <span class="d">${d}</span><span class="dots">${dots}</span></button>`;
+  }
+
+  wrap.innerHTML = `
+    <div class="cal-head">
+      <div class="cal-title">${label}</div>
+      <div class="cal-nav">
+        <button type="button" onclick="renderSchedulePage('${shiftMonth(month, -1)}')" aria-label="上個月">‹</button>
+        <button type="button" onclick="renderSchedulePage('${shiftMonth(month, 1)}')" aria-label="下個月">›</button>
+      </div>
+    </div>
+    <div class="cal-grid">${cells}</div>
+    <div id="cal-day" style="margin-top:14px"></div>`;
+  renderScheduleDay();
+}
+
+function selectScheduleDay(key) {
+  scheduleState.selected = key;
+  renderCalendarShell(scheduleState.month, false);
+}
+
+function renderScheduleDay() {
+  const box = document.getElementById('cal-day');
+  if (!box) return;
+  const key = scheduleState.selected;
+  const list = scheduleState.courses.filter(c => c.date === key);
+
+  if (!scheduleState.courses.length) {
+    box.innerHTML = '<div class="cal-empty">這個月還沒有排課。<br>課程由排課表系統排定後會自動出現在這裡。</div>';
+    return;
+  }
+  if (!list.length) {
+    box.innerHTML = '<div class="cal-empty">請點選上方有標記的日期查看課程。</div>';
+    return;
+  }
+  box.innerHTML = list.map((c, i) => classCardHtml(c, i)).join('');
+}
+
+function classCardHtml(c, idx) {
+  const tags = [];
+  if (c.speaker) tags.push('講師：' + c.speaker);
+  if (c.host) tags.push('主持：' + c.host);
+  if (c.demo) tags.push('示範：' + c.demo);
+
+  const dateText = c.date.replace(/^\d{4}-/, '').replace('-', '/');
+  const edm = c.edm
+    ? `<img class="cls-edm" src="${esc(c.edm)}" alt="${esc(c.title)} EDM" loading="lazy"
+         onerror="this.style.display='none'">`
+    : '';
+  const promo = c.promo ? `<div class="cls-promo">${esc(c.promo)}</div>` : '';
+  const meet = c.meetUrl
+    ? `<a class="cls-meet" href="${esc(c.meetUrl)}" target="_blank" rel="noopener noreferrer">🔗 線上會議連結</a>`
+    : '';
+
+  const adminBox = isAdminUser ? `
+    <div class="cls-admin">
+      <div class="cls-actions">
+        <label class="btn btn-sub" style="width:auto;flex:1 1 auto;min-width:104px;padding:9px 12px;font-size:13px;cursor:pointer">
+          ${c.edm ? '更換 EDM' : '上傳 EDM'}
+          <input type="file" accept="image/*" style="display:none" onchange="handleClassEdmUpload(this,${idx})">
+        </label>
+        <button class="btn btn-sub" onclick="editClassPromo(${idx})">${c.promo ? '編輯宣傳文' : '新增宣傳文'}</button>
+      </div>
+    </div>` : '';
+
+  return `
+    <div class="cls-card">
+      <div class="cls-when">${dateText}${c.time ? '　' + esc(c.time) : ''}</div>
+      <h4>${esc(c.title)}</h4>
+      ${tags.length ? `<div class="cls-meta">${tags.map(t => `<span class="cls-tag">${esc(t)}</span>`).join('')}</div>` : ''}
+      ${edm}
+      ${promo}
+      ${meet}
+      <div class="cls-actions">
+        <button class="btn btn-sub" onclick="copyClassPromo(${idx})">複製宣傳文</button>
+        ${c.edm ? `<a class="btn btn-sub" href="${esc(c.edm)}" target="_blank" rel="noopener noreferrer" style="width:auto;flex:1 1 auto;min-width:112px;padding:10px 13px;font-size:13.5px">看大圖 / 存檔</a>` : ''}
+      </div>
+      ${adminBox}
+    </div>`;
+}
+
+function currentDayCourses() {
+  return scheduleState.courses.filter(c => c.date === scheduleState.selected);
+}
+
+function copyClassPromo(idx) {
+  const c = currentDayCourses()[idx];
+  if (!c) return;
+  const dateText = c.date.replace(/-/g, '/');
+  const lines = [
+    '【' + c.title + '】',
+    '📅 ' + dateText + (c.time ? '　' + c.time : '')
+  ];
+  if (c.speaker) lines.push('🎤 講師：' + c.speaker);
+  if (c.promo) { lines.push(''); lines.push(c.promo); }
+  if (c.edm) { lines.push(''); lines.push('EDM：' + c.edm); }
+  const text = lines.join('\n');
+
+  const done = () => showMsg('宣傳文已複製，可以直接貼到 LINE 群組。', 'ok');
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+    } else fallbackCopy(text, done);
+  } catch (e) { fallbackCopy(text, done); }
+}
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); }
+  catch (e) { showMsg('複製失敗，請長按文字手動複製。', 'err'); }
+  document.body.removeChild(ta);
+}
+
+async function handleClassEdmUpload(input, idx) {
+  const c = currentDayCourses()[idx];
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!c || !file) return;
+  if (file.size > 8 * 1024 * 1024) { showMsg('圖片超過 8MB，請先壓縮。', 'err'); return; }
+
+  showActionLock('正在上傳 EDM', '請稍候，正在上傳圖片並寫回課程資料。');
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error('讀取圖片失敗'));
+      r.readAsDataURL(file);
+    });
+    setActionLockProgress(55, '上傳中', '正在寫入 Google 雲端硬碟。');
+    const res = await post('uploadClassEdm', { userId, date: c.date, title: c.title, dataUrl }, 60000);
+    if (!res || res.status !== 'ok') { showMsg(esc((res && res.message) || '上傳失敗'), 'err'); return; }
+    c.edm = res.url;
+    setActionLockProgress(100, '完成', 'EDM 已更新。');
+    renderScheduleDay();
+    showMsg('EDM 已上傳。', 'ok');
+  } catch (err) {
+    showMsg(esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
+}
+
+async function editClassPromo(idx) {
+  const c = currentDayCourses()[idx];
+  if (!c) return;
+  const text = window.prompt('輸入這堂課的宣傳文（會顯示在課表上，也會一起被複製）：', c.promo || '');
+  if (text === null) return;
+
+  showActionLock('正在儲存', '請稍候。');
+  try {
+    const res = await post('saveClassPromo', { userId, date: c.date, title: c.title, promo: text }, 30000);
+    if (!res || res.status !== 'ok') { showMsg(esc((res && res.message) || '儲存失敗'), 'err'); return; }
+    c.promo = text;
+    renderScheduleDay();
+    showMsg('宣傳文已儲存。', 'ok');
+  } catch (err) {
+    showMsg(esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
+}
+
+/* ═══ 我的報名 ═══ */
+
+async function renderMyRegistrationsPage() {
+  const token = beginPage('myreg', '我的報名', true);
+  const app = document.getElementById('app');
+
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+    <div id="myreg-body" style="margin-top:12px"></div>`;
+
+  if (!userId) {
+    document.getElementById('myreg-body').innerHTML =
+      '<div class="card"><h2>需要 LINE 身分</h2><p class="meta">請從 LINE 開啟本頁，系統才知道你是誰。</p></div>';
+    return;
+  }
+
+  showLoading('查詢報名紀錄中');
+  try {
+    const data = await post('getMyRegistrations', { userId }, 20000);
+    if (!isPageActive(token, 'myreg')) return;
+    stopLoading();
+    if (!data || data.status !== 'ok') {
+      document.getElementById('myreg-body').innerHTML =
+        '<div class="card"><h2>查詢失敗</h2><p class="meta">' + esc((data && data.message) || '') + '</p></div>';
+      return;
+    }
+    renderMyRegistrationsBody(data);
+  } catch (err) {
+    if (!isPageActive(token, 'myreg')) return;
+    stopLoading();
+    document.getElementById('myreg-body').innerHTML =
+      '<div class="card"><h2>查詢失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+  }
+}
+
+function regRowHtml(r) {
+  const meta = [];
+  if (r.classType) meta.push(r.classType);
+  if (r.leader) meta.push('上手：' + r.leader);
+  if (r.flock) meta.push(r.flock);
+  if (r.regTime) meta.push(r.regTime);
+  return `
+    <div class="reg-row">
+      <div class="rn">${esc(r.name)}</div>
+      <div class="re">${esc(r.eventName || r.eventCode || '')}</div>
+      ${meta.length ? `<div class="rm">${esc(meta.join('　｜　'))}</div>` : ''}
+    </div>`;
+}
+
+function renderMyRegistrationsBody(data) {
+  const mine = data.mine || [];
+  const scoped = data.scoped || [];
+  const flocks = data.scopeFlocks || [];
+
+  let html = `<div class="home-section">
+      <p class="home-section-title">我的報名（${mine.length}）</p>
+      ${mine.length ? mine.map(regRowHtml).join('')
+        : '<div class="reg-empty">目前沒有查到你的報名紀錄。<br>只有從 LINE 報名的紀錄才會對得上你的身分。</div>'}
+    </div>`;
+
+  if (scoped.length) {
+    const scopeText = data.isAdmin ? '全部雁群（會長權限）' : flocks.join('、');
+    html += `<div class="home-section">
+        <p class="home-section-title">我可以查看的報名（${scoped.length}）</p>
+        <p class="meta" style="margin:-4px 0 9px">範圍：${esc(scopeText)}</p>
+        ${scoped.map(regRowHtml).join('')}
+      </div>`;
+  } else if (!flocks.length && !data.isAdmin) {
+    html += `<p class="meta" style="text-align:center;padding:8px 12px">
+      你目前只能查看自己的報名。若需要查看雁群名單，請聯絡會長在權限表設定。</p>`;
+  }
+
+  document.getElementById('myreg-body').innerHTML = html;
+}
+
+/* 首頁近期課程：只顯示今天起最近幾堂，點「看完整課表」進月曆 */
+async function renderPortalUpcoming() {
+  const box = document.getElementById('portal-upcoming');
+  if (!box) return;
+  const more = '<button class="btn btn-sub" style="margin-top:4px" onclick="renderSchedulePage()">看完整課表</button>';
+  try {
+    const month = monthKey(new Date());
+    const data = await post('getClassSchedule', { month, userId }, 15000);
+    const box2 = document.getElementById('portal-upcoming');
+    if (!box2) return;
+    if (!data || data.status !== 'ok') { box2.innerHTML = '<div class="cal-empty">課表載入失敗</div>' + more; return; }
+
+    scheduleState.month = data.month || month;
+    scheduleState.courses = data.courses || [];
+    const today = todayKey();
+    const next = scheduleState.courses.filter(c => c.date >= today).slice(0, 3);
+
+    if (!next.length) {
+      box2.innerHTML = '<div class="cal-empty">本月已經沒有課程了。<br>可以看看其他月份。</div>' + more;
+      return;
+    }
+    box2.innerHTML = next.map(c => {
+      const d = c.date.replace(/^\d{4}-/, '').replace('-', '/');
+      const who = [c.speaker && ('講師：' + c.speaker), c.host && ('主持：' + c.host)].filter(Boolean);
+      return '<button type="button" class="cls-card" style="width:100%;text-align:left;cursor:pointer;font-family:inherit"' +
+        ' onclick="openScheduleAt(\'' + c.date + '\')">' +
+        '<div class="cls-when">' + d + (c.time ? '　' + esc(c.time) : '') + '</div>' +
+        '<h4 style="margin-bottom:' + (who.length ? '7px' : '0') + '">' + esc(c.title) + '</h4>' +
+        (who.length ? '<div class="cls-meta">' + who.map(t => '<span class="cls-tag">' + esc(t) + '</span>').join('') + '</div>' : '') +
+        '</button>';
+    }).join('') + more;
+  } catch (err) {
+    const box3 = document.getElementById('portal-upcoming');
+    if (box3) box3.innerHTML = '<div class="cal-empty">課表載入失敗</div>' + more;
+  }
+}
+
+function openScheduleAt(dateKey) {
+  scheduleState.selected = dateKey;
+  renderSchedulePage(dateKey.slice(0, 7));
 }
 </script>
 </body>
