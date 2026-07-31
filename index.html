@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.70</title>
+  <title>CYP135 課程報名 V6.71</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -418,10 +418,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 /* 圓形快捷鍵：壓在主視覺下緣 */
 .quick-row{position:relative;margin:-62px 0 18px;display:flex;justify-content:center;gap:14px;padding:0 6px;z-index:2}
 .quick-btn{flex:0 1 104px;background:none;border:none;padding:0;font-family:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px}
-.quick-btn .qc{width:74px;height:74px;border-radius:50%;background:rgba(28,52,36,.9);border:1.5px solid rgba(255,255,255,.28);display:flex;align-items:center;justify-content:center;font-size:27px;box-shadow:0 6px 18px rgba(0,0,0,.3);backdrop-filter:blur(3px)}
+
 .quick-btn:active .qc{transform:scale(.94)}
 .quick-btn .ql{font-size:13px;font-weight:900;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.7)}
-@media(max-width:359px){.quick-row{gap:9px}.quick-btn .qc{width:64px;height:64px;font-size:23px}.quick-btn .ql{font-size:12px}}
+@media(max-width:359px){.quick-row{gap:9px}.quick-btn .ql{font-size:12px}}
 
 .home-section{margin-bottom:16px}
 .home-section-title{font-size:13px;font-weight:900;color:#2d5a3d;margin:0 0 9px;display:flex;align-items:center;gap:7px}
@@ -490,16 +490,53 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   .cal-cell.sel .cal-t .tl{background:rgba(255,255,255,.22);color:#fff}
   .cal-cell.sel .cal-t .tl.more{color:rgba(255,255,255,.85)}
 }
+
+/* ── 標題列改成 flex，容納 返回 / 標題 / 首頁 / 選單（C6）── */
+.hd{display:flex;align-items:center;gap:9px}
+.hd-home{flex:1 1 auto;min-width:0;max-width:none}
+.hd-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.hd-icon{width:42px;height:42px;flex:0 0 auto;border:none;border-radius:13px;background:rgba(255,255,255,.16);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;font-family:inherit}
+.hd-icon:active{background:rgba(255,255,255,.28)}
+.hd-icon svg{width:21px;height:21px}
+.menu-btn{position:static !important;transform:none !important;right:auto !important;width:50px !important;height:50px !important;font-size:29px !important;flex:0 0 auto}
+@media(max-width:420px){
+  .hd{padding:14px 12px 12px;gap:7px}
+  .hd-icon{width:38px;height:38px;border-radius:11px}
+  .hd-icon svg{width:19px;height:19px}
+  .menu-btn{width:44px !important;height:44px !important;font-size:25px !important}
+  .hd h1{font-size:17px}
+  .hd small{font-size:10px;margin-bottom:2px}
+}
+
+/* ── 桌機主視覺：限制寬度就同時解決「糊」與「招牌被裁」（C7）── */
+@media(min-width:720px){
+  .hero{margin:0 auto;max-width:880px;min-height:0;aspect-ratio:16/9;border-radius:20px;overflow:hidden}
+  .hero-bg{object-position:center 14%}
+  .hero-inner{padding-bottom:76px}
+  .quick-row{max-width:880px;margin-left:auto;margin-right:auto}
+}
+@media(min-width:1100px){
+  .hero{max-width:960px}
+  .quick-row{max-width:960px}
+}
 </style>
 </head>
 <body>
 
 <div class="hd">
-  <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.70</small>
+  <button id="hd-back" class="hd-icon" style="display:none" onclick="goBackInApp()" aria-label="返回上一頁">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </button>
+  <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
+    <small>CYP135 課程系統 V6.71</small>
     <h1 id="page-title">課程報名</h1>
   </div>
-  <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
+  <div class="hd-actions">
+    <button id="hd-home-btn" class="hd-icon" onclick="goHomeFromHeader()" aria-label="回首頁">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 4l8.5 6.5"/><path d="M5.5 9.6V19a1 1 0 0 0 1 1H10v-5h4v5h3.5a1 1 0 0 0 1-1V9.6"/></svg>
+    </button>
+    <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
+  </div>
 </div>
 <div id="menu-backdrop" class="menu-backdrop" onclick="toggleMenu(false)"></div>
 <div id="side-menu" class="side-menu"></div>
@@ -756,6 +793,7 @@ function beginPage(view, title, wide) {
   clearMsg();
   setTitle(title);
   setFloatingYaya('');
+  navRecord(view);
   return token;
 }
 
@@ -6950,7 +6988,7 @@ function renderPortalShell() {
   app.innerHTML = `
     ${heroHtml()}
     <div class="home-section">
-      <p class="home-section-title">近期課程</p>
+      <p class="home-section-title">開放報名</p>
       <div id="portal-upcoming"><div class="cal-empty">載入課表中…</div></div>
     </div>
     ${mainTiles.length ? `<div class="home-section">
@@ -6971,7 +7009,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.70';
+const SEAT_DIAG_VERSION = 'V6.71';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -7624,15 +7662,15 @@ function heroHtml() {
     </div>
     <div class="quick-row">
       <button type="button" class="quick-btn" onclick="renderHomePage({skipRefresh:true})">
-        <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2 2 0 0 1 2 2v13a1.5 1.5 0 0 0-1.5-1.5H5.5A1.5 1.5 0 0 1 4 16Z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H14a2 2 0 0 0-2 2v13a1.5 1.5 0 0 1 1.5-1.5h5A1.5 1.5 0 0 0 20 16Z"/></svg></span>
+        <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgA)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgA" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8FE3B0"/><stop offset="100%" stop-color="#D6F06B"/></linearGradient></defs><path d="M4 6a2 2 0 0 1 2-2h4.5A1.5 1.5 0 0 1 12 5.5v13A1.5 1.5 0 0 0 10.5 17H6a2 2 0 0 1-2-2Z"/><path d="M20 6a2 2 0 0 0-2-2h-4.5A1.5 1.5 0 0 0 12 5.5v13A1.5 1.5 0 0 1 13.5 17H18a2 2 0 0 0 2-2Z"/></svg></span>
         <span class="ql">報名課程</span>
       </button>
       <button type="button" class="quick-btn" onclick="renderSchedulePage()">
-        <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3"/><circle cx="8.5" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="14" r="1.1" fill="currentColor" stroke="none"/></svg></span>
+        <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgB)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgB" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7FD2F0"/><stop offset="100%" stop-color="#8FE3B0"/></linearGradient></defs><rect x="3.4" y="5" width="17.2" height="15" rx="4.2"/><path d="M3.4 10h17.2M8 3.4v3.2M16 3.4v3.2"/><circle cx="9" cy="14.6" r="1.15" fill="url(#qgB)" stroke="none"/><circle cx="15" cy="14.6" r="1.15" fill="url(#qgB)" stroke="none"/></svg></span>
         <span class="ql">課表</span>
       </button>
       <button type="button" class="quick-btn" onclick="renderMyRegistrationsPage()">
-        <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 8.5h6M9 12.5h6M9 16.5h3.5"/></svg></span>
+        <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgC)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgC" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#F0D27F"/><stop offset="100%" stop-color="#D6F06B"/></linearGradient></defs><rect x="4.6" y="3.4" width="14.8" height="17.2" rx="4.2"/><path d="M8.6 8.8h6.8M8.6 12.6h6.8M8.6 16.4h4"/></svg></span>
         <span class="ql">我的報名</span>
       </button>
     </div>`;
@@ -7658,27 +7696,37 @@ function shiftMonth(key, delta) {
 async function renderSchedulePage(month) {
   const token = beginPage('schedule', '課表', true);
   const app = document.getElementById('app');
-  const target = month || scheduleState.month || monthKey(new Date());
+  // C1：沒指定月份就一律當月。舊版會沿用 scheduleState.month，
+  // 導致切過月份後再從首頁進來會停在上次看的月份。
+  const target = month || monthKey(new Date());
 
   app.innerHTML = `
     <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
     <div id="cal-wrap" style="margin-top:12px"></div>`;
   renderCalendarShell(target, true);
 
+  // C5：先用本機快取即時畫出來，再視需要補抓，換月份幾乎不用等。
+  if (scheduleCache[target]) {
+    scheduleState.month = target;
+    scheduleState.courses = scheduleCache[target];
+    pickDefaultScheduleDay();
+    renderCalendarShell(target, false);
+    return;
+  }
   try {
-    const data = await post('getClassSchedule', { month: target, userId }, 15000);
+    const data = await post('getClassSchedule', { month: target, userId }, 20000);
     if (!isPageActive(token, 'schedule')) return;
     if (!data || data.status !== 'ok') {
       document.getElementById('cal-wrap').innerHTML =
         '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc((data && data.message) || '') + '</p></div>';
       return;
     }
+    // 後端一次回前後三個月，全部收進本機快取
+    if (data.byMonth) Object.keys(data.byMonth).forEach(k => { scheduleCache[k] = data.byMonth[k]; });
     scheduleState.month = data.month || target;
     scheduleState.courses = data.courses || [];
-    // 預設選今天；今天沒課就選當月第一個有課的日子
-    const t = todayKey();
-    const days = scheduleState.courses.map(c => c.date);
-    scheduleState.selected = days.indexOf(t) >= 0 ? t : (days.length ? days.sort()[0] : '');
+    scheduleCache[scheduleState.month] = scheduleState.courses;
+    pickDefaultScheduleDay();
     renderCalendarShell(scheduleState.month, false);
   } catch (err) {
     if (!isPageActive(token, 'schedule')) return;
@@ -7796,6 +7844,7 @@ function classCardHtml(c, idx) {
       ${promo}
       ${meet}
       <div class="cls-actions">
+        <button class="btn btn-sub" onclick="shareClass(${idx})">分享給 LINE 好友</button>
         <button class="btn btn-sub" onclick="copyClassPromo(${idx})">複製宣傳文</button>
         ${c.edm ? `<a class="btn btn-sub" href="${esc(c.edm)}" target="_blank" rel="noopener noreferrer" style="width:auto;flex:1 1 auto;min-width:112px;padding:10px 13px;font-size:13.5px">看大圖 / 存檔</a>` : ''}
       </div>
@@ -7845,20 +7894,42 @@ async function handleClassEdmUpload(input, idx) {
   const file = input.files && input.files[0];
   input.value = '';
   if (!c || !file) return;
-  if (file.size > 8 * 1024 * 1024) { showMsg('圖片超過 8MB，請先壓縮。', 'err'); return; }
 
-  showActionLock('正在上傳 EDM', '請稍候，正在上傳圖片並寫回課程資料。');
+  showActionLock('正在處理圖片', '請稍候，正在壓縮後上傳。');
   try {
-    const dataUrl = await new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(r.result);
-      r.onerror = () => reject(new Error('讀取圖片失敗'));
-      r.readAsDataURL(file);
-    });
+    // 先壓到 1600px / JPEG 0.82，通常從幾 MB 降到 200–400KB
+    let dataUrl;
+    try {
+      dataUrl = await compressImageFile(file, 1600, 0.82);
+    } catch (e) {
+      dataUrl = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = () => rej(new Error('讀取圖片失敗'));
+        r.readAsDataURL(file);
+      });
+    }
+
     setActionLockProgress(55, '上傳中', '正在寫入 Google 雲端硬碟。');
-    const res = await post('uploadClassEdm', { userId, date: c.date, title: c.title, dataUrl }, 60000);
+    let res;
+    try {
+      res = await post('uploadClassEdm', { userId, date: c.date, title: c.title, dataUrl }, 65000);
+    } catch (netErr) {
+      // 連線中斷不代表沒寫進去，回頭確認一次再決定要不要報錯
+      setActionLockProgress(80, '確認結果中', '連線中斷，正在確認是否已上傳成功。');
+      const saved = await verifyClassEdmSaved(c);
+      if (saved) {
+        c.edm = saved;
+        renderScheduleDay();
+        showMsg('EDM 已上傳。', 'ok');
+        return;
+      }
+      throw netErr;
+    }
+
     if (!res || res.status !== 'ok') { showMsg(esc((res && res.message) || '上傳失敗'), 'err'); return; }
     c.edm = res.url;
+    delete scheduleCache[c.date.slice(0, 7)];
     setActionLockProgress(100, '完成', 'EDM 已更新。');
     renderScheduleDay();
     showMsg('EDM 已上傳。', 'ok');
@@ -7905,9 +7976,9 @@ async function renderMyRegistrationsPage() {
     return;
   }
 
-  showLoading('查詢報名紀錄中');
+  showLoading('查詢報名紀錄中，資料多的話需要一點時間');
   try {
-    const data = await post('getMyRegistrations', { userId }, 20000);
+    const data = await post('getMyRegistrations', { userId }, 65000);
     if (!isPageActive(token, 'myreg')) return;
     stopLoading();
     if (!data || data.status !== 'ok') {
@@ -7965,45 +8036,184 @@ function renderMyRegistrationsBody(data) {
 }
 
 /* 首頁近期課程：只顯示今天起最近幾堂，點「看完整課表」進月曆 */
-async function renderPortalUpcoming() {
+// 首頁這一區列的是「報名課程」（課程管理），不是教室課表。
+// 資料 ensurePublicData 早就抓過了，這裡直接用，不再打一次 API。
+function renderPortalUpcoming() {
   const box = document.getElementById('portal-upcoming');
   if (!box) return;
-  const more = '<button class="btn btn-sub" style="margin-top:4px" onclick="renderSchedulePage()">看完整課表</button>';
-  try {
-    const month = monthKey(new Date());
-    const data = await post('getClassSchedule', { month, userId }, 15000);
-    const box2 = document.getElementById('portal-upcoming');
-    if (!box2) return;
-    if (!data || data.status !== 'ok') { box2.innerHTML = '<div class="cal-empty">課表載入失敗</div>' + more; return; }
+  const more = '<button class="btn btn-sub" style="margin-top:4px" onclick="renderHomePage({skipRefresh:true})">看全部課程</button>';
 
-    scheduleState.month = data.month || month;
-    scheduleState.courses = data.courses || [];
-    const today = todayKey();
-    const next = scheduleState.courses.filter(c => c.date >= today).slice(0, 3);
+  const all = visibleCoursesOnly((publicData && publicData.courses) || appState.courses || []);
+  const open = all.filter(c => canCourseRegister(c));
+  const list = (open.length ? open : all).slice(0, 3);
 
-    if (!next.length) {
-      box2.innerHTML = '<div class="cal-empty">本月已經沒有課程了。<br>可以看看其他月份。</div>' + more;
-      return;
-    }
-    box2.innerHTML = next.map(c => {
-      const d = c.date.replace(/^\d{4}-/, '').replace('-', '/');
-      const who = [c.speaker && ('講師：' + c.speaker), c.host && ('主持：' + c.host)].filter(Boolean);
-      return '<button type="button" class="cls-card" style="width:100%;text-align:left;cursor:pointer;font-family:inherit"' +
-        ' onclick="openScheduleAt(\'' + c.date + '\')">' +
-        '<div class="cls-when">' + d + (c.time ? '　' + esc(c.time) : '') + '</div>' +
-        '<h4 style="margin-bottom:' + (who.length ? '7px' : '0') + '">' + esc(c.title) + '</h4>' +
-        (who.length ? '<div class="cls-meta">' + who.map(t => '<span class="cls-tag">' + esc(t) + '</span>').join('') + '</div>' : '') +
-        '</button>';
-    }).join('') + more;
-  } catch (err) {
-    const box3 = document.getElementById('portal-upcoming');
-    if (box3) box3.innerHTML = '<div class="cal-empty">課表載入失敗</div>' + more;
+  if (!list.length) {
+    box.innerHTML = '<div class="cal-empty">目前沒有開放報名的課程。</div>' + more;
+    return;
   }
+
+  box.innerHTML = list.map(c => {
+    const bits = [];
+    if (c.session) bits.push(c.session);
+    if (c.ticketType) bits.push(c.ticketType);
+    if (c.statusBadge) bits.push(c.statusBadge);
+    return '<button type="button" class="cls-card" style="width:100%;text-align:left;cursor:pointer;font-family:inherit"' +
+      ' onclick="renderCourseDetailPage(\'' + esc(c.eventCode) + '\')">' +
+      '<div class="cls-when">' + esc(c.dateTime || '日期未定') + '</div>' +
+      '<h4 style="margin-bottom:' + (bits.length ? '7px' : '0') + '">' + esc(c.eventName || '未命名活動') + '</h4>' +
+      (bits.length ? '<div class="cls-meta">' + bits.map(t => '<span class="cls-tag">' + esc(t) + '</span>').join('') + '</div>' : '') +
+      '</button>';
+  }).join('') + more;
 }
 
 function openScheduleAt(dateKey) {
   scheduleState.selected = dateKey;
   renderSchedulePage(dateKey.slice(0, 7));
+}
+
+/* ═══ 課表本機快取與預設選日（C1 / C5） ═══ */
+let scheduleCache = {};
+
+function pickDefaultScheduleDay() {
+  const t = todayKey();
+  const days = scheduleState.courses.map(c => c.date).sort();
+  scheduleState.selected = days.indexOf(t) >= 0 ? t : (days.length ? days[0] : '');
+}
+
+/* ═══ 站內導覽歷史（C6） ═══
+   舊版切頁不寫入瀏覽器歷史，所以按上一頁會直接離開網站。
+   這裡每次切頁 pushState，返回鍵就會在站內走，走到底才離開。 */
+let navDepth = 0;
+let navSuppress = false;
+
+const NAV_VIEWS = {
+  portal:      () => renderPortalPage(),
+  home:        () => renderHomePage({ skipRefresh: true }),
+  schedule:    () => renderSchedulePage(scheduleState.month || undefined),
+  myreg:       () => renderMyRegistrationsPage(),
+  seat:        () => renderSeatPage(),
+  ticket:      () => renderTicketGeneratorPage(),
+  pastCourses: () => renderPastCoursesPage()
+};
+
+function navRecord(view) {
+  if (navSuppress) return;
+  try {
+    if (history.state && history.state.v === view) { updateBackButton(); return; }
+    history.pushState({ v: view }, '', location.href);
+    navDepth++;
+  } catch (e) {}
+  updateBackButton();
+}
+
+function dispatchView(view) {
+  const fn = NAV_VIEWS[view];
+  navSuppress = true;
+  try { (fn || NAV_VIEWS.portal)(); } finally { navSuppress = false; }
+  updateBackButton();
+}
+
+function goBackInApp() {
+  if (navDepth > 0) { history.back(); return; }
+  renderPortalPage();
+}
+
+function updateBackButton() {
+  const btn = document.getElementById('hd-back');
+  if (!btn) return;
+  const atHome = currentView === 'portal';
+  btn.style.display = (!atHome && navDepth > 0) ? 'flex' : 'none';
+}
+
+window.addEventListener('popstate', function (e) {
+  navDepth = Math.max(0, navDepth - 1);
+  dispatchView((e.state && e.state.v) || 'portal');
+});
+
+/* ═══ 分享課程到 LINE 好友（C2） ═══
+   三層降級：LIFF 好友選擇器 → 系統分享 → 複製文字。 */
+function buildClassShareText(c) {
+  const dateText = c.date.replace(/-/g, '/');
+  const lines = ['【' + c.title + '】', '📅 ' + dateText + (c.time ? '　' + c.time : '')];
+  if (c.speaker) lines.push('🎤 講師：' + c.speaker);
+  if (c.promo) { lines.push(''); lines.push(c.promo); }
+  return lines.join('\n');
+}
+
+async function shareClass(idx) {
+  const c = currentDayCourses()[idx];
+  if (!c) return;
+  const text = buildClassShareText(c);
+
+  try {
+    if (typeof liff !== 'undefined' && liff.isApiAvailable && liff.isApiAvailable('shareTargetPicker')) {
+      const msgs = [];
+      // 圖片訊息要求網址直接回傳 JPEG/PNG。Drive 縮圖網址通常可用，
+      // 萬一被 LINE 拒絕，下面的 catch 會退回純文字分享。
+      if (c.edm) msgs.push({ type: 'image', originalContentUrl: c.edm, previewImageUrl: c.edm });
+      msgs.push({ type: 'text', text: text });
+      try {
+        const res = await liff.shareTargetPicker(msgs);
+        if (res) showMsg('已分享給 LINE 好友。', 'ok');
+        return;
+      } catch (imgErr) {
+        if (msgs.length > 1) {
+          const res2 = await liff.shareTargetPicker([{ type: 'text', text: text + (c.edm ? '\n' + c.edm : '') }]);
+          if (res2) showMsg('已分享（圖片改以連結附上）。', 'ok');
+          return;
+        }
+        throw imgErr;
+      }
+    }
+  } catch (e) {}
+
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: c.title, text: text + (c.edm ? '\n' + c.edm : '') });
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+  }
+
+  copyClassPromo(idx);
+  showMsg('這個環境不支援直接分享，已改為複製文字。', 'ok');
+}
+
+/* ═══ 上傳前先壓縮（C3） ═══
+   手機原檔動輒 3–8MB，轉 base64 還會膨脹三成，行動網路很容易傳到一半斷線
+   （伺服器其實已經寫入成功，前端卻收到 Failed to fetch）。 */
+function compressImageFile(file, maxWidth, quality) {
+  return new Promise(function (resolve, reject) {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = function () {
+      try {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, maxWidth / (img.naturalWidth || maxWidth));
+        const w = Math.max(1, Math.round((img.naturalWidth || maxWidth) * scale));
+        const h = Math.max(1, Math.round((img.naturalHeight || maxWidth) * scale));
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(cv.toDataURL('image/jpeg', quality));
+      } catch (err) { reject(err); }
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('圖片讀取失敗')); };
+    img.src = url;
+  });
+}
+
+// 上傳看似失敗時，回頭確認伺服器是不是其實已經寫進去了
+async function verifyClassEdmSaved(c) {
+  try {
+    delete scheduleCache[c.date.slice(0, 7)];
+    const data = await post('getClassSchedule', { month: c.date.slice(0, 7), userId }, 20000);
+    if (!data || data.status !== 'ok') return '';
+    const hit = (data.courses || []).find(x => x.date === c.date && x.title === c.title);
+    if (data.byMonth) Object.keys(data.byMonth).forEach(k => { scheduleCache[k] = data.byMonth[k]; });
+    return (hit && hit.edm) || '';
+  } catch (e) { return ''; }
 }
 </script>
 </body>
