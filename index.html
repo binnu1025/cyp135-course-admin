@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.66</title>
+  <title>CYP135 課程報名 V6.67</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -303,13 +303,116 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 @media(max-width:420px){.wrap.wide{padding-left:8px;padding-right:8px}.import-summary,.roster-summary{grid-template-columns:repeat(2,1fr)}.roster-list-total{font-size:12px;padding:7px 8px}.roster-group-head{font-size:12px;padding:9px 10px;display:block}.roster-group-head strong{display:block;font-size:15px;margin-bottom:4px}.roster-group-head span{display:block;text-align:left}.roster-class-head{display:block;padding:7px 10px}.roster-class-head span{display:block;text-align:left}.roster-row{grid-template-columns:1fr}.roster-actions{justify-content:stretch}.roster-actions .btn{flex:1}.roster-line{grid-template-columns:24px minmax(0,1fr) 60px 58px;gap:5px;padding:5px 8px;font-size:12px}.roster-line-price{text-align:right}.roster-table{min-width:920px}}
 
 @media(max-width:420px){.menu-btn{right:16px;width:58px;height:58px}.side-menu{top:82px}.top-actions{gap:6px}.top-actions .btn{padding:9px 5px;font-size:12px}.course-grid{grid-template-columns:1fr}.course-actions{grid-template-columns:1fr}.row{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.date-time-clock{grid-template-columns:1fr}.course-img.placeholder{height:156px}.category-row{grid-template-columns:minmax(0,1fr) 86px 36px}.custom-field-row{grid-template-columns:1fr 1fr 36px}.custom-field-row .wide{grid-column:1 / -1}.icon-btn{width:100%}input,select,textarea{padding:11px 10px;font-size:14px}.card{padding:14px}.quick-form-grid{grid-template-columns:1fr 1fr}.field{margin-bottom:10px}.course-form-card .field-setting-grid{grid-template-columns:1fr 1fr}.course-form-card .custom-field-row{display:block}.course-form-card .custom-field-body{grid-template-columns:1fr}.course-form-card .custom-field-tools{grid-template-columns:1fr 1fr}.course-form-card .mini-section{padding-top:14px;margin-top:14px}.custom-field-body .options{grid-column:auto}.yaya-sprite{--yaya-size:54px}.floating-yaya{right:8px;bottom:calc(10px + env(safe-area-inset-bottom, 0px))}.floating-yaya .yaya-sprite{--yaya-size:58px}.yaya-click-message{max-width:138px;font-size:11px;padding:7px 9px}}
+/* ═══ 系統入口 Portal ═══ */
+.portal-hero{background:linear-gradient(135deg,#2d5a3d,#4a8062);color:#fff;border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:0 4px 14px rgba(45,90,61,.18)}
+.portal-hero h2{font-size:19px;font-weight:900;margin-bottom:5px}
+.portal-hero p{font-size:12.5px;opacity:.92;line-height:1.7}
+.portal-section{margin-bottom:16px}
+.portal-section-title{font-size:13px;font-weight:900;color:#2d5a3d;margin:0 0 9px;display:flex;align-items:center;gap:7px}
+.portal-section-title::before{content:"";width:5px;height:5px;border-radius:50%;background:#2d5a3d;display:inline-block;flex-shrink:0}
+.portal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:10px}
+.portal-tile{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:16px;padding:14px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:3px;text-decoration:none;color:inherit;font-family:inherit;box-shadow:0 3px 12px rgba(0,0,0,.045);width:100%}
+.portal-tile:active{transform:scale(.985)}
+.portal-tile .ico{font-size:21px;line-height:1.2}
+.portal-tile .ttl{font-size:15px;font-weight:900;color:#2a2620}
+.portal-tile .dsc{font-size:11.5px;color:#666;line-height:1.6}
+.portal-tile.admin{border-color:rgba(45,90,61,.3);background:#f7fbf8}
+.portal-tile .tag{font-size:10px;font-weight:900;color:#2d5a3d;background:#e8f0ea;border-radius:999px;padding:2px 8px;align-self:flex-start;margin-top:3px}
+.portal-tile.ext .ttl::after{content:" ↗";font-size:12px;color:#2d5a3d}
+.portal-empty{font-size:12.5px;color:#888;padding:10px 2px}
+@media(max-width:420px){.portal-grid{grid-template-columns:1fr 1fr;gap:8px}.portal-tile{padding:12px}.portal-tile .ttl{font-size:14px}}
+
+/* ═══ 座位分配系統（原獨立頁併入，樣式全部限定在 #page-seat 內） ═══ */
+#page-seat{--sbg:#11151d;--sbg-soft:#161b24;--scard:#1d2330;--scard2:#222938;--sborder:#2c3444;--stext:#eef1f6;--smuted:#8e98ad;--spt1:#aab4c6;--spt2:#e9edf4;--sgold:#d8b65a;
+  background:radial-gradient(circle at 15% 0%,rgba(216,182,90,.07),transparent 45%),radial-gradient(circle at 90% 10%,rgba(95,148,189,.08),transparent 40%),var(--sbg);
+  color:var(--stext);padding:18px 14px 26px;border-radius:18px;margin-bottom:14px}
+#page-seat header{margin-bottom:18px}
+#page-seat .eyebrow{font-size:11px;letter-spacing:.2em;color:var(--spt1);margin:0 0 6px;font-weight:700}
+#page-seat h1{margin:0 0 6px;font-size:clamp(22px,5vw,30px);font-weight:900;background:linear-gradient(120deg,var(--spt2),var(--sgold) 60%,var(--spt1));-webkit-background-clip:text;background-clip:text;color:transparent}
+#page-seat header p.sub{margin:0;color:var(--smuted);font-size:13px;line-height:1.7}
+#page-seat .panel{background:var(--scard);border:1px solid var(--sborder);border-radius:16px;padding:16px;margin-bottom:14px}
+#page-seat .panel h2{margin:0 0 6px;font-size:14.5px;font-weight:700;color:var(--spt2);display:flex;align-items:center;gap:8px}
+#page-seat .panel h2::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--sgold);display:inline-block;flex-shrink:0}
+#page-seat .hint{font-size:12px;color:var(--smuted);margin:0 0 12px;line-height:1.75}
+#page-seat .s-field label{display:block;font-size:12px;color:var(--smuted);margin-bottom:6px}
+#page-seat .s-field input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--sborder);background:var(--sbg-soft);color:var(--stext);font-size:15px;font-family:inherit}
+#page-seat .s-field input:focus{outline:none;border-color:var(--sgold);box-shadow:0 0 0 3px rgba(216,182,90,.15)}
+#page-seat .block-row{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;padding:10px;margin-bottom:8px}
+#page-seat .block-field{display:flex;flex-direction:column;gap:4px}
+#page-seat .block-field label{font-size:11px;color:var(--smuted)}
+#page-seat .block-field input,#page-seat .block-field select{width:92px;height:40px;padding:8px;border-radius:8px;border:1px solid var(--sborder);background:var(--scard);color:var(--stext);font-size:14px;text-align:center;font-family:inherit}
+#page-seat .block-field select{cursor:pointer;text-align-last:center}
+#page-seat .block-field input:focus,#page-seat .block-field select:focus{outline:none;border-color:var(--sgold);box-shadow:0 0 0 3px rgba(216,182,90,.12)}
+#page-seat .block-count{font-size:12.5px;color:var(--spt1);min-width:56px;text-align:center;font-family:ui-monospace,Menlo,Consolas,monospace;padding-bottom:8px}
+#page-seat .block-actions{display:flex;gap:6px;margin-left:auto;padding-bottom:2px}
+#page-seat .s-icon-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--sborder);background:var(--scard);color:var(--spt2);font-size:14px;cursor:pointer;padding:0;font-family:inherit}
+#page-seat .s-icon-btn.danger{color:#f0b4b4;border-color:rgba(216,90,90,.35)}
+#page-seat .total-seats-display{margin-top:8px;font-size:13px;color:var(--spt2);background:var(--scard2);border:1px solid var(--sborder);border-radius:10px;padding:9px 13px;display:inline-block}
+#page-seat .total-seats-display b{color:var(--sgold);font-size:16px}
+#page-seat .group-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px}
+#page-seat .group-card{background:var(--scard2);border:1px solid var(--sborder);border-radius:14px;padding:13px;border-top:3px solid var(--sborder)}
+#page-seat .group-card h3{margin:0 0 10px;font-size:12.5px;color:var(--smuted);font-weight:700;line-height:1.6}
+#page-seat .name-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+#page-seat .name-row label{font-size:14px;flex:1;display:flex;align-items:center;color:var(--stext)}
+#page-seat .name-row input{width:76px;padding:8px 10px;border-radius:8px;border:1px solid var(--sborder);background:var(--sbg-soft);color:var(--stext);font-size:14px;text-align:center;font-family:inherit}
+#page-seat .name-row input:focus{outline:none;border-color:var(--sgold)}
+#page-seat .s-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:8px;flex-shrink:0}
+#page-seat .s-btn-row{display:flex;gap:10px;flex-wrap:wrap}
+#page-seat .s-btn{font-family:inherit;font-size:14px;font-weight:700;border-radius:10px;padding:11px 20px;border:none;cursor:pointer;width:auto}
+#page-seat .s-btn:active{transform:scale(.97)}
+#page-seat .s-btn-primary{background:linear-gradient(120deg,var(--sgold),var(--spt2));color:#1a1a1a}
+#page-seat .s-btn-secondary{background:transparent;color:var(--spt2);border:1px solid var(--sborder)}
+#page-seat .s-btn-small{padding:8px 14px;font-size:13px}
+#page-seat #s-results{display:none}
+#page-seat .s-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:9px;margin-bottom:14px}
+#page-seat .s-stat{background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:12px;padding:11px 12px;text-align:center}
+#page-seat .s-stat .num{font-size:21px;font-weight:900;color:var(--spt2)}
+#page-seat .s-stat .label{font-size:11.5px;color:var(--smuted);margin-top:2px}
+#page-seat .s-warning{background:rgba(216,90,90,.1);border:1px solid rgba(216,90,90,.35);color:#f0b4b4;padding:10px 13px;border-radius:10px;font-size:13px;margin-bottom:12px;line-height:1.7}
+#page-seat .seat-card{background:var(--scard2);border:1px solid var(--sborder);border-radius:14px;padding:14px;margin-bottom:11px}
+#page-seat .seat-card .head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+#page-seat .seat-card .head h4{margin:0;font-size:15px;font-weight:700;color:var(--spt2);display:flex;align-items:center}
+#page-seat .s-badge{background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:999px;padding:4px 11px;font-size:12px;color:var(--spt1);white-space:nowrap}
+#page-seat .seat-card .range{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:var(--sgold);margin-bottom:8px;line-height:1.8}
+#page-seat .sub-list{border-top:1px solid var(--sborder);padding-top:8px;margin-top:4px}
+#page-seat .sub-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:5px 0;gap:8px;flex-wrap:wrap}
+#page-seat .sub-row .who{display:flex;align-items:center;color:var(--stext)}
+#page-seat .sub-row .meta{color:var(--smuted);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;text-align:right;line-height:1.8}
+#page-seat .sub-row .meta b{color:var(--sgold);font-weight:700}
+#page-seat .chart-hint{font-size:12px;color:var(--smuted);background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;padding:8px 12px;margin-bottom:11px;line-height:1.7}
+#page-seat .zone-columns{display:grid;gap:16px;align-items:start;grid-template-columns:1fr}
+#page-seat .zone-title{font-weight:700;font-size:12.5px;color:var(--spt2);text-align:center;letter-spacing:.1em;background:var(--scard2);border:1px solid var(--sborder);border-radius:8px;padding:6px;margin-bottom:9px}
+#page-seat .chart-block-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+#page-seat .block-chart-label{min-width:60px;flex-shrink:0;font-size:11.5px;color:var(--smuted);text-align:right;padding-right:4px;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.3}
+#page-seat .chart-seats{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+#page-seat .s-seat{min-width:56px;flex-shrink:0;border-radius:10px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;border:2px solid transparent}
+#page-seat .s-seat-selected{border-color:var(--sgold);box-shadow:0 0 0 2px rgba(216,182,90,.35);transform:scale(1.06);z-index:2}
+#page-seat .s-seat .seat-num{font-size:10px;opacity:.75;font-family:ui-monospace,Menlo,Consolas,monospace}
+#page-seat .s-seat .seat-name{font-size:12.5px;font-weight:700;margin-top:2px}
+#page-seat textarea#s-exportText{width:100%;min-height:150px;background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;color:var(--smuted);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;padding:12px;resize:vertical}
+#page-seat .copy-status{font-size:12px;color:var(--sgold);margin-top:6px;min-height:16px}
+#page-seat .s-note{font-size:11.5px;color:var(--smuted);margin-top:10px;line-height:1.7}
+@media(max-width:700px){
+  #page-seat .zone-columns{grid-template-columns:1fr !important}
+  #page-seat .block-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;gap:10px}
+  #page-seat .block-field input,#page-seat .block-field select{width:100%;height:46px;font-size:16px}
+  #page-seat .block-count{min-width:0;text-align:left;padding:8px 2px 0}
+  #page-seat .block-actions{margin-left:0;justify-content:flex-end;padding-bottom:0}
+}
+@media print{
+  .hd,.menu-btn,#side-menu,#floating-yaya{display:none !important}
+  #page-seat .s-layout-panel,#page-seat .s-settings-panel,#page-seat .s-inputs,#page-seat .s-btn-row,#page-seat .s-copy-section,#page-seat .portal-back{display:none !important}
+  #page-seat{background:#fff !important;color:#000 !important;border-radius:0}
+  #page-seat .s-seat{color:#000 !important;border:1px solid #999}
+  #page-seat h1{-webkit-background-clip:initial;background:none;color:#000}
+}
 </style>
 </head>
 <body>
 
 <div class="hd">
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="返回報名課程首頁">
-    <small>CYP135 課程系統 V6.66</small>
+    <small>CYP135 課程系統 V6.67</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
@@ -895,7 +998,9 @@ function setAdminData(data, fromCache) {
         options: data.options || {},
         flocks: data.flocks || [],
         platinumNames: data.platinumNames || [],
-        leaders: data.leaders || []
+        leaders: data.leaders || [],
+        seatMembers: data.seatMembers || [],
+        links: data.links || {}
       }));
     } catch (e) {}
   }
@@ -1293,6 +1398,7 @@ function renderMenu() {
       <button class="menu-item" onclick="toggleMenu(false);renderCreateCoursePage()">建立課程</button>
       <button class="menu-item" onclick="toggleMenu(false);renderPastCoursesPage()">以往課程</button>
       <button class="menu-item" onclick="toggleMenu(false);renderExternalImportPage()">外部名單匯入</button>
+      <button class="menu-item" onclick="toggleMenu(false);renderSeatPage()">排座位</button>
       <button class="menu-item" onclick="toggleMenu(false);renderTicketGeneratorPage()">票券產生</button>
       <button class="menu-item" onclick="toggleMenu(false);clearFrontendCourseCache()">清除前台快取</button>
     `
@@ -1301,6 +1407,7 @@ function renderMenu() {
   menu.innerHTML = `
     <div class="menu-head">CYP135 課程系統</div>
     <div class="menu-list">
+      <button class="menu-item" onclick="toggleMenu(false);renderPortalPage()">系統入口</button>
       <button class="menu-item" onclick="toggleMenu(false);renderHomePage({skipRefresh:true})">報名課程</button>
       <button class="menu-item" onclick="toggleMenu(false);openPermissionDebugDialog()">權限狀態</button>
       ${courseBtns}
@@ -6610,6 +6717,730 @@ async function uploadTicketsToDrive(forceOverwrite) {
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   系統入口 Portal
+   ─ 一般人：報名課程
+   ─ 有名單權限：名單
+   ─ 會長：排課表（外部 GAS）、排座位、課程管理工具
+   外部連結網址由後端 getCourseAdminInit 的 links 提供，只給會長，
+   不寫死在本檔，避免隨 GitHub Pages 公開。
+═══════════════════════════════════════════════════════════════ */
+
+function portalTile(opts) {
+  const cls = 'portal-tile' + (opts.admin ? ' admin' : '') + (opts.ext ? ' ext' : '');
+  const tag = opts.tag ? `<span class="tag">${esc(opts.tag)}</span>` : '';
+  const body = `<span class="ico">${opts.ico}</span>
+      <span class="ttl">${esc(opts.title)}</span>
+      <span class="dsc">${esc(opts.desc)}</span>${tag}`;
+  if (opts.href) {
+    return `<a class="${cls}" href="${esc(opts.href)}" target="_blank" rel="noopener noreferrer">${body}</a>`;
+  }
+  return `<button type="button" class="${cls}" onclick="${opts.onclick}">${body}</button>`;
+}
+
+async function renderPortalPage() {
+  const token = beginPage('portal', '系統入口', true);
+  renderPortalShell();
+
+  // 會長需要 links / seatMembers，若尚未載入就補抓一次再重畫
+  if (isAdminUser && !(initData && initData.links)) {
+    try { await getCachedAdminData_(); } catch (e) {}
+    if (!isPageActive(token, 'portal')) return;
+    renderPortalShell();
+  }
+}
+
+function renderPortalShell() {
+  const app = document.getElementById('app');
+  const links = (initData && initData.links) || {};
+
+  const mainTiles = [
+    portalTile({
+      ico: '📚', title: '報名課程', desc: '瀏覽課程、報名、轉貼給朋友',
+      onclick: 'renderHomePage({skipRefresh:true})'
+    })
+  ];
+
+  if (currentCourse && (canViewRoster || isAdminUser)) {
+    mainTiles.push(portalTile({
+      ico: '📋', title: '課程名單', desc: '查看目前課程的報名名單',
+      onclick: `renderCourseRosterPage('${esc(currentCourse.eventCode)}')`
+    }));
+  }
+
+  if (links.referral) {
+    mainTiles.push(portalTile({
+      ico: '🏆', title: '推薦競賽', desc: '前往推薦競賽登錄小幫手',
+      href: links.referral, ext: true
+    }));
+  }
+
+  let adminHtml = '';
+  if (isAdminUser) {
+    const toolTiles = [];
+
+    toolTiles.push(portalTile({
+      ico: '🪑', title: '排座位', desc: '白金小組座位自動分配', admin: true,
+      onclick: 'renderSeatPage()'
+    }));
+
+    if (links.schedule) {
+      toolTiles.push(portalTile({
+        ico: '🗓️', title: '排課表', desc: '課程排程管理', admin: true, ext: true,
+        href: links.schedule
+      }));
+    } else {
+      toolTiles.push(portalTile({
+        ico: '🗓️', title: '排課表', desc: '尚未設定網址', admin: true,
+        tag: '未啟用', onclick: 'showMsg(\'排課表網址尚未設定，請聯絡系統維護者。\',\'err\')'
+      }));
+    }
+
+    const manageTiles = [
+      portalTile({ ico: '➕', title: '建立課程', desc: '新增一堂課程', admin: true, onclick: 'renderCreateCoursePage()' }),
+      portalTile({ ico: '🗂️', title: '以往課程', desc: '查看歷史課程紀錄', admin: true, onclick: 'renderPastCoursesPage()' }),
+      portalTile({ ico: '🎫', title: '票券產生', desc: '產生報名者 QR 票券', admin: true, onclick: 'renderTicketGeneratorPage()' }),
+      portalTile({ ico: '📥', title: '外部名單匯入', desc: '匯入外部報名資料', admin: true, onclick: 'renderExternalImportPage()' }),
+      portalTile({ ico: '🧹', title: '清除前台快取', desc: '改完試算表後讓前台立即生效', admin: true, onclick: 'clearFrontendCourseCache()' })
+    ];
+
+    adminHtml = `
+      <div class="portal-section">
+        <p class="portal-section-title">會長工具</p>
+        <div class="portal-grid">${toolTiles.join('')}</div>
+      </div>
+      <div class="portal-section">
+        <p class="portal-section-title">課程管理</p>
+        <div class="portal-grid">${manageTiles.join('')}</div>
+      </div>`;
+  }
+
+  app.innerHTML = `
+    <div class="portal-hero">
+      <h2>CYP135 系統入口</h2>
+      <p>${esc(displayName ? displayName + '，歡迎回來。' : '歡迎。')}${isAdminUser ? '你目前具有會長權限。' : ''}</p>
+    </div>
+    <div class="portal-section">
+      <p class="portal-section-title">常用</p>
+      <div class="portal-grid">${mainTiles.join('')}</div>
+    </div>
+    ${adminHtml}
+  `;
+  setFloatingYaya('home');
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   座位分配系統（原「台北135_座位分配系統.html」併入）
+   名單改為從「上手白金名單」動態讀取：
+     B欄 姓名（只有台北135白金）／C欄 大組／D欄 顏色／E欄 圖示
+   顏色欄留空即可讓某人暫時不參與分配。
+═══════════════════════════════════════════════════════════════ */
+
+let sMembers = [];
+let sBigGroups = {};
+let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
+let sState = null;
+let sDragSourceIdx = null;
+
+function sBuildBigGroups() {
+  const groups = {};
+  sMembers.forEach(m => {
+    if (!m.group) return;
+    if (!groups[m.group]) groups[m.group] = { label: '', members: [] };
+    groups[m.group].members.push(m.name);
+  });
+  Object.keys(groups).forEach(k => {
+    groups[k].label = `大組${k}（${groups[k].members.join(' ・ ')}）`;
+  });
+  return groups;
+}
+
+async function renderSeatPage() {
+  const token = beginPage('seat', '排座位', true);
+  const app = document.getElementById('app');
+
+  showLoading('載入座位設定中');
+  const allowed = await ensureAdminAccess(token, 'seat');
+  if (!isPageActive(token, 'seat')) return;
+  stopLoading();
+  if (!allowed) return;
+
+  sMembers = ((initData && initData.seatMembers) || []).filter(m => m && m.name && m.color);
+  sBigGroups = sBuildBigGroups();
+  sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
+  sState = null;
+
+  if (!sMembers.length) {
+    app.innerHTML = `
+      <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回系統入口</button>
+      <div class="card" style="margin-top:12px">
+        <h2>尚未設定白金名單</h2>
+        <p class="meta">請在試算表「上手白金名單」分頁填好標題為<b>姓名</b>、<b>大組</b>、<b>顏色</b>、<b>圖示</b>的欄位。<br>
+        只有「姓名」與「顏色」都有填的人才會出現在座位系統。<br><br>
+        改完之後，回到系統入口按一次「清除前台快取」即可生效。</p>
+      </div>`;
+    return;
+  }
+
+  app.innerHTML = sSeatPageHtml();
+  sInitSeatPage();
+}
+
+function sSeatPageHtml() {
+  const groupKeys = Object.keys(sBigGroups).sort();
+  let groupCards = '';
+
+  groupKeys.forEach(k => {
+    const first = sMembers.find(m => m.group === k);
+    groupCards += `
+      <div class="group-card" style="border-top-color:${esc(first ? first.color : '#2c3444')}">
+        <h3>大組${esc(k)}　${esc(sBigGroups[k].members.join(' ・ '))}（視為一組）</h3>
+        <div>${sMemberInputsHtml(m => m.group === k)}</div>
+      </div>`;
+  });
+
+  const solo = sMembers.filter(m => !m.group);
+  if (solo.length) {
+    groupCards += `
+      <div class="group-card" style="border-top-color:${esc(solo[0].color)}">
+        <h3>獨立小組</h3>
+        <div>${sMemberInputsHtml(m => !m.group)}</div>
+      </div>`;
+  }
+
+  return `
+    <button class="btn btn-ghost portal-back" onclick="renderPortalPage()">← 返回系統入口</button>
+    <div id="page-seat" style="margin-top:12px">
+      <header>
+        <p class="eyebrow">台北135教室 ・ 白金小組會議</p>
+        <h1>座位分配系統</h1>
+        <p class="sub">設定本次實際拿到的座位區域，輸入各白金參加人數，自動依比例分配並產出座位編號</p>
+      </header>
+
+      <section class="panel s-layout-panel">
+        <h2>座位區域設定</h2>
+        <p class="hint">依實際拿到的座位逐排輸入。「區域」可選左／中／右，不分區則選「不分區」。起止號可由小到大或由大到小（例如左區第3排 8 號到 3 號＝共 6 個座位）。可新增多排，總座位數自動加總。</p>
+        <div id="s-blockList"></div>
+        <button class="s-btn s-btn-secondary s-btn-small" id="s-addBlockBtn" type="button">＋ 新增一排</button>
+        <div><div class="total-seats-display">目前設定總座位數：<b id="s-totalSeatsDisplay">0</b> 個</div></div>
+      </section>
+
+      <section class="panel s-settings-panel">
+        <h2>會議設定</h2>
+        <div class="s-field">
+          <label>會議名稱 / 日期（選填）</label>
+          <input type="text" id="s-meetingName" placeholder="例如：2026/06 共識會">
+        </div>
+      </section>
+
+      <section class="panel s-inputs">
+        <h2>各白金本次參加人數</h2>
+        <p class="hint">人數欄位空白代表 0 人。名單來自試算表「上手白金名單」，目前共 ${sMembers.length} 位。</p>
+        <div class="group-grid">${groupCards}</div>
+        <div class="s-btn-row">
+          <button class="s-btn s-btn-primary" id="s-calcBtn" type="button">計算座位分配</button>
+          <button class="s-btn s-btn-secondary" id="s-resetBtn" type="button">人數全部清空</button>
+        </div>
+      </section>
+
+      <section class="panel" id="s-results">
+        <h2>分配結果</h2>
+        <div id="s-warningArea"></div>
+        <div class="s-stats" id="s-statsArea"></div>
+        <div id="s-cardsArea"></div>
+
+        <h2 style="margin-top:20px">座位圖</h2>
+        <p class="chart-hint">💡 點兩個座位可互換位置（電腦也可直接拖曳）；左右區會分欄顯示。</p>
+        <div class="s-btn-row" style="margin-bottom:11px">
+          <button class="s-btn s-btn-secondary s-btn-small" id="s-resetAssignBtn" type="button">🔄 還原自動分配</button>
+        </div>
+        <div id="s-chartArea"></div>
+
+        <h2 style="margin-top:20px">文字版結果（可複製貼到群組）</h2>
+        <div class="s-copy-section">
+          <textarea id="s-exportText" readonly></textarea>
+          <div class="s-btn-row" style="margin-top:10px">
+            <button class="s-btn s-btn-secondary" id="s-copyBtn" type="button">複製文字結果</button>
+            <button class="s-btn s-btn-secondary" type="button" onclick="window.print()">列印 / 存PDF</button>
+          </div>
+          <div class="copy-status" id="s-copyStatus"></div>
+        </div>
+        <p class="s-note">提示：若某組分配後人數略有出入，可手動微調後重新計算；0 人的白金不會被排入座位。</p>
+      </section>
+    </div>`;
+}
+
+function sMemberInputsHtml(filterFn) {
+  let html = '';
+  sMembers.forEach((m, idx) => {
+    if (!filterFn(m)) return;
+    html += `
+      <div class="name-row">
+        <label><span class="s-dot" style="background:${esc(m.color)}"></span>${esc(m.name)}</label>
+        <input type="number" min="0" inputmode="numeric" placeholder="0" value="" id="s-inp_${idx}">
+      </div>`;
+  });
+  return html;
+}
+
+// ── 這裡是原獨立頁在載入時就跑的那幾行，改成進入座位頁時才呼叫 ──
+function sInitSeatPage() {
+  sRenderSeatBlocks();
+  document.getElementById('s-addBlockBtn').addEventListener('click', sAddBlock);
+  document.getElementById('s-calcBtn').addEventListener('click', sCalculate);
+  document.getElementById('s-resetBtn').addEventListener('click', sResetCounts);
+  document.getElementById('s-resetAssignBtn').addEventListener('click', sResetAssign);
+  document.getElementById('s-copyBtn').addEventListener('click', sCopyExport);
+}
+
+function sResetCounts() {
+  sMembers.forEach((_, idx) => {
+    const el = document.getElementById('s-inp_' + idx);
+    if (el) el.value = '';
+  });
+  const mn = document.getElementById('s-meetingName');
+  if (mn) mn.value = '';
+  document.getElementById('s-results').style.display = 'none';
+  sState = null;
+}
+
+function sResetAssign() {
+  if (!sState) return;
+  sState.assignment = [...sState.originalAssignment];
+  sState.selectedSeatIdx = null;
+  sRenderChart(); sRenderCards(); sRenderExport();
+}
+
+function sBlockSeatCount(b) {
+  const s = parseInt(b.start), e = parseInt(b.end);
+  if (isNaN(s) || isNaN(e)) return 0;
+  return Math.abs(e - s) + 1;
+}
+
+function sZoneOptions(selected) {
+  const zones = [
+    { value: '', label: '不分區' },
+    { value: '左', label: '左' },
+    { value: '中', label: '中' },
+    { value: '右', label: '右' }
+  ];
+  return zones.map(z => `<option value="${z.value}"${selected === z.value ? ' selected' : ''}>${z.label}</option>`).join('');
+}
+
+function sRenderSeatBlocks() {
+  const container = document.getElementById('s-blockList');
+  if (!container) return;
+  container.innerHTML = sSeatBlocks.map((b, i) => `
+    <div class="block-row">
+      <div class="block-field"><label>區域</label><select aria-label="第 ${i + 1} 排區域" onchange="sUpdateBlock(${i},'zone',this.value)">${sZoneOptions(b.zone)}</select></div>
+      <div class="block-field"><label>排</label><input class="s-wheel-number" type="number" min="1" max="999" step="1" inputmode="numeric" placeholder="例如 3" value="${esc(b.row)}" oninput="sUpdateBlock(${i},'row',this.value)"></div>
+      <div class="block-field"><label>起始號</label><input class="s-wheel-number" type="number" min="1" max="9999" step="1" inputmode="numeric" placeholder="例如 8" value="${esc(b.start)}" oninput="sUpdateBlock(${i},'start',this.value)"></div>
+      <div class="block-field"><label>結束號</label><input class="s-wheel-number" type="number" min="1" max="9999" step="1" inputmode="numeric" placeholder="例如 3" value="${esc(b.end)}" oninput="sUpdateBlock(${i},'end',this.value)"></div>
+      <div class="block-count" id="s-blockCount_${i}">${sBlockSeatCount(b)} 位</div>
+      <div class="block-actions">
+        <button type="button" class="s-icon-btn" onclick="sMoveBlock(${i},-1)" title="上移">↑</button>
+        <button type="button" class="s-icon-btn" onclick="sMoveBlock(${i},1)" title="下移">↓</button>
+        <button type="button" class="s-icon-btn danger" onclick="sRemoveBlock(${i})" title="刪除">✕</button>
+      </div>
+    </div>`).join('');
+  sBindNumberWheelControls();
+  sUpdateTotalSeatsDisplay();
+}
+
+function sBindNumberWheelControls() {
+  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+  document.querySelectorAll('#s-blockList .s-wheel-number').forEach(input => {
+    input.addEventListener('wheel', sHandleNumberWheel, { passive: false });
+  });
+}
+
+function sHandleNumberWheel(event) {
+  event.preventDefault();
+  const input = event.currentTarget;
+  const step = Number(input.step) || 1;
+  const min = input.min !== '' ? Number(input.min) : -Infinity;
+  const max = input.max !== '' ? Number(input.max) : Infinity;
+  let current = input.value === '' ? (Number.isFinite(min) ? min - step : 0) : Number(input.value);
+  if (!Number.isFinite(current)) current = 0;
+  const direction = event.deltaY < 0 ? 1 : -1;
+  const next = Math.min(max, Math.max(min, current + direction * step));
+  input.value = String(next);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  try { input.focus({ preventScroll: true }); } catch (err) { input.focus(); }
+}
+
+function sUpdateBlock(i, field, value) {
+  sSeatBlocks[i][field] = value;
+  const el = document.getElementById(`s-blockCount_${i}`);
+  if (el) el.textContent = sBlockSeatCount(sSeatBlocks[i]) + ' 位';
+  sUpdateTotalSeatsDisplay();
+}
+
+function sUpdateTotalSeatsDisplay() {
+  const el = document.getElementById('s-totalSeatsDisplay');
+  if (el) el.textContent = sSeatBlocks.reduce((s, b) => s + sBlockSeatCount(b), 0);
+}
+
+function sAddBlock() { sSeatBlocks.push({ zone: '', row: '', start: '', end: '' }); sRenderSeatBlocks(); }
+
+function sRemoveBlock(i) {
+  if (sSeatBlocks.length === 1) sSeatBlocks[0] = { zone: '', row: '', start: '', end: '' };
+  else sSeatBlocks.splice(i, 1);
+  sRenderSeatBlocks();
+}
+
+function sMoveBlock(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= sSeatBlocks.length) return;
+  [sSeatBlocks[i], sSeatBlocks[j]] = [sSeatBlocks[j], sSeatBlocks[i]];
+  sRenderSeatBlocks();
+}
+
+function sBuildPool() {
+  const pool = [];
+  sSeatBlocks.forEach(b => {
+    const s = parseInt(b.start), e = parseInt(b.end);
+    if (isNaN(s) || isNaN(e)) return;
+    const zone = (b.zone || '').trim(), row = (b.row || '').trim();
+    const step = e >= s ? 1 : -1;
+    let n = s;
+    while (true) {
+      pool.push({ zone, row, seatNum: n, label: sSeatLabelFromParts(zone, row, n) });
+      if (n === e) break;
+      n += step;
+    }
+  });
+  return pool;
+}
+
+function sSeatLabelFromParts(zone, row, n) {
+  let prefix = '';
+  if (zone) prefix += zone;
+  if (row) prefix += row + '排';
+  return `${prefix}${n}號`;
+}
+
+function sBlockLabel(b) {
+  const zone = (b.zone || '').trim(), row = (b.row || '').trim();
+  if (zone && row) return `${zone}${row}排`;
+  if (row) return `${row}排`;
+  if (zone) return zone;
+  return '座位';
+}
+
+function sRangeLabel(pool, startIdx, endIdx) {
+  if (startIdx === endIdx) return pool[startIdx].label;
+  return `${pool[startIdx].label} ~ ${pool[endIdx].label}`;
+}
+
+function sRangeSegmentLabels(pool, startIdx, endIdx) {
+  const segments = [];
+  let segStart = startIdx;
+  for (let i = startIdx; i <= endIdx; i++) {
+    const isLast = (i === endIdx);
+    const sameAsNext = !isLast && pool[i + 1].zone === pool[segStart].zone && pool[i + 1].row === pool[segStart].row;
+    if (!sameAsNext) { segments.push(sRangeLabel(pool, segStart, i)); segStart = i + 1; }
+  }
+  return segments;
+}
+
+function sAllocate(counts, totalSeats, forceMin1) {
+  if (typeof forceMin1 === 'undefined') forceMin1 = true;
+  const result = {};
+  Object.keys(counts).forEach(k => result[k] = 0);
+  const nonzero = Object.entries(counts).filter(([, v]) => v > 0);
+  if (nonzero.length === 0) return result;
+  const totalPeople = nonzero.reduce((s, [, v]) => s + v, 0);
+  const quotas = {};
+  nonzero.forEach(([k, v]) => quotas[k] = v / totalPeople * totalSeats);
+  nonzero.forEach(([k]) => {
+    let floorVal = Math.floor(quotas[k]);
+    if (forceMin1 && floorVal === 0) floorVal = 1;
+    result[k] = floorVal;
+  });
+  const keys = nonzero.map(([k]) => k);
+  let diff = totalSeats - keys.reduce((s, k) => s + result[k], 0);
+  if (diff > 0) {
+    const order = [...keys].sort((a, b) => (quotas[b] - result[b]) - (quotas[a] - result[a]));
+    let i = 0; while (diff > 0) { result[order[i % order.length]]++; diff--; i++; }
+  } else if (diff < 0) {
+    const order = [...keys].sort((a, b) => (quotas[a] - result[a]) - (quotas[b] - result[b]));
+    let i = 0, tries = 0;
+    const minVal = forceMin1 ? 1 : 0;
+    while (diff < 0 && tries < order.length * 10) {
+      const k = order[i % order.length];
+      if (result[k] > minVal) { result[k]--; diff++; }
+      i++; tries++;
+    }
+  }
+  return result;
+}
+
+function sCalculate() {
+  const pool = sBuildPool();
+  const totalSeats = pool.length;
+  const meetingName = (document.getElementById('s-meetingName').value || '').trim();
+  const participants = {};
+  sMembers.forEach((m, idx) => {
+    const el = document.getElementById('s-inp_' + idx);
+    participants[m.name] = Math.max(0, parseInt(el && el.value) || 0);
+  });
+  const totalPeople = Object.values(participants).reduce((a, b) => a + b, 0);
+  const warningArea = document.getElementById('s-warningArea');
+  warningArea.innerHTML = '';
+
+  if (totalSeats === 0) {
+    warningArea.innerHTML = '<div class="s-warning">尚未設定座位區域，請先在上方「座位區域設定」輸入排數與起止號。</div>';
+    sShowEmptyResults(); return;
+  }
+  if (totalPeople === 0) {
+    warningArea.innerHTML = '<div class="s-warning">尚未輸入任何人數，請至少填入一位白金的參加人數。</div>';
+    sShowEmptyResults(); return;
+  }
+
+  const topLevelCounts = {};
+  Object.keys(sBigGroups).forEach(gk => {
+    topLevelCounts[gk] = sBigGroups[gk].members.reduce((s, n) => s + (participants[n] || 0), 0);
+  });
+  sMembers.forEach(m => { if (!m.group) topLevelCounts[m.name] = participants[m.name]; });
+
+  const nonzeroTopCount = Object.values(topLevelCounts).filter(v => v > 0).length;
+  if (nonzeroTopCount > totalSeats) {
+    warningArea.innerHTML = `<div class="s-warning">座位數（${totalSeats}）少於有人參加的小組數（${nonzeroTopCount} 組），無法讓每組至少坐到 1 位，請增加座位區域或確認人數。</div>`;
+  }
+
+  const topAllocation = sAllocate(topLevelCounts, totalSeats, true);
+  const finalAllocation = {};
+  Object.keys(sBigGroups).forEach(gk => {
+    const members = sBigGroups[gk].members;
+    const memberCounts = {};
+    members.forEach(n => memberCounts[n] = participants[n] || 0);
+    const sub = sAllocate(memberCounts, topAllocation[gk], true);
+    members.forEach(n => finalAllocation[n] = sub[n]);
+  });
+  sMembers.forEach(m => { if (!m.group) finalAllocation[m.name] = topAllocation[m.name]; });
+
+  const seatOrderNames = [];
+  Object.keys(sBigGroups).sort().forEach(gk => sBigGroups[gk].members.forEach(n => seatOrderNames.push(n)));
+  sMembers.forEach(m => { if (!m.group) seatOrderNames.push(m.name); });
+
+  const assignment = new Array(totalSeats).fill(null);
+  let idx = 0;
+  seatOrderNames.forEach(name => {
+    const cnt = finalAllocation[name] || 0;
+    for (let i = 0; i < cnt; i++) { if (idx < totalSeats) assignment[idx] = name; idx++; }
+  });
+
+  const blocksWithRange = [];
+  let poolIdx = 0;
+  sSeatBlocks.forEach(b => {
+    const s = parseInt(b.start), e = parseInt(b.end);
+    if (isNaN(s) || isNaN(e)) return;
+    const count = Math.abs(e - s) + 1;
+    blocksWithRange.push({ block: b, startIdx: poolIdx, count });
+    poolIdx += count;
+  });
+
+  sState = {
+    pool, blocksWithRange,
+    assignment, originalAssignment: [...assignment],
+    selectedSeatIdx: null,
+    finalAllocation, topAllocation, topLevelCounts,
+    participants, totalPeople, totalSeats,
+    usedSeats: Math.min(idx, totalSeats), meetingName
+  };
+
+  sRenderAll();
+  document.getElementById('s-results').style.display = 'block';
+  document.getElementById('s-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function sShowEmptyResults() {
+  document.getElementById('s-results').style.display = 'block';
+  ['s-statsArea', 's-cardsArea', 's-chartArea'].forEach(id => document.getElementById(id).innerHTML = '');
+  document.getElementById('s-exportText').value = '';
+  sState = null;
+}
+
+function sRenderAll() { sRenderStats(); sRenderCards(); sRenderChart(); sRenderExport(); }
+
+function sRenderStats() {
+  const { totalPeople, totalSeats, usedSeats } = sState;
+  document.getElementById('s-statsArea').innerHTML = `
+    <div class="s-stat"><div class="num">${totalPeople}</div><div class="label">總參加人數</div></div>
+    <div class="s-stat"><div class="num">${totalSeats}</div><div class="label">總座位數</div></div>
+    <div class="s-stat"><div class="num">${usedSeats}</div><div class="label">已分配座位</div></div>`;
+}
+
+function sPct(n) { return (n / sState.totalPeople * 100).toFixed(1) + '%'; }
+
+function sMemberByName(name) { return sMembers.find(m => m.name === name) || { color: '#666', emoji: '' }; }
+
+function sGetPersonSegments(name) {
+  const { assignment, pool } = sState;
+  const indices = [];
+  assignment.forEach((p, i) => { if (p === name) indices.push(i); });
+  if (indices.length === 0) return [];
+  indices.sort((a, b) => a - b);
+  const runs = [];
+  let runStart = indices[0], prev = indices[0];
+  for (let k = 1; k < indices.length; k++) {
+    if (indices[k] === prev + 1) prev = indices[k];
+    else { runs.push([runStart, prev]); runStart = indices[k]; prev = indices[k]; }
+  }
+  runs.push([runStart, prev]);
+  const segments = [];
+  runs.forEach(([s, e]) => sRangeSegmentLabels(pool, s, e).forEach(seg => segments.push(seg)));
+  return segments;
+}
+
+function sRenderCards() {
+  const { participants, finalAllocation, topAllocation, topLevelCounts } = sState;
+  let cardsHTML = '';
+
+  Object.keys(sBigGroups).sort().forEach(gk => {
+    const members = sBigGroups[gk].members;
+    const groupSeats = topAllocation[gk];
+    if (groupSeats <= 0) return;
+    let subRows = '';
+    members.forEach(n => {
+      const m = sMemberByName(n);
+      const seats = finalAllocation[n] || 0;
+      const segs = sGetPersonSegments(n);
+      subRows += `<div class="sub-row">
+        <span class="who"><span class="s-dot" style="background:${esc(m.color)}"></span>${esc(n)}（${participants[n]}人，${sPct(participants[n])}）</span>
+        <span class="meta">位子：<b>${seats}</b>個　位置：${segs.length ? segs.join('<br>') : '未排座位'}</span>
+      </div>`;
+    });
+    cardsHTML += `<div class="seat-card">
+      <div class="head"><h4>${esc(sBigGroups[gk].label)}</h4><span class="s-badge">共 ${topLevelCounts[gk]} 人　｜　位子 ${groupSeats} 個</span></div>
+      <div class="sub-list">${subRows}</div>
+    </div>`;
+  });
+
+  sMembers.forEach(m => {
+    if (m.group) return;
+    const cnt = participants[m.name], seats = finalAllocation[m.name] || 0;
+    if (cnt <= 0) {
+      cardsHTML += `<div class="seat-card" style="opacity:.55">
+        <div class="head"><h4><span class="s-dot" style="background:${esc(m.color)}"></span>${esc(m.name)} 小組</h4><span class="s-badge">本次未參加</span></div>
+      </div>`;
+      return;
+    }
+    const segs = sGetPersonSegments(m.name);
+    cardsHTML += `<div class="seat-card">
+      <div class="head"><h4><span class="s-dot" style="background:${esc(m.color)}"></span>${esc(m.name)} 小組</h4><span class="s-badge">共 ${cnt} 人（${sPct(cnt)}）</span></div>
+      <div class="range">位子：${seats}個　｜　位置：${segs.length ? segs.join('<br>') : '未排座位'}</div>
+    </div>`;
+  });
+
+  document.getElementById('s-cardsArea').innerHTML = cardsHTML;
+}
+
+function sRenderExport() {
+  const { finalAllocation, meetingName, totalPeople, totalSeats } = sState;
+  const lines = [];
+  lines.push(meetingName ? `🏛️ 台北135教室・座位分配　📅 ${meetingName}` : '🏛️ 台北135教室・座位分配');
+  lines.push(`👥 總人數：${totalPeople}人　🪑 總座位：${totalSeats}個`);
+  lines.push('');
+
+  const order = [];
+  Object.keys(sBigGroups).sort().forEach(gk => sBigGroups[gk].members.forEach(n => order.push(n)));
+  sMembers.forEach(m => { if (!m.group) order.push(m.name); });
+
+  order.forEach(n => {
+    const m = sMemberByName(n);
+    const seats = finalAllocation[n] || 0;
+    if (seats <= 0) return;
+    const segs = sGetPersonSegments(n);
+    if (segs.length === 0) return;
+    lines.push(`${m.emoji} ${n}　位子:${seats}個　位置:${segs[0]}`);
+    segs.slice(1).forEach(seg => lines.push(seg));
+  });
+
+  lines.push(''); lines.push('✨ 請依座位入座，謝謝大家！');
+  document.getElementById('s-exportText').value = lines.join('\n').trim();
+  document.getElementById('s-copyStatus').textContent = '';
+}
+
+function sGetZoneOrder(blocks) {
+  const zones = [];
+  blocks.forEach(b => { const z = (b.zone || '').trim(); if (!zones.includes(z)) zones.push(z); });
+  zones.sort((a, b) => { const score = z => z === '左' ? -1 : z === '右' ? 1 : 0; return score(a) - score(b); });
+  return zones;
+}
+
+function sRenderChart() {
+  const { blocksWithRange, assignment, selectedSeatIdx } = sState;
+  const colorMap = {};
+  sMembers.forEach(m => colorMap[m.name] = m.color);
+  const zones = sGetZoneOrder(blocksWithRange.map(x => x.block));
+  const showTitles = zones.length > 1;
+
+  let html = `<div class="zone-columns" style="grid-template-columns:repeat(${zones.length},1fr)">`;
+  zones.forEach(zone => {
+    html += '<div class="zone-column">';
+    if (showTitles) html += `<div class="zone-title">${zone ? esc(zone) + '區' : '中間'}</div>`;
+    blocksWithRange.forEach(({ block, startIdx, count }) => {
+      if ((block.zone || '').trim() !== zone) return;
+      const s = parseInt(block.start), e = parseInt(block.end), step = e >= s ? 1 : -1;
+      let seatsHTML = '', n = s;
+      for (let k = 0; k < count; k++) {
+        const gi = startIdx + k, person = assignment[gi];
+        const cls = 's-seat' + (selectedSeatIdx === gi ? ' s-seat-selected' : '');
+        seatsHTML += `<div class="${cls}" draggable="true"
+          style="background:${esc(colorMap[person] || '#444')}"
+          ondragstart="sOnSeatDragStart(event,${gi})"
+          ondragover="sOnSeatDragOver(event)"
+          ondrop="sOnSeatDrop(event,${gi})"
+          onclick="sOnSeatClick(${gi})">
+          <span class="seat-num">${n}號</span>
+          <span class="seat-name">${esc(person || '')}</span>
+        </div>`;
+        n += step;
+      }
+      html += `<div class="chart-block-row">
+        <div class="block-chart-label">${esc(sBlockLabel(block))}</div>
+        <div class="chart-seats">${seatsHTML}</div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+  document.getElementById('s-chartArea').innerHTML = html;
+}
+
+function sOnSeatDragStart(e, idx) { sDragSourceIdx = idx; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {} }
+function sOnSeatDragOver(e) { e.preventDefault(); }
+function sOnSeatDrop(e, idx) { e.preventDefault(); const from = sDragSourceIdx; sDragSourceIdx = null; if (from === null || from === idx) return; sSwapSeats(from, idx); }
+
+function sOnSeatClick(idx) {
+  if (!sState) return;
+  if (sState.selectedSeatIdx === null) { sState.selectedSeatIdx = idx; sRenderChart(); }
+  else if (sState.selectedSeatIdx === idx) { sState.selectedSeatIdx = null; sRenderChart(); }
+  else sSwapSeats(sState.selectedSeatIdx, idx);
+}
+
+function sSwapSeats(a, b) {
+  const tmp = sState.assignment[a];
+  sState.assignment[a] = sState.assignment[b];
+  sState.assignment[b] = tmp;
+  sState.selectedSeatIdx = null;
+  sRenderChart(); sRenderCards(); sRenderExport();
+}
+
+function sCopyExport() {
+  const ta = document.getElementById('s-exportText'), status = document.getElementById('s-copyStatus');
+  ta.select();
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(ta.value).then(() => { status.textContent = '已複製到剪貼簿！'; });
+    } else { document.execCommand('copy'); status.textContent = '已複製到剪貼簿！'; }
+  } catch (e) { status.textContent = '複製失敗，請手動選取文字後複製。'; }
+  setTimeout(() => { status.textContent = ''; }, 2500);
+}
 </script>
 </body>
 </html>
