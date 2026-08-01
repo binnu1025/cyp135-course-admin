@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.72</title>
+  <title>CYP135 課程報名 V6.73</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -519,6 +519,19 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   .hero{max-width:960px}
   .quick-row{max-width:960px}
 }
+.reg-event{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:14px;margin-bottom:9px;overflow:hidden}
+.reg-event-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:none;border:none;padding:13px 14px;cursor:pointer;font-family:inherit;text-align:left}
+.reg-event-name{font-size:15px;font-weight:900;color:#2a2620;min-width:0;flex:1 1 auto}
+.reg-event-right{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+.reg-count{font-size:12.5px;font-weight:900;color:#2d5a3d;background:#e8f0ea;border-radius:999px;padding:3px 11px}
+.reg-caret{color:#4a8062;font-size:13px}
+.reg-people{border-top:1px solid rgba(45,90,61,.12);padding:4px 14px 11px}
+.reg-person{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed rgba(45,90,61,.10)}
+.reg-person:last-child{border-bottom:none}
+.reg-person.me{background:#f4faf6;margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:8px}
+.reg-person .pn{font-size:14px;font-weight:700;color:#2a2620}
+.reg-person .pm{font-size:11.5px;color:#777;text-align:right}
+.reg-more{font-size:11.5px;color:#999;padding-top:8px}
 </style>
 </head>
 <body>
@@ -528,7 +541,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.72</small>
+    <small>CYP135 課程系統 V6.73</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7009,7 +7022,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.72';
+const SEAT_DIAG_VERSION = 'V6.73';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8006,44 +8019,92 @@ async function renderMyRegistrationsPage() {
   renderMyRegistrationsBody(data);
 }
 
-function regRowHtml(r) {
-  const meta = [];
-  if (r.classType) meta.push(r.classType);
-  if (r.leader) meta.push('上手：' + r.leader);
-  if (r.flock) meta.push(r.flock);
-  if (r.regTime) meta.push(r.regTime);
-  return `
-    <div class="reg-row">
-      <div class="rn">${esc(r.name)}</div>
-      <div class="re">${esc(r.eventName || r.eventCode || '')}</div>
-      ${meta.length ? `<div class="rm">${esc(meta.join('　｜　'))}</div>` : ''}
+let myRegData = null;
+let myRegOpen = {};
+
+// 以「活動」為單位呈現：一場活動一張卡，點下去才展開那場的名單。
+// 不要把所有人的報名攤成一長串，那樣看不出重點。
+function renderMyRegistrationsBody(data) {
+  myRegData = data;
+  myRegOpen = {};
+  const box = document.getElementById('myreg-body');
+  if (!box) return;
+
+  if (!data.matched) {
+    box.innerHTML = `
+      <div class="card">
+        <h2>還沒有對應到你的資料</h2>
+        <p class="meta">系統是用「雁群總名冊」的 LINE UID 認出你是誰。<br>
+        目前名冊裡查不到你的 LINE 帳號，所以無法列出參加紀錄。<br><br>
+        請聯絡會長，把你的 LINE UID 填進「雁群總名冊」的 LINE UID 欄。</p>
+      </div>`;
+    return;
+  }
+  renderMyRegBody_();
+}
+
+function renderMyRegBody_() {
+  const data = myRegData;
+  const box = document.getElementById('myreg-body');
+  if (!data || !box) return;
+  const me = data.me || { name: '', leader: '' };
+  const myEvents = data.myEvents || [];
+  const scopeEvents = data.scopeEvents || [];
+
+  let html = `<div class="card" style="padding:12px 15px;margin-bottom:14px">
+      <p class="meta" style="margin:0">
+        ${esc(me.name || '')}${me.leader ? '　｜　上手白金：' + esc(me.leader) : ''}
+      </p>
+    </div>`;
+
+  html += `<div class="home-section">
+      <p class="home-section-title">我參加過的活動（${myEvents.length}）</p>
+      ${myEvents.length ? myEvents.map(e => `
+        <div class="reg-row">
+          <div class="rn">${esc(e.eventName || e.eventCode || '未命名活動')}</div>
+          <div class="rm">${esc([e.classType, e.status, e.regTime].filter(Boolean).join('　｜　'))}</div>
+        </div>`).join('')
+        : '<div class="reg-empty">還沒有查到你的參加紀錄。</div>'}
+    </div>`;
+
+  if (scopeEvents.length || data.scopeLabel) {
+    html += `<div class="home-section">
+        <p class="home-section-title">各活動報名狀況（${scopeEvents.length}）</p>
+        ${data.scopeLabel ? `<p class="meta" style="margin:-4px 0 9px">範圍：${esc(data.scopeLabel)}</p>` : ''}
+        ${scopeEvents.length ? scopeEvents.map((e, idx) => regEventCardHtml(e, idx)).join('')
+          : '<div class="reg-empty">範圍內目前沒有報名紀錄。</div>'}
+      </div>`;
+  }
+
+  box.innerHTML = html;
+}
+
+function regEventCardHtml(e, idx) {
+  const open = !!myRegOpen[idx];
+  const rows = e.rows || [];
+  const list = open ? `<div class="reg-people">    ${rows.map(p => `
+      <div class="reg-person${p.mine ? ' me' : ''}">
+        <span class="pn">${esc(p.name)}${p.mine ? ' <b>（我）</b>' : ''}</span>
+        <span class="pm">${esc([p.classType, p.flock || p.leader, p.status].filter(Boolean).join('　'))}</span>
+      </div>`).join('')}
+    ${e.count > rows.length ? `<div class="reg-more">僅顯示前 ${rows.length} 筆，共 ${e.count} 筆</div>` : ''}
+  </div>` : '';
+
+  return `<div class="reg-event">
+      <button type="button" class="reg-event-head" onclick="toggleMyRegEvent(${idx})">
+        <span class="reg-event-name">${esc(e.eventName || e.eventCode || '未命名活動')}</span>
+        <span class="reg-event-right">
+          <span class="reg-count">${e.count}</span>
+          <span class="reg-caret">${open ? '▾' : '▸'}</span>
+        </span>
+      </button>
+      ${list}
     </div>`;
 }
 
-function renderMyRegistrationsBody(data) {
-  const mine = data.mine || [];
-  const scoped = data.scoped || [];
-  const flocks = data.scopeFlocks || [];
-
-  let html = `<div class="home-section">
-      <p class="home-section-title">我的報名（${mine.length}）</p>
-      ${mine.length ? mine.map(regRowHtml).join('')
-        : '<div class="reg-empty">目前沒有查到你的報名紀錄。<br>只有從 LINE 報名的紀錄才會對得上你的身分。</div>'}
-    </div>`;
-
-  if (scoped.length) {
-    const scopeText = data.isAdmin ? '全部雁群（會長權限）' : flocks.join('、');
-    html += `<div class="home-section">
-        <p class="home-section-title">我可以查看的報名（${scoped.length}）</p>
-        <p class="meta" style="margin:-4px 0 9px">範圍：${esc(scopeText)}</p>
-        ${scoped.map(regRowHtml).join('')}
-      </div>`;
-  } else if (!flocks.length && !data.isAdmin) {
-    html += `<p class="meta" style="text-align:center;padding:8px 12px">
-      你目前只能查看自己的報名。若需要查看雁群名單，請聯絡會長在權限表設定。</p>`;
-  }
-
-  document.getElementById('myreg-body').innerHTML = html;
+function toggleMyRegEvent(idx) {
+  myRegOpen[idx] = !myRegOpen[idx];
+  renderMyRegBody_();
 }
 
 /* 首頁近期課程：只顯示今天起最近幾堂，點「看完整課表」進月曆 */
