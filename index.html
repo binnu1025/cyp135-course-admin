@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.85</title>
+  <title>CYP135 課程報名 V6.86</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -597,7 +597,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.85</small>
+    <small>CYP135 課程系統 V6.86</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1597,7 +1597,8 @@ function renderMenu() {
     <div class="menu-list">
       <button class="menu-item" onclick="toggleMenu(false);renderPortalPage()">首頁</button>
       <button class="menu-item" onclick="toggleMenu(false);renderSchedulePage()">課表</button>
-      <button class="menu-item" onclick="toggleMenu(false);renderMonthlyPage()">我的包月</button>
+      <button class="menu-item" onclick="toggleMenu(false);renderMyRegistrationsPage(false)">查詢報名</button>
+      <button class="menu-item" onclick="toggleMenu(false);renderMonthlyPage(false)">查詢包月</button>
       <button class="menu-item" onclick="toggleMenu(false);renderHomePage({skipRefresh:true})">報名課程</button>
       <button class="menu-item" onclick="toggleMenu(false);openPermissionDebugDialog()">權限狀態</button>
       ${courseBtns}
@@ -7038,6 +7039,16 @@ function renderPortalShell() {
     const toolTiles = [];
 
     toolTiles.push(portalTile({
+      ico: '📊', title: '全教室報名', desc: '查看全部雁群報名狀況', admin: true,
+      onclick: 'renderMyRegistrationsPage(true)'
+    }));
+
+    toolTiles.push(portalTile({
+      ico: '💳', title: '全教室包月', desc: '查看全部雁群包月狀況', admin: true,
+      onclick: 'renderMonthlyPage(true)'
+    }));
+
+    toolTiles.push(portalTile({
       ico: '🪑', title: '排座位', desc: '白金小組座位自動分配', admin: true,
       onclick: 'renderSeatPage()'
     }));
@@ -7098,7 +7109,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.85';
+const SEAT_DIAG_VERSION = 'V6.86';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -7758,13 +7769,13 @@ function heroHtml() {
         <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgB)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgB" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7FD2F0"/><stop offset="100%" stop-color="#8FE3B0"/></linearGradient></defs><rect x="3.4" y="5" width="17.2" height="15" rx="4.2"/><path d="M3.4 10h17.2M8 3.4v3.2M16 3.4v3.2"/><circle cx="9" cy="14.6" r="1.15" fill="url(#qgB)" stroke="none"/><circle cx="15" cy="14.6" r="1.15" fill="url(#qgB)" stroke="none"/></svg></span>
         <span class="ql">課表</span>
       </button>
-      <button type="button" class="quick-btn" onclick="renderMyRegistrationsPage()">
+      <button type="button" class="quick-btn" onclick="renderMyRegistrationsPage(false)">
         <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgC)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgC" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#F0D27F"/><stop offset="100%" stop-color="#D6F06B"/></linearGradient></defs><rect x="4.6" y="3.4" width="14.8" height="17.2" rx="4.2"/><path d="M8.6 8.8h6.8M8.6 12.6h6.8M8.6 16.4h4"/></svg></span>
-        <span class="ql">我的報名</span>
+        <span class="ql">查詢報名</span>
       </button>
-      <button type="button" class="quick-btn" onclick="renderMonthlyPage()">
+      <button type="button" class="quick-btn" onclick="renderMonthlyPage(false)">
         <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgD)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgD" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#C9A0F0"/><stop offset="100%" stop-color="#7FD2F0"/></linearGradient></defs><rect x="3" y="5.5" width="18" height="13" rx="3.4"/><path d="M3 10h18"/><path d="M7 14.5h3"/></svg></span>
-        <span class="ql">我的包月</span>
+        <span class="ql">查詢包月</span>
       </button>
     </div>`;
 }
@@ -8058,8 +8069,9 @@ async function editClassPromo(idx) {
 // 舊版先建好外框再 showLoading，等於自己把 #myreg-body 炸掉，之後怎麼找都是 null，
 // 於是 render 拋錯、catch 又抓同一個不存在的元素再拋一次，載入畫面就永遠關不掉。
 // 正確順序：先 showLoading，拿到資料後再一次把整個頁面寫進 #app。
-async function renderMyRegistrationsPage() {
-  const token = beginPage('myreg', '我的報名', true);
+async function renderMyRegistrationsPage(includeAll) {
+  includeAll = !!includeAll;
+  const token = beginPage('myreg', includeAll ? '全教室報名' : '查詢報名', true);
   const app = document.getElementById('app');
 
   const shell = `
@@ -8077,7 +8089,7 @@ async function renderMyRegistrationsPage() {
   let data = null;
   let errMsg = '';
   try {
-    data = await post('getMyRegistrations', { userId }, 65000);
+    data = await post('getMyRegistrations', { userId, includeAll }, 65000);
   } catch (err) {
     errMsg = (err && err.message) || String(err);
   }
@@ -8110,7 +8122,7 @@ function renderMyRegistrationsBody(data) {
   if (!box) return;
 
   const hasScopeEvents = Array.isArray(data.scopeEvents) && data.scopeEvents.length > 0;
-  if (!data.matched && !hasScopeEvents) {
+  if (!data.matched && !data.scopeLabel && !hasScopeEvents) {
     box.innerHTML = `
       <div class="card">
         <h2>還沒有對應到你的資料</h2>
@@ -8128,40 +8140,23 @@ function renderMyRegBody_() {
   const box = document.getElementById('myreg-body');
   if (!data || !box) return;
   const me = data.me || { name: '', leader: '' };
-  const myEvents = data.myEvents || [];
   const scopeEvents = data.scopeEvents || [];
 
   // 標題要交代「這一頁在看什麼」，不是只印一個孤零零的姓名。
-  const scopeText = data.isAdmin ? '全部雁群'
+  const scopeText = data.includeAll ? '全部雁群'
     : (data.scopeLabel || (me.leader ? me.leader + ' 小組' : '你自己'));
   let html = `<div class="myreg-intro">
       <div class="mi-title">${esc(scopeText)}的報名紀錄</div>
       <div class="mi-sub">
-        ${esc(me.name || '')}${me.leader ? '　｜　上手白金：' + esc(me.leader) : ''}
-        ${data.identitySource ? '　｜　身分來源：' + esc(data.identitySource) : ''}
+        ${data.includeAll ? '會長總覽' : '依 LINE權限表 C 欄查詢'}
+        ${data.identitySource && !data.includeAll ? '　｜　身分來源：' + esc(data.identitySource) : ''}
       </div>
     </div>`;
-  if (!data.matched) {
-    html += `<div class="msg on warn">目前沒有辨識到你的個人報名姓名，但已依權限列出可查看的報名範圍。</div>`;
+  if (!data.includeAll && !data.scopeLabel) {
+    html += `<div class="msg on warn">目前沒有設定可查詢雁群；請確認 LINE權限表 C 欄。</div>`;
   }
 
   // 這一區單純傳遞資訊，用緊湊表列就好，不需要卡片與陰影。
-  html += `<div class="home-section">
-      <p class="home-section-title">我參加過的活動（${myEvents.length}）</p>
-      ${myEvents.length ? `<div class="info-table">
-        <div class="it-head">
-          <span>活動</span><span>類別</span><span>狀態</span><span>報名時間</span>
-        </div>
-        ${myEvents.map(e => `<div class="it-row">
-          <span class="it-name">${esc(e.eventName || e.eventCode || '未命名活動')}</span>
-          <span>${esc(e.classType || '—')}</span>
-          <span>${esc(e.status || '—')}</span>
-          <span class="it-when">${esc(fmtWhen(e.regTime))}</span>
-        </div>`).join('')}
-      </div>`
-        : '<div class="reg-empty">還沒有查到你的參加紀錄。</div>'}
-    </div>`;
-
   if (scopeEvents.length || data.scopeLabel) {
     html += `<div class="home-section">
         <p class="home-section-title">各活動報名狀況　共 ${scopeEvents.length} 場</p>
@@ -8545,14 +8540,15 @@ function fmtWhen(v) {
 
 let subState = { data: null, editing: null };
 
-async function renderMonthlyPage() {
-  const token = beginPage('monthly', '我的包月', true);
+async function renderMonthlyPage(includeAll) {
+  includeAll = !!includeAll;
+  const token = beginPage('monthly', includeAll ? '全教室包月' : '查詢包月', true);
   const app = document.getElementById('app');
 
   showLoading('載入包月資料中');
   let data = null, errMsg = '';
   try {
-    data = await post('getMonthlyMembers', { userId }, 45000);
+    data = await post('getMonthlyMembers', { userId, includeAll }, 45000);
   } catch (err) {
     errMsg = (err && err.message) || String(err);
   }
