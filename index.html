@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.80</title>
+  <title>CYP135 課程報名 V6.81</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -574,6 +574,12 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .alevel-toggle input{width:19px;height:19px;flex:0 0 auto;margin-top:2px;accent-color:#2d5a3d}
 .alevel-toggle b{color:#2d5a3d}
 .alevel-badge{display:inline-block;font-size:12.5px;font-weight:900;color:#8a6d1f;background:#f6efdc;border:1px solid rgba(138,109,31,.25);border-radius:999px;padding:4px 12px;margin:6px 0 2px}
+.sub-hint{font-size:12.5px;color:#6b8c78;background:#f4faf6;border-radius:10px;padding:9px 12px;margin-bottom:12px;line-height:1.7}
+.sub-hint b{color:#2d5a3d}
+.sub-row-click{cursor:pointer}
+.sub-row-click:active{background:#f4faf6}
+.a-tag{font-size:10.5px;color:#8a6d1f;background:#f6efdc;border-radius:999px;padding:1px 7px;margin-left:5px;font-weight:900}
+.sub-def{font-size:10.5px;color:#aaa;font-style:normal;margin-left:4px}
 </style>
 </head>
 <body>
@@ -583,7 +589,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.80</small>
+    <small>CYP135 課程系統 V6.81</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1572,6 +1578,7 @@ function renderMenu() {
       <button class="menu-item" onclick="toggleMenu(false);renderCreateCoursePage()">建立課程</button>
       <button class="menu-item" onclick="toggleMenu(false);renderPastCoursesPage()">以往課程</button>
       <button class="menu-item" onclick="toggleMenu(false);renderExternalImportPage()">外部名單匯入</button>
+      <button class="menu-item" onclick="toggleMenu(false);renderMonthlyPage()">包月登錄</button>
       <button class="menu-item" onclick="toggleMenu(false);renderSeatPage()">排座位</button>
       <button class="menu-item" onclick="toggleMenu(false);renderTicketGeneratorPage()">票券產生</button>
       <button class="menu-item" onclick="toggleMenu(false);clearFrontendCourseCache()">清除前台快取</button>
@@ -7043,6 +7050,7 @@ function renderPortalShell() {
       portalTile({ ico: '🗂️', title: '以往課程', desc: '查看歷史課程紀錄', admin: true, onclick: 'renderPastCoursesPage()' }),
       portalTile({ ico: '🎫', title: '票券產生', desc: '產生報名者 QR 票券', admin: true, onclick: 'renderTicketGeneratorPage()' }),
       portalTile({ ico: '📥', title: '外部名單匯入', desc: '匯入外部報名資料', admin: true, onclick: 'renderExternalImportPage()' }),
+      portalTile({ ico: '💳', title: '包月登錄', desc: '維護包月會員與方案', admin: true, onclick: 'renderMonthlyPage()' }),
       portalTile({ ico: '🧹', title: '清除前台快取', desc: '改完試算表後讓前台立即生效', admin: true, onclick: 'clearFrontendCourseCache()' })
     ];
 
@@ -7081,7 +7089,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.80';
+const SEAT_DIAG_VERSION = 'V6.81';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8326,7 +8334,8 @@ const NAV_VIEWS = {
   myreg:       () => renderMyRegistrationsPage(),
   seat:        () => renderSeatPage(),
   ticket:      () => renderTicketGeneratorPage(),
-  pastCourses: () => renderPastCoursesPage()
+  pastCourses: () => renderPastCoursesPage(),
+  monthly:     () => renderMonthlyPage()
 };
 
 function navRecord(view) {
@@ -8509,6 +8518,154 @@ function fmtWhen(v) {
   const p = n => ('0' + n).slice(-2);
   return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate());
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   包月登錄（會長限定）
+   ⚠️ 包月資訊是人工排版的（依雁群分組、空白列隔開），
+      新增時後端會插進該雁群的區塊，不要改成直接 append。
+═══════════════════════════════════════════════════════════════ */
+
+let subState = { data: null, editing: null };
+
+async function renderMonthlyPage() {
+  const token = beginPage('monthly', '包月登錄', true);
+  const app = document.getElementById('app');
+
+  showLoading('載入包月資料中');
+  let data = null, errMsg = '';
+  try {
+    data = await post('getMonthlyMembers', { userId }, 45000);
+  } catch (err) {
+    errMsg = (err && err.message) || String(err);
+  }
+  if (!isPageActive(token, 'monthly')) return;
+  stopLoading();
+
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+    <div id="sub-body" style="margin-top:12px"></div>`;
+  const body = document.getElementById('sub-body');
+  if (!body) return;
+
+  if (errMsg || !data || data.status !== 'ok') {
+    body.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' +
+      esc(errMsg || (data && data.message) || '') + '</p></div>';
+    return;
+  }
+  subState.data = data;
+  subState.editing = null;
+  renderMonthlyBody_();
+}
+
+function renderMonthlyBody_() {
+  const d = subState.data;
+  const box = document.getElementById('sub-body');
+  if (!d || !box) return;
+
+  const members = d.members || [];
+  const byFlock = {};
+  const order = [];
+  members.forEach(m => {
+    const k = m.flock || '未分組';
+    if (!byFlock[k]) { byFlock[k] = []; order.push(k); }
+    byFlock[k].push(m);
+  });
+
+  const aCount = members.filter(m => m.aLevel).length;
+
+  let html = `<dl class="kv">
+      <dt>總人數</dt><dd>${members.length} 人</dd>
+      <dt>A 級會員</dt><dd>${aCount} 人（可報名限 A 級的課程）</dd>
+      <dt>本期應收</dt><dd>${money(d.total)}</dd>
+    </dl>
+    <div class="sub-hint">建議月數：<b>${(d.suggest.options || []).join(' 或 ')}</b>　${esc(d.suggest.note || '')}</div>
+    <button class="btn" style="margin-bottom:14px" onclick="openMonthlyForm()">＋ 新增包月會員</button>`;
+
+  order.forEach(f => {
+    const list = byFlock[f];
+    const sum = list.reduce((n, m) => n + m.perMonth * m.months, 0);
+    html += `<div class="home-section">
+        <p class="home-section-title">${esc(f)}　${list.length} 人　${money(sum)}</p>
+        <div class="info-table">
+          <div class="it-head"><span>姓名</span><span>方案</span><span>月數</span><span>金額</span></div>
+          ${list.map(m => `<div class="it-row sub-row-click" onclick="openMonthlyForm(${m.row})">
+            <span class="it-name">${esc(m.name)}${m.aLevel ? ' <b class="a-tag">A級</b>' : ''}</span>
+            <span>${esc(m.plan || '—')}</span>
+            <span>${m.months}${m.monthsBlank ? '<i class="sub-def">預設</i>' : ''}</span>
+            <span class="it-when">${money(m.perMonth * m.months)}</span>
+          </div>`).join('')}
+        </div>
+      </div>`;
+  });
+
+  box.innerHTML = html;
+}
+
+function openMonthlyForm(row) {
+  const d = subState.data;
+  if (!d) return;
+  const m = row ? (d.members || []).find(x => x.row === row) : null;
+  subState.editing = m || null;
+
+  const planOpts = (d.plans || []).map(p =>
+    `<option value="${esc(p.code)}"${m && m.plan === p.code ? ' selected' : ''}>${esc(p.code)}　每月 ${money(p.perMonth)}${p.aLevel ? '　A級' : ''}</option>`
+  ).join('');
+
+  const sug = d.suggest || { options: [2], note: '' };
+  const defMonths = m ? m.months : sug.options[0];
+
+  const html = `
+    <div class="card">
+      <h2>${m ? '編輯包月會員' : '新增包月會員'}</h2>
+      <div class="field"><label>姓名</label>
+        <input id="sub-name" value="${esc(m ? m.name : '')}" placeholder="必填"></div>
+      <div class="field"><label>雁群</label>
+        <input id="sub-flock" value="${esc(m ? m.flock : '')}" list="sub-flock-list" placeholder="例如 連燕">
+        <datalist id="sub-flock-list">${(d.flocks || []).map(f => `<option value="${esc(f)}">`).join('')}</datalist></div>
+      <div class="field"><label>上手白金</label>
+        <input id="sub-leader" value="${esc(m ? m.leader : '')}" list="sub-leader-list"></div>
+        <datalist id="sub-leader-list">${(d.leaders || []).map(f => `<option value="${esc(f)}">`).join('')}</datalist>
+      <div class="field"><label>方案</label>
+        <select id="sub-plan">${planOpts}</select></div>
+      <div class="field"><label>月數</label>
+        <input id="sub-months" type="number" min="0.5" step="0.5" value="${defMonths}">
+        <p class="meta" style="margin:5px 0 0">建議 <b>${(sug.options || []).join(' 或 ')}</b>　${esc(sug.note || '')}<br>這是建議值，可以直接改。</p></div>
+      <div class="field"><label>備註（選填）</label>
+        <input id="sub-note" value="${esc(m ? m.note : '')}" placeholder="例如 6/5 加入、新人"></div>
+      <div class="cls-actions" style="margin-top:6px">
+        <button class="btn" onclick="saveMonthlyForm(${m ? m.row : 0})">儲存</button>
+        <button class="btn btn-sub" onclick="renderMonthlyBody_()">取消</button>
+      </div>
+    </div>`;
+  document.getElementById('sub-body').innerHTML = html;
+}
+
+async function saveMonthlyForm(row) {
+  const payload = {
+    userId,
+    row: row || 0,
+    name: val('sub-name'),
+    flock: val('sub-flock'),
+    leader: val('sub-leader'),
+    plan: val('sub-plan'),
+    months: Number(val('sub-months')) || 0,
+    note: val('sub-note')
+  };
+  if (!payload.name) { showMsg('請填姓名。', 'err'); return; }
+
+  showActionLock('正在儲存', '請稍候。');
+  try {
+    const res = await post('saveMonthlyMember', payload, 45000);
+    if (!res || res.status !== 'ok') { showMsg(esc((res && res.message) || '儲存失敗'), 'err'); return; }
+    showMsg('已儲存。', 'ok');
+    renderMonthlyPage();
+  } catch (err) {
+    showMsg(esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
+}
+
 </script>
 </body>
 </html>
