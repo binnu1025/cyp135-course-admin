@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.79</title>
+  <title>CYP135 課程報名 V6.80</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -570,6 +570,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .kv dd.kv-cx{color:#a35b5b}
 .reg-types{text-align:left}
 .reg-types.sub{text-align:left}
+.alevel-toggle{display:flex;align-items:flex-start;gap:9px;cursor:pointer;font-size:14px;color:#2a2620;line-height:1.6}
+.alevel-toggle input{width:19px;height:19px;flex:0 0 auto;margin-top:2px;accent-color:#2d5a3d}
+.alevel-toggle b{color:#2d5a3d}
+.alevel-badge{display:inline-block;font-size:12.5px;font-weight:900;color:#8a6d1f;background:#f6efdc;border:1px solid rgba(138,109,31,.25);border-radius:999px;padding:4px 12px;margin:6px 0 2px}
 </style>
 </head>
 <body>
@@ -579,7 +583,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.79</small>
+    <small>CYP135 課程系統 V6.80</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -2153,6 +2157,8 @@ function renderCourseDetailContent(c) {
     <div class="card" style="margin-top:12px">
       ${img}
       <h2>${esc(c.eventName)}</h2>
+      ${normalizeRegistrationFieldsClient(c.registrationFields).requireALevel
+        ? '<div class="alevel-badge">限包月 A 級會員（AA、A 方案）報名</div>' : ''}
       <div class="badges">
         <span class="badge ${c.statusBadge === '已額滿' ? 'red' : ''}">${esc(c.statusBadge || '活動')}</span>
         <span class="badge">${esc(c.session || '場次未設定')}</span>
@@ -3708,7 +3714,14 @@ function renderCourseForm(course) {
       </div>
 
       <div class="mini-section">
-        <div class="section-title">報名欄位設定</div>
+        <div class="section-title">報名資格</div>
+        <label class="alevel-toggle">
+          <input type="checkbox" id="c-require-alevel"${regFields.requireALevel ? ' checked' : ''}>
+          <span>限包月 <b>A 級會員</b>（AA、A 方案）才能報名</span>
+        </label>
+        <p class="meta" style="margin:6px 0 0">勾選後，一般報名與會長加報都會擋下不符合的人。不勾＝不限。</p>
+
+        <div class="section-title" style="margin-top:18px">報名欄位設定</div>
         <div class="field-setting-grid">
           ${renderCourseFieldModeSelect('c-field-phone', '電話', regFields.phone)}
           ${renderCourseFieldModeSelect('c-field-gender', '性別', regFields.gender)}
@@ -4081,6 +4094,8 @@ function normalizeRegistrationFieldsClient(fields) {
     return '';
   };
   return {
+    requireALevel: fields.requireALevel === true || fields.requireALevel === 'true' ||
+      fields.requireALevel === 1 || fields.requireALevel === '1',
     phone: normalizeFieldModeClient(pick(['phone', '電話'])),
     gender: normalizeFieldModeClient(pick(['gender', '性別'])),
     idNumber: normalizeFieldModeClient(pick(['idNumber', 'id', '身分證', '身分證字號'])),
@@ -4273,6 +4288,7 @@ function removeCustomRegistrationField(index) {
 
 function collectRegistrationFieldSettings() {
   return {
+    requireALevel: !!(document.getElementById('c-require-alevel') || {}).checked,
     phone: val('c-field-phone') || 'hidden',
     gender: val('c-field-gender') || 'hidden',
     idNumber: val('c-field-id') || 'hidden',
@@ -7065,7 +7081,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.79';
+const SEAT_DIAG_VERSION = 'V6.80';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
