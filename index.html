@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.84</title>
+  <title>CYP135 課程報名 V6.85</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -597,7 +597,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.84</small>
+    <small>CYP135 課程系統 V6.85</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7098,7 +7098,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.84';
+const SEAT_DIAG_VERSION = 'V6.85';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8109,13 +8109,14 @@ function renderMyRegistrationsBody(data) {
   const box = document.getElementById('myreg-body');
   if (!box) return;
 
-  if (!data.matched) {
+  const hasScopeEvents = Array.isArray(data.scopeEvents) && data.scopeEvents.length > 0;
+  if (!data.matched && !hasScopeEvents) {
     box.innerHTML = `
       <div class="card">
         <h2>還沒有對應到你的資料</h2>
-        <p class="meta">系統是用「雁群總名冊」的 LINE UID 認出你是誰。<br>
-        目前名冊裡查不到你的 LINE 帳號，所以無法列出參加紀錄。<br><br>
-        請聯絡會長，把你的 LINE UID 填進「雁群總名冊」的 LINE UID 欄。</p>
+        <p class="meta">系統會先用「雁群總名冊」辨識報名本人；找不到時會再用「LINE權限表」辨識管理身分。<br>
+        目前兩邊都沒有足夠的姓名資料，所以暫時無法列出你的報名紀錄。<br><br>
+        若你已經有管理權限，請確認「LINE權限表」A 欄 UID 與 B 欄姓名都有填寫。</p>
       </div>`;
     return;
   }
@@ -8137,8 +8138,12 @@ function renderMyRegBody_() {
       <div class="mi-title">${esc(scopeText)}的報名紀錄</div>
       <div class="mi-sub">
         ${esc(me.name || '')}${me.leader ? '　｜　上手白金：' + esc(me.leader) : ''}
+        ${data.identitySource ? '　｜　身分來源：' + esc(data.identitySource) : ''}
       </div>
     </div>`;
+  if (!data.matched) {
+    html += `<div class="msg on warn">目前沒有辨識到你的個人報名姓名，但已依權限列出可查看的報名範圍。</div>`;
+  }
 
   // 這一區單純傳遞資訊，用緊湊表列就好，不需要卡片與陰影。
   html += `<div class="home-section">
