@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.81</title>
+  <title>CYP135 課程報名 V6.82</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -580,6 +580,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .sub-row-click:active{background:#f4faf6}
 .a-tag{font-size:10.5px;color:#8a6d1f;background:#f6efdc;border-radius:999px;padding:1px 7px;margin-left:5px;font-weight:900}
 .sub-def{font-size:10.5px;color:#aaa;font-style:normal;margin-left:4px}
+.sub-del{color:#a35b5b}
 </style>
 </head>
 <body>
@@ -589,7 +590,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.81</small>
+    <small>CYP135 課程系統 V6.82</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1578,7 +1579,6 @@ function renderMenu() {
       <button class="menu-item" onclick="toggleMenu(false);renderCreateCoursePage()">建立課程</button>
       <button class="menu-item" onclick="toggleMenu(false);renderPastCoursesPage()">以往課程</button>
       <button class="menu-item" onclick="toggleMenu(false);renderExternalImportPage()">外部名單匯入</button>
-      <button class="menu-item" onclick="toggleMenu(false);renderMonthlyPage()">包月登錄</button>
       <button class="menu-item" onclick="toggleMenu(false);renderSeatPage()">排座位</button>
       <button class="menu-item" onclick="toggleMenu(false);renderTicketGeneratorPage()">票券產生</button>
       <button class="menu-item" onclick="toggleMenu(false);clearFrontendCourseCache()">清除前台快取</button>
@@ -1590,6 +1590,7 @@ function renderMenu() {
     <div class="menu-list">
       <button class="menu-item" onclick="toggleMenu(false);renderPortalPage()">首頁</button>
       <button class="menu-item" onclick="toggleMenu(false);renderSchedulePage()">課表</button>
+      ${(canViewRoster || isAdminUser) ? '<button class="menu-item" onclick="toggleMenu(false);renderMonthlyPage()">包月</button>' : ''}
       <button class="menu-item" onclick="toggleMenu(false);renderHomePage({skipRefresh:true})">報名課程</button>
       <button class="menu-item" onclick="toggleMenu(false);openPermissionDebugDialog()">權限狀態</button>
       ${courseBtns}
@@ -7010,6 +7011,14 @@ function renderPortalShell() {
 
   const mainTiles = [];
 
+  // 包月：有雁群查詢權限或包月權限的人都看得到（能不能改由後端判斷）
+  if (canViewRoster || isAdminUser) {
+    mainTiles.push(portalTile({
+      ico: '💳', title: '包月', desc: '查看／維護包月會員',
+      onclick: 'renderMonthlyPage()'
+    }));
+  }
+
   if (currentCourse && (canViewRoster || isAdminUser)) {
     mainTiles.push(portalTile({
       ico: '📋', title: '課程名單', desc: '查看目前課程的報名名單',
@@ -7050,7 +7059,7 @@ function renderPortalShell() {
       portalTile({ ico: '🗂️', title: '以往課程', desc: '查看歷史課程紀錄', admin: true, onclick: 'renderPastCoursesPage()' }),
       portalTile({ ico: '🎫', title: '票券產生', desc: '產生報名者 QR 票券', admin: true, onclick: 'renderTicketGeneratorPage()' }),
       portalTile({ ico: '📥', title: '外部名單匯入', desc: '匯入外部報名資料', admin: true, onclick: 'renderExternalImportPage()' }),
-      portalTile({ ico: '💳', title: '包月登錄', desc: '維護包月會員與方案', admin: true, onclick: 'renderMonthlyPage()' }),
+
       portalTile({ ico: '🧹', title: '清除前台快取', desc: '改完試算表後讓前台立即生效', admin: true, onclick: 'clearFrontendCourseCache()' })
     ];
 
@@ -7089,7 +7098,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.81';
+const SEAT_DIAG_VERSION = 'V6.82';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8574,12 +8583,15 @@ function renderMonthlyBody_() {
   const aCount = members.filter(m => m.aLevel).length;
 
   let html = `<dl class="kv">
+      <dt>資料範圍</dt><dd>${esc(d.scopeText || '—')}</dd>
       <dt>總人數</dt><dd>${members.length} 人</dd>
       <dt>A 級會員</dt><dd>${aCount} 人（可報名限 A 級的課程）</dd>
       <dt>本期應收</dt><dd>${money(d.total)}</dd>
     </dl>
-    <div class="sub-hint">建議月數：<b>${(d.suggest.options || []).join(' 或 ')}</b>　${esc(d.suggest.note || '')}</div>
-    <button class="btn" style="margin-bottom:14px" onclick="openMonthlyForm()">＋ 新增包月會員</button>`;
+    ${d.canEdit
+      ? `<div class="sub-hint">建議月數：<b>${(d.suggest.options || []).join(' 或 ')}</b>　${esc(d.suggest.note || '')}</div>
+         <button class="btn" style="margin-bottom:14px" onclick="openMonthlyForm()">＋ 新增包月會員</button>`
+      : '<div class="sub-hint">你可以查看自己雁群的包月資料，但沒有修改權限。需要修改請聯絡會長。</div>'}`;
 
   order.forEach(f => {
     const list = byFlock[f];
@@ -8588,7 +8600,7 @@ function renderMonthlyBody_() {
         <p class="home-section-title">${esc(f)}　${list.length} 人　${money(sum)}</p>
         <div class="info-table">
           <div class="it-head"><span>姓名</span><span>方案</span><span>月數</span><span>金額</span></div>
-          ${list.map(m => `<div class="it-row sub-row-click" onclick="openMonthlyForm(${m.row})">
+          ${list.map(m => `<div class="it-row${d.canEdit ? ' sub-row-click' : ''}"${d.canEdit ? ` onclick="openMonthlyForm(${m.row})"` : ''}>
             <span class="it-name">${esc(m.name)}${m.aLevel ? ' <b class="a-tag">A級</b>' : ''}</span>
             <span>${esc(m.plan || '—')}</span>
             <span>${m.months}${m.monthsBlank ? '<i class="sub-def">預設</i>' : ''}</span>
@@ -8635,6 +8647,7 @@ function openMonthlyForm(row) {
       <div class="cls-actions" style="margin-top:6px">
         <button class="btn" onclick="saveMonthlyForm(${m ? m.row : 0})">儲存</button>
         <button class="btn btn-sub" onclick="renderMonthlyBody_()">取消</button>
+        ${m ? `<button class="btn btn-sub sub-del" onclick="deleteMonthlyForm(${m.row})">刪除</button>` : ''}
       </div>
     </div>`;
   document.getElementById('sub-body').innerHTML = html;
@@ -8666,6 +8679,25 @@ async function saveMonthlyForm(row) {
   }
 }
 
+
+// 刪除是把整列清空，不刪列——包月資訊靠空白列分隔雁群，刪列會讓排版錯位。
+async function deleteMonthlyForm(row) {
+  const m = ((subState.data && subState.data.members) || []).find(x => x.row === row);
+  const who = m ? m.name : '這筆資料';
+  if (!window.confirm('確定要刪除「' + who + '」的包月資料嗎？')) return;
+
+  showActionLock('正在刪除', '請稍候。');
+  try {
+    const res = await post('deleteMonthlyMember', { userId, row }, 45000);
+    if (!res || res.status !== 'ok') { showMsg(esc((res && res.message) || '刪除失敗'), 'err'); return; }
+    showMsg('已刪除。', 'ok');
+    renderMonthlyPage();
+  } catch (err) {
+    showMsg(esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
+}
 </script>
 </body>
 </html>
