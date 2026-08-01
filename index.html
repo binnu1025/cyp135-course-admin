@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.77</title>
+  <title>CYP135 課程報名 V6.78</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -549,6 +549,21 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .myreg-intro{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:14px;padding:13px 15px;margin-bottom:14px}
 .myreg-intro .mi-title{font-size:15.5px;font-weight:900;color:#2d5a3d}
 .myreg-intro .mi-sub{font-size:12.5px;color:#777;margin-top:4px}
+.info-table{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:12px;overflow:hidden;text-align:left}
+.it-head,.it-row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) minmax(0,.8fr) minmax(0,1.3fr);gap:8px;padding:8px 12px;align-items:baseline;text-align:left}
+.it-head{background:#f4faf6;font-size:11px;font-weight:900;color:#6b8c78;letter-spacing:.04em}
+.it-row{font-size:13px;color:#555;border-top:1px solid rgba(45,90,61,.09)}
+.it-row .it-name{font-weight:900;color:#2a2620;overflow-wrap:anywhere}
+.it-row .it-when{font-size:11.5px;color:#888;font-variant-numeric:tabular-nums}
+@media(max-width:480px){
+  .it-head{display:none}
+  .it-row{grid-template-columns:minmax(0,1fr) auto;row-gap:2px;padding:9px 11px}
+  .it-row .it-name{grid-column:1 / -1;font-size:14px}
+  .it-row .it-when{grid-column:2;text-align:right}
+}
+.reg-person{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:baseline;text-align:left}
+.reg-person .pt{font-size:11.5px;color:#6b8c78;white-space:nowrap}
+.reg-person .pm{font-size:12px;color:#777;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;min-width:56px}
 </style>
 </head>
 <body>
@@ -558,7 +573,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.77</small>
+    <small>CYP135 課程系統 V6.78</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7044,7 +7059,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.77';
+const SEAT_DIAG_VERSION = 'V6.78';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8082,13 +8097,20 @@ function renderMyRegBody_() {
       </div>
     </div>`;
 
+  // 這一區單純傳遞資訊，用緊湊表列就好，不需要卡片與陰影。
   html += `<div class="home-section">
       <p class="home-section-title">我參加過的活動（${myEvents.length}）</p>
-      ${myEvents.length ? myEvents.map(e => `
-        <div class="reg-row">
-          <div class="rn">${esc(e.eventName || e.eventCode || '未命名活動')}</div>
-          <div class="rm">${esc([e.classType, e.status, e.regTime].filter(Boolean).join('　｜　'))}</div>
-        </div>`).join('')
+      ${myEvents.length ? `<div class="info-table">
+        <div class="it-head">
+          <span>活動</span><span>類別</span><span>狀態</span><span>報名時間</span>
+        </div>
+        ${myEvents.map(e => `<div class="it-row">
+          <span class="it-name">${esc(e.eventName || e.eventCode || '未命名活動')}</span>
+          <span>${esc(e.classType || '—')}</span>
+          <span>${esc(e.status || '—')}</span>
+          <span class="it-when">${esc(fmtWhen(e.regTime))}</span>
+        </div>`).join('')}
+      </div>`
         : '<div class="reg-empty">還沒有查到你的參加紀錄。</div>'}
     </div>`;
 
@@ -8136,7 +8158,8 @@ function regEventCardHtml(e, idx) {
           ${(g.rows || []).map(p => `
             <div class="reg-person${p.mine ? ' me' : ''}${p.cancelled ? ' cx' : ''}">
               <span class="pn">${esc(p.name)}${p.mine ? ' <b>（我）</b>' : ''}</span>
-              <span class="pm">${esc(p.classType)}${p.cancelled ? '　已取消' : '　' + money(p.fee)}</span>
+              <span class="pt">${esc(p.classType)}</span>
+              <span class="pm">${p.cancelled ? '已取消' : money(p.fee)}</span>
             </div>`).join('')}
         </div>`).join('')}
       <button class="btn btn-sub" style="margin-top:10px" onclick="copyRegSummary(${idx})">複製對帳表</button>
@@ -8449,6 +8472,17 @@ async function editClassMeetUrl(idx) {
   } finally {
     hideActionLock();
   }
+}
+
+// 試算表回來的時間可能是 JS Date 字串（Sat Aug 01 2026 11:52:45 GMT+0800…），
+// 直接印出來又長又難讀。只取年月日；轉不動就原樣顯示。
+function fmtWhen(v) {
+  if (!v) return '';
+  const raw = String(v);
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  const p = n => ('0' + n).slice(-2);
+  return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate());
 }
 </script>
 </body>
