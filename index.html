@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.74</title>
+  <title>CYP135 課程報名 V6.75</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -544,6 +544,11 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .reg-group-head .gsum{font-size:12px;color:#666}
 .reg-person.cx .pn{text-decoration:line-through;color:#aaa}
 .reg-person.cx .pm{color:#b08a8a}
+.cls-meet-btn{display:block;width:100%;text-align:center;text-decoration:none;background:linear-gradient(120deg,#2d5a3d,#4a8062);color:#fff;border-radius:13px;padding:13px 14px;font-size:15px;font-weight:900;margin-bottom:10px;box-shadow:0 4px 14px rgba(45,90,61,.22)}
+.cls-meet-btn:active{transform:scale(.985)}
+.myreg-intro{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:14px;padding:13px 15px;margin-bottom:14px}
+.myreg-intro .mi-title{font-size:15.5px;font-weight:900;color:#2d5a3d}
+.myreg-intro .mi-sub{font-size:12.5px;color:#777;margin-top:4px}
 </style>
 </head>
 <body>
@@ -553,7 +558,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.74</small>
+    <small>CYP135 課程系統 V6.75</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1608,6 +1613,11 @@ async function initLiff(options) {
       return 'login';
     }
 
+    // C10：在 LINE 內建瀏覽器直接開 github.io 時，LINE 並沒有把它當成
+    // LIFF 啟動——沒有 LIFF 情境，拿不到身分、shareTargetPicker 也不存在。
+    // 偵測到這種狀況就導去正式的 liff.line.me 入口，一次解決權限與分享。
+    if (!options.__noRedirect && redirectToLiffEntryIfNeeded()) return 'redirect';
+
     const profile = await liff.getProfile();
     userId = profile.userId || '';
     displayName = profile.displayName || '';
@@ -1673,7 +1683,7 @@ window.addEventListener('DOMContentLoaded', async function() {
   const shareToken = getParam('share') || getParam('s');
   setSharedEntryMode(!!shareToken, shareToken);
   const liffStatus = await initLiff({ allowGuest: !!shareToken });
-  if (liffStatus === 'login' || liffStatus === 'error') return;
+  if (liffStatus === 'login' || liffStatus === 'error' || liffStatus === 'redirect') return;
 
   loadPublicCache();
   loadAdminCache();
@@ -7034,7 +7044,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.74';
+const SEAT_DIAG_VERSION = 'V6.75';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -7846,7 +7856,7 @@ function classCardHtml(c, idx) {
     : '';
   const promo = c.promo ? `<div class="cls-promo">${esc(c.promo)}</div>` : '';
   const meet = c.meetUrl
-    ? `<a class="cls-meet" href="${esc(c.meetUrl)}" target="_blank" rel="noopener noreferrer">🔗 線上會議連結</a>`
+    ? `<a class="cls-meet-btn" href="${esc(c.meetUrl)}" target="_blank" rel="noopener noreferrer">🔗　進入線上會議</a>`
     : '';
 
   const adminBox = isAdminUser ? `
@@ -8063,10 +8073,14 @@ function renderMyRegBody_() {
   const myEvents = data.myEvents || [];
   const scopeEvents = data.scopeEvents || [];
 
-  let html = `<div class="card" style="padding:12px 15px;margin-bottom:14px">
-      <p class="meta" style="margin:0">
+  // 標題要交代「這一頁在看什麼」，不是只印一個孤零零的姓名。
+  const scopeText = data.isAdmin ? '全部雁群'
+    : (data.scopeLabel || (me.leader ? me.leader + ' 小組' : '你自己'));
+  let html = `<div class="myreg-intro">
+      <div class="mi-title">${esc(scopeText)}的報名紀錄</div>
+      <div class="mi-sub">
         ${esc(me.name || '')}${me.leader ? '　｜　上手白金：' + esc(me.leader) : ''}
-      </p>
+      </div>
     </div>`;
 
   html += `<div class="home-section">
@@ -8081,7 +8095,7 @@ function renderMyRegBody_() {
 
   if (scopeEvents.length || data.scopeLabel) {
     html += `<div class="home-section">
-        <p class="home-section-title">各活動報名狀況（${scopeEvents.length}）</p>
+        <p class="home-section-title">各活動報名狀況　共 ${scopeEvents.length} 場</p>
         ${data.scopeLabel ? `<p class="meta" style="margin:-4px 0 9px">範圍：${esc(data.scopeLabel)}</p>` : ''}
         ${scopeEvents.length ? scopeEvents.map((e, idx) => regEventCardHtml(e, idx)).join('')
           : '<div class="reg-empty">範圍內目前沒有報名紀錄。</div>'}
@@ -8126,7 +8140,7 @@ function regEventCardHtml(e, idx) {
               <span class="pm">${esc(p.classType)}${p.cancelled ? '　已取消' : '　' + money(p.fee)}</span>
             </div>`).join('')}
         </div>`).join('')}
-      <button class="btn btn-sub" style="margin-top:10px" onclick="copyRegSummary(${idx})">複製對帳摘要</button>
+      <button class="btn btn-sub" style="margin-top:10px" onclick="copyRegSummary(${idx})">複製對帳表</button>
     </div>`;
   }
 
@@ -8143,22 +8157,58 @@ function regEventCardHtml(e, idx) {
     </div>`;
 }
 
-// 產出可直接貼進 LINE 催款的文字
+// 產出可直接貼進 LINE 催款的對帳表。
+// 格式參考使用者原本在用的「雁群組長報名表」：分層、有分隔線、列出人名。
+// 只給數字沒有名字的話，組長不知道要催誰。
 function copyRegSummary(idx) {
   const e = (myRegData && myRegData.scopeEvents || [])[idx];
   if (!e) return;
-  const lines = ['【' + (e.eventName || e.eventCode) + '】'];
-  lines.push('總計 ' + e.count + ' 人｜應收 ' + money(e.amount) + (e.cancelled ? '｜取消 ' + e.cancelled + ' 人' : ''));
-  const t = typeSummary(e.byType);
-  if (t) lines.push(t.replace(/　/g, '、'));
-  lines.push('');
-  (e.groups || []).forEach(g => {
-    const gt = typeSummary(g.byType);
-    lines.push(g.leader + '　' + g.count + ' 人　' + money(g.amount) + (gt ? '（' + gt.replace(/　/g, '、') + '）' : ''));
-  });
-  const text = lines.join('\n');
 
-  const done = () => showMsg('對帳摘要已複製，可以直接貼到 LINE。', 'ok');
+  const now = new Date();
+  const pad = n => ('0' + n).slice(-2);
+  const stamp = now.getFullYear() + '/' + pad(now.getMonth() + 1) + '/' + pad(now.getDate()) +
+    ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+
+  const L = [];
+  L.push('雁群組長報名表');
+  L.push('活動：' + (e.eventName || e.eventCode || '未命名活動'));
+  L.push('更新：' + stamp);
+  L.push('------------------');
+  L.push('統計');
+  // 沒有金額就不要印 $0，那是純噪音
+  L.push(e.amount > 0
+    ? '應收總計：' + money(e.amount) + '（出席 ' + e.count + ' 人）'
+    : '出席人數：' + e.count + ' 人');
+  const topType = typeSummary(e.byType);
+  if (topType) L.push(topType.replace(/　/g, '｜'));
+  if (e.cancelled) L.push('取消：' + e.cancelled + ' 人');
+
+  (e.groups || []).forEach(g => {
+    L.push('');
+    const head = '📍【' + g.leader + '小組】';
+    const tail = g.amount > 0 ? '(' + money(g.amount) + ')' : '(' + g.count + ' 人)';
+    L.push(head + tail);
+
+    // 依上課類別分小節；資格制是白金/非白金，類別制是初訓/複訓，兩種都通用
+    const byType = {};
+    (g.rows || []).forEach(p => {
+      if (p.cancelled) return;
+      (byType[p.classType] = byType[p.classType] || []).push(p.name);
+    });
+    Object.keys(byType).forEach(t => {
+      L.push(t + '：');
+      byType[t].forEach((n, i) => L.push((i + 1) + '. ' + n));
+    });
+
+    const cx = (g.rows || []).filter(p => p.cancelled).map(p => p.name);
+    if (cx.length) {
+      L.push('已取消：');
+      cx.forEach((n, i) => L.push((i + 1) + '. ' + n));
+    }
+  });
+
+  const text = L.join('\n');
+  const done = () => showMsg('對帳表已複製，可以直接貼到 LINE。', 'ok');
   try {
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
@@ -8350,6 +8400,26 @@ async function verifyClassEdmSaved(c) {
     if (data.byMonth) Object.keys(data.byMonth).forEach(k => { scheduleCache[k] = data.byMonth[k]; });
     return (hit && hit.edm) || '';
   } catch (e) { return ''; }
+}
+
+// 只在「LINE 內建瀏覽器 ＋ 非 LIFF 啟動」時轉址。
+// ⚠️ 分享連結不能轉——收到的人可能根本沒有 LINE，訪客模式就是為他們做的。
+// ⚠️ 一般瀏覽器也不轉——那會把訪客推去 LINE 登入牆。
+function redirectToLiffEntryIfNeeded() {
+  try {
+    const ua = navigator.userAgent || '';
+    if (ua.indexOf('Line/') < 0) return false;
+    if (liff.isInClient && liff.isInClient()) return false;
+
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('share') || qs.get('s')) return false;
+
+    if (sessionStorage.getItem('liff_redirected')) return false;
+    sessionStorage.setItem('liff_redirected', '1');
+
+    location.replace('https://liff.line.me/' + LIFF_ID + (location.search || ''));
+    return true;
+  } catch (e) { return false; }
 }
 </script>
 </body>
