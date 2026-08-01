@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.75</title>
+  <title>CYP135 課程報名 V6.76</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -558,7 +558,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.75</small>
+    <small>CYP135 課程系統 V6.76</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7044,7 +7044,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.75';
+const SEAT_DIAG_VERSION = 'V6.76';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -7867,6 +7867,7 @@ function classCardHtml(c, idx) {
           <input type="file" accept="image/*" style="display:none" onchange="handleClassEdmUpload(this,${idx})">
         </label>
         <button class="btn btn-sub" onclick="editClassPromo(${idx})">${c.promo ? '編輯宣傳文' : '新增宣傳文'}</button>
+        <button class="btn btn-sub" onclick="editClassMeetUrl(${idx})">${c.meetUrl ? '編輯會議連結' : '新增會議連結'}</button>
       </div>
     </div>` : '';
 
@@ -8420,6 +8421,34 @@ function redirectToLiffEntryIfNeeded() {
     location.replace('https://liff.line.me/' + LIFF_ID + (location.search || ''));
     return true;
   } catch (e) { return false; }
+}
+
+// 會議連結存在「課程資料」K 欄，排課表同步不會蓋掉（它只重寫 A–I）。
+// 留空即可清除。
+async function editClassMeetUrl(idx) {
+  const c = currentDayCourses()[idx];
+  if (!c) return;
+  const text = window.prompt('貼上這堂課的線上會議連結（留空可清除）：', c.meetUrl || '');
+  if (text === null) return;
+  const url = (text || '').trim();
+  if (url && !/^https?:\/\//i.test(url)) {
+    showMsg('請貼完整網址，要以 http:// 或 https:// 開頭。', 'err');
+    return;
+  }
+
+  showActionLock('正在儲存', '請稍候。');
+  try {
+    const res = await post('saveClassMeetUrl', { userId, date: c.date, title: c.title, meetUrl: url }, 30000);
+    if (!res || res.status !== 'ok') { showMsg(esc((res && res.message) || '儲存失敗'), 'err'); return; }
+    c.meetUrl = url;
+    delete scheduleCache[c.date.slice(0, 7)];
+    renderScheduleDay();
+    showMsg(res.message || '已儲存。', 'ok');
+  } catch (err) {
+    showMsg(esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
 }
 </script>
 </body>
