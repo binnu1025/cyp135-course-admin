@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.92</title>
+  <title>CYP135 課程報名 V6.93</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -596,6 +596,18 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 }
 @media(max-width:340px){.quick-btn .ql{font-size:10px}}
 .kv-src{color:#8a8f85;font-size:12px}
+.portal-tile .ico svg{width:23px;height:23px;display:block;stroke:#5c8a6c;fill:none;
+  transition:stroke .18s ease}
+.portal-tile .ico svg .acc{stroke:#a9c6b6}
+.portal-tile.admin .ico svg{stroke:#3f6b4e}
+.portal-tile.admin .ico svg .acc{stroke:#86ad94}
+.portal-tile:active .ico svg{stroke:#2d5a3d}
+.portal-tile:active .ico svg .acc{stroke:#5c8a6c}
+@media(hover:hover){
+  .portal-tile:hover .ico svg{stroke:#2d5a3d}
+  .portal-tile:hover .ico svg .acc{stroke:#5c8a6c}
+}
+@media(max-width:420px){.portal-tile .ico svg{width:21px;height:21px}}
 </style>
 </head>
 <body>
@@ -605,7 +617,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.92</small>
+    <small>CYP135 課程系統 V6.93</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7174,6 +7186,28 @@ async function uploadTicketsToDrive(forceOverwrite) {
    不寫死在本檔，避免隨 GitHub Pages 公開。
 ═══════════════════════════════════════════════════════════════ */
 
+// 入口磚圖示：跟上方圓形快捷鍵同一套細線風格。
+// 每個圖案直接畫出該磚標題在講的東西，不用通用符號——
+// 「排座位」就畫座位表、「以往課程」就畫一疊課本、「票券產生」就畫票根加 QR。
+// .acc 的筆畫用淺一階的綠，讓主體和配件有層次，不會糊成一團。
+const TILE_ICO = (function () {
+  const wrap = inner => '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+  return {
+    roster: wrap('<rect x="4.6" y="5" width="14.8" height="15.6" rx="2.4"/><rect x="9" y="2.6" width="6" height="3.6" rx="1.2"/><path class="acc" d="M8.6 11.4h6.8M8.6 15.4h4.4"/>'),
+    trophy: wrap('<path d="M7.6 3.6h8.8v4.8a4.4 4.4 0 0 1-8.8 0V3.6Z"/><path class="acc" d="M7.6 5.4H5v1.2a3.2 3.2 0 0 0 3 3.2M16.4 5.4H19v1.2a3.2 3.2 0 0 1-3 3.2"/><path d="M12 12.8v3.4M10 16.2h4v4.2h-4z"/><path class="acc" d="M9.4 20.4h5.2"/>'),
+    classroom: wrap('<rect x="3.6" y="3.4" width="16.8" height="17.2" rx="2.6"/><circle cx="8.8" cy="9" r="1.7"/><path class="acc" d="M13 9h3.6"/><circle cx="8.8" cy="15" r="1.7"/><path class="acc" d="M13 15h3.6"/>'),
+    monthly: wrap('<rect x="3.2" y="5" width="17.6" height="15.6" rx="2.6"/><path d="M3.2 9.6h17.6M8 3.2v3.4M16 3.2v3.4"/><circle class="acc" cx="12" cy="15.2" r="2.7"/><path class="acc" d="M12 13.3v3.8"/>'),
+    seat: wrap('<rect x="3.2" y="5.6" width="5.2" height="4.6" rx="1.3"/><rect x="9.4" y="5.6" width="5.2" height="4.6" rx="1.3"/><rect x="15.6" y="5.6" width="5.2" height="4.6" rx="1.3"/><rect class="acc" x="3.2" y="13.2" width="5.2" height="4.6" rx="1.3"/><rect class="acc" x="9.4" y="13.2" width="5.2" height="4.6" rx="1.3"/><rect class="acc" x="15.6" y="13.2" width="5.2" height="4.6" rx="1.3"/>'),
+    schedule: wrap('<path d="M19.4 11.4V5.6a2 2 0 0 0-2-2H4.6a2 2 0 0 0-2 2v12.8a2 2 0 0 0 2 2H11"/><path d="M2.6 9.2h16.8M7 2.4v3.2M15 2.4v3.2"/><path class="acc" d="M14.8 20.8v-2.6l4.8-4.8 2.6 2.6-4.8 4.8h-2.6Z"/>'),
+    create: wrap('<path d="M4 5.6A2.1 2.1 0 0 1 6.1 3.5h8.4v13.9H6.1A2.1 2.1 0 0 0 4 19.5V5.6Z"/><path d="M4 19.5a2.1 2.1 0 0 1 2.1-2.1h8.4"/><path class="acc" d="M18.6 11.6v6.2M15.5 14.7h6.2"/>'),
+    past: wrap('<rect x="3.4" y="14.8" width="17.2" height="4.2" rx="1.5"/><rect class="acc" x="5.2" y="10" width="13.6" height="4.2" rx="1.5"/><rect class="acc" x="7" y="5.2" width="10" height="4.2" rx="1.5"/>'),
+    ticket: wrap('<rect x="2.6" y="6" width="18.8" height="12" rx="2.4"/><path d="M8.6 6v12" stroke-dasharray="1.6 2.2"/><rect class="acc" x="11.8" y="9" width="3" height="3" rx=".7"/><rect class="acc" x="16.2" y="9" width="3" height="3" rx=".7"/><rect class="acc" x="11.8" y="13" width="3" height="3" rx=".7"/>'),
+    import: wrap('<path d="M20.4 14.4v4a2.2 2.2 0 0 1-2.2 2.2H5.8a2.2 2.2 0 0 1-2.2-2.2v-4"/><path d="M12 3.2v11.2"/><path class="acc" d="M7.8 10.2 12 14.4l4.2-4.2"/>'),
+    refresh: wrap('<path d="M20.6 12a8.6 8.6 0 1 1-2.7-6.2"/><path class="acc" d="M20.8 3.6v5.2h-5.2"/>')
+  };
+})();
+
 function portalTile(opts) {
   const cls = 'portal-tile' + (opts.admin ? ' admin' : '') + (opts.ext ? ' ext' : '');
   const tag = opts.tag ? `<span class="tag">${esc(opts.tag)}</span>` : '';
@@ -7215,14 +7249,14 @@ function renderPortalShell() {
 
   if (currentCourse && (canViewRoster || isAdminUser)) {
     mainTiles.push(portalTile({
-      ico: '📋', title: '課程名單', desc: '查看目前課程的報名名單',
+      ico: TILE_ICO.roster, title: '課程名單', desc: '查看目前課程的報名名單',
       onclick: `renderCourseRosterPage('${esc(currentCourse.eventCode)}')`
     }));
   }
 
   if (links.referral) {
     mainTiles.push(portalTile({
-      ico: '🏆', title: '推薦競賽', desc: '前往推薦競賽登錄小幫手',
+      ico: TILE_ICO.trophy, title: '推薦競賽', desc: '前往推薦競賽登錄小幫手',
       href: links.referral, ext: true
     }));
   }
@@ -7232,39 +7266,39 @@ function renderPortalShell() {
     const toolTiles = [];
 
     toolTiles.push(portalTile({
-      ico: '📊', title: '全教室報名', desc: '查看全部雁群報名狀況', admin: true,
+      ico: TILE_ICO.classroom, title: '全教室報名', desc: '查看全部雁群報名狀況', admin: true,
       onclick: 'renderMyRegistrationsPage(true)'
     }));
 
     toolTiles.push(portalTile({
-      ico: '💳', title: '全教室包月', desc: '查看全部雁群包月狀況', admin: true,
+      ico: TILE_ICO.monthly, title: '全教室包月', desc: '查看全部雁群包月狀況', admin: true,
       onclick: 'renderMonthlyPage(true)'
     }));
 
     toolTiles.push(portalTile({
-      ico: '🪑', title: '排座位', desc: '白金小組座位自動分配', admin: true,
+      ico: TILE_ICO.seat, title: '排座位', desc: '白金小組座位自動分配', admin: true,
       onclick: 'renderSeatPage()'
     }));
 
     if (links.schedule) {
       toolTiles.push(portalTile({
-        ico: '✏️', title: '課表編輯', desc: '排課程、產生課表圖', admin: true, ext: true,
+        ico: TILE_ICO.schedule, title: '課表編輯', desc: '排課程、產生課表圖', admin: true, ext: true,
         href: links.schedule
       }));
     } else {
       toolTiles.push(portalTile({
-        ico: '✏️', title: '課表編輯', desc: '尚未設定網址', admin: true,
+        ico: TILE_ICO.schedule, title: '課表編輯', desc: '尚未設定網址', admin: true,
         tag: '未啟用', onclick: 'showMsg(\'排課表網址尚未設定，請聯絡系統維護者。\',\'err\')'
       }));
     }
 
     const manageTiles = [
-      portalTile({ ico: '➕', title: '建立課程', desc: '新增一堂課程', admin: true, onclick: 'renderCreateCoursePage()' }),
-      portalTile({ ico: '🗂️', title: '以往課程', desc: '查看歷史課程紀錄', admin: true, onclick: 'renderPastCoursesPage()' }),
-      portalTile({ ico: '🎫', title: '票券產生', desc: '產生報名者 QR 票券', admin: true, onclick: 'renderTicketGeneratorPage()' }),
-      portalTile({ ico: '📥', title: '外部名單匯入', desc: '匯入外部報名資料', admin: true, onclick: 'renderExternalImportPage()' }),
+      portalTile({ ico: TILE_ICO.create, title: '建立課程', desc: '新增一堂課程', admin: true, onclick: 'renderCreateCoursePage()' }),
+      portalTile({ ico: TILE_ICO.past, title: '以往課程', desc: '查看歷史課程紀錄', admin: true, onclick: 'renderPastCoursesPage()' }),
+      portalTile({ ico: TILE_ICO.ticket, title: '票券產生', desc: '產生報名者 QR 票券', admin: true, onclick: 'renderTicketGeneratorPage()' }),
+      portalTile({ ico: TILE_ICO.import, title: '外部名單匯入', desc: '匯入外部報名資料', admin: true, onclick: 'renderExternalImportPage()' }),
 
-      portalTile({ ico: '🧹', title: '清除前台快取', desc: '改完試算表後讓前台立即生效', admin: true, onclick: 'clearFrontendCourseCache()' })
+      portalTile({ ico: TILE_ICO.refresh, title: '清除前台快取', desc: '改完試算表後讓前台立即生效', admin: true, onclick: 'clearFrontendCourseCache()' })
     ];
 
     adminHtml = `
@@ -7302,7 +7336,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.92';
+const SEAT_DIAG_VERSION = 'V6.93';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
