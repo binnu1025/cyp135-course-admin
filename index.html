@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.95</title>
+  <title>CYP135 課程報名 V6.96</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -201,6 +201,9 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .side-menu.on{display:block}
 .menu-head{background:#f5f2eb;padding:16px;color:#2d5a3d;font-weight:900;font-size:16px;border-bottom:1px solid #ece5d8}
 .menu-list{padding:10px}
+.menu-section{padding:6px 0 8px;border-bottom:1px solid rgba(45,90,61,.10)}
+.menu-section:last-child{border-bottom:0;padding-bottom:0}
+.menu-section-title{font-size:11px;font-weight:900;color:#8a9a8f;letter-spacing:.12em;padding:2px 14px 6px}
 .menu-item{width:100%;border:none;background:#fff;text-align:left;padding:14px 14px;border-radius:14px;font-family:'Noto Sans TC',sans-serif;font-size:15px;font-weight:900;color:#2d5a3d;cursor:pointer}
 .menu-item:hover,.menu-item:active{background:#edf7ee}
 .menu-note{font-size:12px;color:#777;line-height:1.6;padding:0 14px 12px}
@@ -624,7 +627,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.95</small>
+    <small>CYP135 課程系統 V6.96</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1601,6 +1604,11 @@ function renderMenu() {
     return;
   }
 
+  const menuSection = (title, content) => {
+    const body = String(content || '').trim();
+    if (!body) return '';
+    return `<div class="menu-section"><div class="menu-section-title">${esc(title)}</div>${body}</div>`;
+  };
   const courseBtns = currentCourse
     ? `
       <button class="menu-item" onclick="toggleMenu(false);renderCourseDetailPage('${esc(currentCourse.eventCode)}')">活動詳情</button>
@@ -1617,25 +1625,30 @@ function renderMenu() {
       <button class="menu-item" onclick="toggleMenu(false);renderExternalImportPage()">外部名單匯入</button>
       <button class="menu-item" onclick="toggleMenu(false);renderSeatPage()">排座位</button>
       <button class="menu-item" onclick="toggleMenu(false);renderTicketGeneratorPage()">票券產生</button>
-      <button class="menu-item" onclick="toggleMenu(false);clearFrontendCourseCache()">清除前台快取</button>
     `
     : '';
 
   menu.innerHTML = `
     <div class="menu-head">CYP135 課程系統</div>
     <div class="menu-list">
-      <button class="menu-item" onclick="toggleMenu(false);renderPortalPage()">首頁</button>
-      <button class="menu-item" onclick="toggleMenu(false);renderSchedulePage()">課表</button>
-      <button class="menu-item" onclick="toggleMenu(false);renderMyRegistrationsPage(false)">查詢報名</button>
-      <button class="menu-item" onclick="toggleMenu(false);renderMonthlyPage(false)">查詢包月</button>
-      <button class="menu-item" onclick="toggleMenu(false);renderHomePage({skipRefresh:true})">報名課程</button>
-      <button class="menu-item" onclick="toggleMenu(false);openPermissionDebugDialog()">權限狀態</button>
-      ${courseBtns}
-      ${rosterBtns}
-      ${adminBtns}
-      <button class="menu-item" onclick="toggleMenu(false)">關閉選單</button>
+      ${menuSection('常用入口', `
+        <button class="menu-item" onclick="toggleMenu(false);renderPortalPage()">首頁</button>
+        <button class="menu-item" onclick="toggleMenu(false);renderSchedulePage()">課表</button>
+        <button class="menu-item" onclick="toggleMenu(false);renderHomePage({skipRefresh:true})">報名課程</button>
+      `)}
+      ${menuSection('目前活動', courseBtns + rosterBtns)}
+      ${menuSection('查詢', `
+        <button class="menu-item" onclick="toggleMenu(false);renderMyRegistrationsPage(false)">查詢報名</button>
+        <button class="menu-item" onclick="toggleMenu(false);renderMonthlyPage(false)">查詢包月</button>
+      `)}
+      ${menuSection('會長工具', adminBtns)}
+      ${menuSection('系統', `
+        <button class="menu-item" onclick="toggleMenu(false);openPermissionDebugDialog()">權限狀態</button>
+        ${isAdminUser ? '<button class="menu-item" onclick="toggleMenu(false);clearFrontendCourseCache()">清除前台快取</button>' : ''}
+        <button class="menu-item" onclick="toggleMenu(false)">關閉選單</button>
+      `)}
     </div>
-    <div class="menu-note">${isAdminUser ? '會長可使用課程建立、以往課程、票券與匯入工具。' : '分享入口不顯示選單；管理項目依權限顯示。'}</div>
+    <div class="menu-note">${isAdminUser ? '會長工具依權限顯示；目前活動會跟著正在查看的課程切換。' : '分享入口不顯示選單；名單與管理項目依權限顯示。'}</div>
   `;
 }
 
@@ -7350,7 +7363,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.95';
+const SEAT_DIAG_VERSION = 'V6.96';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
