@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.94</title>
+  <title>CYP135 課程報名 V6.95</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -610,6 +610,11 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   .portal-tile .ico .ibx{width:34px;height:34px;border-radius:10px;margin-bottom:3px}
   .portal-tile .ico .ibx svg{width:19px;height:19px}
 }
+.reg-event.empty{opacity:.62;background:#fbfaf7}
+.reg-event.empty .reg-event-head{cursor:default}
+.reg-event.empty .reg-event-name{font-weight:800;color:#6b6b63}
+.reg-none{font-size:11.5px;font-weight:900;color:#9a8358;background:#f3ece0;
+  border-radius:999px;padding:3px 10px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -619,7 +624,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.94</small>
+    <small>CYP135 課程系統 V6.95</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7345,7 +7350,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.94';
+const SEAT_DIAG_VERSION = 'V6.95';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8395,7 +8400,7 @@ function renderMyRegBody_() {
   // 這一區單純傳遞資訊，用緊湊表列就好，不需要卡片與陰影。
   if (scopeEvents.length || data.scopeLabel) {
     html += `<div class="home-section">
-        <p class="home-section-title">各活動報名狀況　共 ${scopeEvents.length} 場</p>
+        <p class="home-section-title">各活動報名狀況　共 ${scopeEvents.length} 場${scopeEvents.filter(x => x.empty).length ? `（其中 ${scopeEvents.filter(x => x.empty).length} 場未報名）` : ''}</p>
         ${data.scopeLabel ? `<p class="meta" style="margin:-4px 0 9px">範圍：${esc(data.scopeLabel)}</p>` : ''}
         ${scopeEvents.length ? scopeEvents.map((e, idx) => regEventCardHtml(e, idx)).join('')
           : '<div class="reg-empty">範圍內目前沒有報名紀錄。</div>'}
@@ -8416,6 +8421,17 @@ function money(n) { return '$' + (Number(n) || 0).toLocaleString('en-US'); }
 // 一場活動一張卡：收合只看合計，展開才依上手白金分組列名單。
 // 取消的畫刪除線、不計入人數與金額——混在一起算，那個數字就沒意義了。
 function regEventCardHtml(e, idx) {
+  // 範圍內沒人報名的活動：只留一行提示，沒東西可以展開。
+  // 保留它是為了讓組長看得出「這場我漏了」，而不是整個消失。
+  if (e.empty) {
+    return `<div class="reg-event empty">
+      <div class="reg-event-head">
+        <span class="reg-event-name">${esc(e.eventName || e.eventCode || '未命名活動')}</span>
+        <span class="reg-event-right"><span class="reg-none">未報名</span></span>
+      </div>
+    </div>`;
+  }
+
   const open = !!myRegOpen[idx];
   const groups = e.groups || [];
 
