@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.97</title>
+  <title>CYP135 課程報名 V6.98</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -460,10 +460,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .cls-edm{width:100%;border-radius:12px;display:block;margin:9px 0;background:#f0ede8}
 .cls-promo{font-size:13.5px;color:#444;line-height:1.85;white-space:pre-wrap;word-break:break-word;background:#faf9f6;border-radius:11px;padding:11px 12px;margin-bottom:9px}
 .cls-actions{display:flex;flex-wrap:wrap;gap:7px}
-.cls-actions .btn{width:auto;flex:1 1 auto;min-width:112px;padding:10px 13px;font-size:13.5px}
+.cls-actions .btn{width:auto;flex:1 1 auto;min-width:112px;min-height:52px;padding:0 13px;font-size:13.5px;line-height:1.25;display:flex;align-items:center;justify-content:center;box-sizing:border-box;margin-top:0}
 .cls-meet{display:inline-block;font-size:12.5px;color:#2d5a3d;word-break:break-all;margin-bottom:8px}
 .cls-admin{border-top:1px dashed rgba(45,90,61,.22);margin-top:11px;padding-top:11px}
-.cls-admin .btn{width:auto;flex:1 1 auto;min-width:104px;padding:9px 12px;font-size:13px}
+.cls-admin .btn{width:auto;flex:1 1 auto;min-width:104px;padding:0 12px;font-size:13px}
 
 /* ═══ 我的報名 ═══ */
 .reg-row{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:14px;padding:12px 13px;margin-bottom:9px}
@@ -628,7 +628,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.97</small>
+    <small>CYP135 課程系統 V6.98</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7364,7 +7364,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.97';
+const SEAT_DIAG_VERSION = 'V6.98';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8186,7 +8186,7 @@ function classCardHtml(c, idx) {
   const adminBox = isAdminUser ? `
     <div class="cls-admin">
       <div class="cls-actions">
-        <label class="btn btn-sub" style="width:auto;flex:1 1 auto;min-width:104px;padding:9px 12px;font-size:13px;cursor:pointer">
+        <label class="btn btn-sub" style="cursor:pointer">
           ${c.edm ? '更換 EDM' : '上傳 EDM'}
           <input type="file" accept="image/*" style="display:none" onchange="handleClassEdmUpload(this,${idx})">
         </label>
@@ -8206,7 +8206,7 @@ function classCardHtml(c, idx) {
       <div class="cls-actions">
         <button class="btn btn-sub" onclick="shareClass(${idx})">分享給 LINE 好友</button>
         <button class="btn btn-sub" onclick="copyClassPromo(${idx})">複製宣傳文</button>
-        ${c.edm ? `<a class="btn btn-sub" href="${esc(c.edm)}" target="_blank" rel="noopener noreferrer" style="width:auto;flex:1 1 auto;min-width:112px;padding:10px 13px;font-size:13.5px">看大圖 / 存檔</a>` : ''}
+        ${c.edm ? `<a class="btn btn-sub" href="${esc(c.edm)}" target="_blank" rel="noopener noreferrer">看大圖 / 存檔</a>` : ''}
       </div>
       ${adminBox}
     </div>`;
