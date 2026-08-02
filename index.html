@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.87</title>
+  <title>CYP135 課程報名 V6.88</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -598,7 +598,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.87</small>
+    <small>CYP135 課程系統 V6.88</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -645,6 +645,8 @@ let selectedLeader = '';
 let memberIndex = {};
 let registrationIndex = {};
 let isCurrentNameDuplicate = false;
+let isCurrentALevelBlocked = false;
+let aLevelCheckSeq = 0;
 let isSubmittingRegistration = false;
 let editingCourseCode = '';
 let currentCourseData = null;
@@ -1852,6 +1854,9 @@ function courseCardHtml(c) {
   const closed = c.statusBadge === '尚未開放';
   const canRegister = canCourseRegister(c);
   const canManageAdd = userCanManageRoster() && !canRegister;
+  const aLevelBadge = courseRequiresALevelClient(c)
+    ? '<span class="badge yellow">A級限定</span>'
+    : '';
   const badgeClass = full ? 'red' : (closed || !canRegister ? 'gray' : '');
   const registerButton = canRegister
     ? `<button class="btn btn-main" onclick="renderCourseDetailPage('${esc(c.eventCode)}', true)">立即報名</button>`
@@ -1880,6 +1885,7 @@ function courseCardHtml(c) {
         <div class="badges">
           <span class="badge ${badgeClass}">${esc(c.statusBadge || c.statusText || '活動')}</span>
           <span class="badge">${esc(c.session || '場次未設定')}</span>
+          ${aLevelBadge}
         </div>
         <div class="meta">
           日期時間：<b>${esc(c.dateTime || '尚未設定')}</b><br>
@@ -2628,6 +2634,7 @@ function handleRosterAddNameInput() {
   const name = val('roster-add-name');
   add.name = name;
   add.duplicate = false;
+  add.aLevelBlocked = false;
   add.selectedLeader = '';
   add.lookupMembers = [];
   add.selectedClassType = hasRosterAddPlatinumClassPair() ? '' : add.selectedClassType;
@@ -2641,6 +2648,10 @@ function handleRosterAddNameInput() {
   if (add.lookupTimer) clearTimeout(add.lookupTimer);
   const clean = cleanNameLocal(name);
   if (!clean) return;
+  if (courseRequiresALevelClient(rosterState.course)) {
+    add.aLevelBlocked = true;
+    setRosterAddSubmitDisabled(true, '核對包月資格');
+  }
   add.lookupTimer = setTimeout(() => lookupRosterAddName(clean, name), 350);
 }
 
@@ -2680,7 +2691,7 @@ async function lookupRosterAddName(clean, name) {
       }
       const autoClassType = applyRosterAddClassAutoSelection(member);
       applyMemberProfileToRegistration(member, 'roster-extra-');
-      box.innerHTML = `
+      const foundHtml = `
         <div class="msg on ok">
           ✅ 已找到名冊資料<br>
           姓名：${esc(member.name || name)}<br>
@@ -2689,11 +2700,17 @@ async function lookupRosterAddName(clean, name) {
         </div>
         <input id="roster-add-leader" type="hidden" value="${esc(add.selectedLeader)}">
       `;
-      setRosterAddSubmitDisabled(false, '送出加報');
+      box.innerHTML = foundHtml;
+      checkRosterAddALevelNow(name, add.selectedLeader, foundHtml);
     } else if (res && res.status === 'multiple') {
       add.lookupMembers = res.members || [];
       add.selectedLeader = '';
-      setRosterAddSubmitDisabled(false, '送出加報');
+      if (courseRequiresALevelClient(rosterState.course)) {
+        add.aLevelBlocked = true;
+        setRosterAddSubmitDisabled(true, '請先選擇名冊');
+      } else {
+        setRosterAddSubmitDisabled(false, '送出加報');
+      }
       box.innerHTML = `
         <div class="msg on warn">找到多筆同名資料，請選擇正確的名冊資料。若同組同名，請用電話末四碼辨識。</div>
         ${renderLookupMemberSelect(add.lookupMembers, 'roster-add-member-choice', 'selectRosterAddMember', '請選擇正確名冊資料')}
@@ -2701,22 +2718,30 @@ async function lookupRosterAddName(clean, name) {
     } else {
       add.selectedLeader = '';
       const autoClassType = applyRosterAddClassAutoSelection(null);
+      if (courseRequiresALevelClient(rosterState.course)) {
+        setRosterAddALevelBlocked('此課程限包月 A 級會員（AA、A 方案）加報。請先在包月資訊建立資料，不能從加報頁順便建立。');
+      } else {
+        setRosterAddSubmitDisabled(false, '送出加報');
+        box.innerHTML = `
+          <div class="msg on warn">
+            查無名冊資料，請選擇上手白金/雁群組長<br>
+            建立資料
+            ${autoClassType ? `<br>上課類別：${esc(autoClassType)}` : ''}
+          </div>
+          ${renderRosterAddLeaderSelect()}
+        `;
+      }
+    }
+  } catch (err) {
+    if (courseRequiresALevelClient(rosterState.course)) {
+      setRosterAddALevelBlocked('A 級限定課必須先查到包月資格；目前名冊查詢失敗，請稍後重試。');
+    } else {
       setRosterAddSubmitDisabled(false, '送出加報');
       box.innerHTML = `
-        <div class="msg on warn">
-          查無名冊資料，請選擇上手白金/雁群組長<br>
-          建立資料
-          ${autoClassType ? `<br>上課類別：${esc(autoClassType)}` : ''}
-        </div>
+        <div class="msg on warn">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長。</div>
         ${renderRosterAddLeaderSelect()}
       `;
     }
-  } catch (err) {
-    setRosterAddSubmitDisabled(false, '送出加報');
-    box.innerHTML = `
-      <div class="msg on warn">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長。</div>
-      ${renderRosterAddLeaderSelect()}
-    `;
   }
 }
 
@@ -2751,7 +2776,15 @@ function handleRosterAddLeaderChange() {
     setRosterAddSubmitDisabled(true, '已重複加報');
     return;
   }
-  setRosterAddSubmitDisabled(false, '送出加報');
+  const baseHtml = leader ? `
+    <div class="msg on warn">
+      已改以 ${esc(leader)} 小組 加報<br>
+      請確認這是正確的同名者。
+    </div>
+    ${renderRosterAddLeaderSelect(leader)}
+  ` : '';
+  if (box && baseHtml) box.innerHTML = baseHtml;
+  checkRosterAddALevelNow(val('roster-add-name'), leader, baseHtml);
 }
 
 function getRosterAddDuplicate(clean, leader, options) {
@@ -2801,7 +2834,7 @@ function selectRosterAddMember(value) {
 
   const autoClassType = applyRosterAddClassAutoSelection(member);
   applyMemberProfileToRegistration(member, 'roster-extra-');
-  box.innerHTML = `
+  const selectedHtml = `
     <div class="msg on ok">
       ✅ 已選擇名冊資料<br>
       姓名：${esc(member.name || val('roster-add-name'))}<br>
@@ -2811,7 +2844,8 @@ function selectRosterAddMember(value) {
     </div>
     <input id="roster-add-leader" type="hidden" value="${esc(add.selectedLeader)}">
   `;
-  setRosterAddSubmitDisabled(false, '送出加報');
+  box.innerHTML = selectedHtml;
+  checkRosterAddALevelNow(val('roster-add-name'), add.selectedLeader, selectedHtml);
 }
 
 function renderRosterFillAction() {
@@ -3232,6 +3266,7 @@ async function submitAdminAddRegistration() {
   if (!leader) return showBoxMsg('roster-msg', '請選擇上手白金/雁群組長。', 'warn');
   const extraCheck = collectRegistrationExtraAnswers(rosterState.course.registrationFields, 'roster-extra-');
   if (!extraCheck.ok) return showBoxMsg('roster-msg', extraCheck.message, 'err');
+  if (add.aLevelBlocked) return showBoxMsg('roster-msg', '此人不是包月 A 級會員，不能加報此課程。', 'err');
   const usesPhone = courseUsesPhoneIdentity(rosterState.course && rosterState.course.registrationFields);
   const phoneTail = getPhoneTailFromValue(extraCheck.answers && extraCheck.answers.phone);
   const clean = cleanNameLocal(name);
@@ -3276,7 +3311,11 @@ async function submitAdminAddRegistration() {
           ? '請填寫電話，系統會用電話末四碼核對是否為同一人。'
           : esc(res.message || '此姓名已在同一雁群報名，無法重複加報。').replace(/\n/g, '<br>'), usesPhone && !duplicateTail ? 'warn' : 'err');
       }
-      setRosterAddSubmitDisabled(false, '送出加報');
+      if (courseRequiresALevelClient(rosterState.course)) {
+        setRosterAddALevelBlocked((res && res.message) || '此人不是包月 A 級會員，不能加報此課程。');
+      } else {
+        setRosterAddSubmitDisabled(false, '送出加報');
+      }
       return showBoxMsg('roster-msg', esc((res && res.message) || '加報失敗'), 'err');
     }
     if (res.rows || res.groups) {
@@ -3289,7 +3328,7 @@ async function submitAdminAddRegistration() {
     renderRosterContent();
     showBoxMsg('roster-msg', esc(res.message || '已完成加報'), 'ok');
   } catch (err) {
-    setRosterAddSubmitDisabled(false, '送出加報');
+    if (!((rosterState.add || {}).aLevelBlocked)) setRosterAddSubmitDisabled(false, '送出加報');
     showBoxMsg('roster-msg', esc(err.message || err), 'err');
   } finally {
     hideActionLock();
@@ -4129,6 +4168,34 @@ function courseRequiresALevelClient(course) {
 
 function renderALevelNoticeClient() {
   return '<div class="alevel-notice">本課程限包月 A 級會員（AA、A 方案）報名。系統會依包月資訊核對姓名與上手白金/雁群。</div>';
+}
+
+function renderALevelBlockedNoticeClient(message) {
+  return `
+    <div class="msg on err">
+      非 A 級會員，無法報名。<br>
+      ${esc(message || '本課程限包月 A 級會員（AA、A 方案）報名，請先完成包月資料。')}
+    </div>
+  `;
+}
+
+function renderALevelPassNoticeClient(plan) {
+  return `
+    <div class="msg on ok">
+      ✅ 已確認包月 A 級資格${plan ? '：' + esc(plan) + ' 方案' : ''}
+    </div>
+  `;
+}
+
+function checkCourseALevelEligibilityClient(course, name, leader) {
+  if (!courseRequiresALevelClient(course)) return Promise.resolve({ status: 'ok', required: false, eligible: true });
+  return post('checkCourseALevelEligibility', {
+    eventCode: course && course.eventCode,
+    name,
+    leader,
+    flock: leader,
+    uplinePlatinum: leader
+  }, 12000);
 }
 
 function parseRegistrationFieldsClientSource(fields) {
@@ -5677,8 +5744,9 @@ function refreshRegistrationPhoneDuplicateState() {
     if (box) box.innerHTML = phoneTail ? duplicateNoticeHtml(leader, { phoneTail }) : renderPhoneCheckNotice(leader);
   } else {
     isCurrentNameDuplicate = false;
-    setRegisterButtonDisabled(false, '送出報名');
-    if (box && phoneTail) box.innerHTML = renderRegistrationPhonePassNotice(leader);
+    const passHtml = phoneTail ? renderRegistrationPhonePassNotice(leader) : '';
+    if (box && passHtml) box.innerHTML = passHtml;
+    checkRegistrationALevelNow(val('r-name'), leader, passHtml);
   }
 }
 
@@ -5702,8 +5770,9 @@ function refreshRosterAddPhoneDuplicateState() {
     if (box) box.innerHTML = phoneTail ? renderRosterAddDuplicateNotice(leader, { phoneTail }) : renderRosterAddPhoneCheckNotice(leader);
   } else {
     add.duplicate = false;
-    setRosterAddSubmitDisabled(false, '送出加報');
-    if (box && phoneTail) box.innerHTML = renderRosterAddPhonePassNotice(leader);
+    const passHtml = phoneTail ? renderRosterAddPhonePassNotice(leader) : '';
+    if (box && passHtml) box.innerHTML = passHtml;
+    checkRosterAddALevelNow(val('roster-add-name'), leader, passHtml);
   }
 }
 
@@ -5738,6 +5807,83 @@ function setRosterAddSubmitDisabled(disabled, text) {
   if (!btn) return;
   btn.disabled = !!disabled;
   btn.textContent = text || '送出加報';
+}
+
+function setRegistrationALevelBlocked(message, baseHtml) {
+  isCurrentALevelBlocked = true;
+  setRegisterButtonDisabled(true, '非A級會員');
+  const box = document.getElementById('lookup-box');
+  if (box) box.innerHTML = (baseHtml || '') + renderALevelBlockedNoticeClient(message);
+}
+
+function setRosterAddALevelBlocked(message, baseHtml) {
+  const add = rosterState.add || (rosterState.add = {});
+  add.aLevelBlocked = true;
+  setRosterAddSubmitDisabled(true, '非A級會員');
+  const box = document.getElementById('roster-add-lookup');
+  if (box) box.innerHTML = (baseHtml || '') + renderALevelBlockedNoticeClient(message);
+}
+
+function checkRegistrationALevelNow(name, leader, baseHtml) {
+  if (!courseRequiresALevelClient(currentCourse)) {
+    isCurrentALevelBlocked = false;
+    setRegisterButtonDisabled(false, '送出報名');
+    return;
+  }
+  const clean = cleanNameLocal(name);
+  const seq = ++aLevelCheckSeq;
+  isCurrentALevelBlocked = true;
+  setRegisterButtonDisabled(true, '核對包月資格');
+  const box = document.getElementById('lookup-box');
+  if (box) box.innerHTML = (baseHtml || '') + '<div class="msg on info">正在核對包月 A 級資格...</div>';
+
+  checkCourseALevelEligibilityClient(currentCourse, name, leader)
+    .then(res => {
+      if (seq !== aLevelCheckSeq || clean !== cleanNameLocal(val('r-name')) || String(leader || '').trim() !== String(getRegistrationLeaderValue() || '').trim()) return;
+      if (!res || res.status !== 'ok' || !res.eligible) {
+        setRegistrationALevelBlocked((res && res.message) || '此姓名目前不是包月 A 級會員。', baseHtml);
+        return;
+      }
+      isCurrentALevelBlocked = false;
+      if (box) box.innerHTML = (baseHtml || '') + renderALevelPassNoticeClient(res.plan);
+      setRegisterButtonDisabled(false, '送出報名');
+    })
+    .catch(err => {
+      if (seq !== aLevelCheckSeq || clean !== cleanNameLocal(val('r-name'))) return;
+      setRegistrationALevelBlocked('包月資格核對失敗：' + (err.message || err), baseHtml);
+    });
+}
+
+function checkRosterAddALevelNow(name, leader, baseHtml) {
+  const add = rosterState.add || (rosterState.add = {});
+  if (!courseRequiresALevelClient(rosterState.course)) {
+    add.aLevelBlocked = false;
+    setRosterAddSubmitDisabled(false, '送出加報');
+    return;
+  }
+  const clean = cleanNameLocal(name);
+  const seq = (add.aLevelSeq || 0) + 1;
+  add.aLevelSeq = seq;
+  add.aLevelBlocked = true;
+  setRosterAddSubmitDisabled(true, '核對包月資格');
+  const box = document.getElementById('roster-add-lookup');
+  if (box) box.innerHTML = (baseHtml || '') + '<div class="msg on info">正在核對包月 A 級資格...</div>';
+
+  checkCourseALevelEligibilityClient(rosterState.course, name, leader)
+    .then(res => {
+      if (seq !== add.aLevelSeq || clean !== cleanNameLocal(val('roster-add-name')) || String(leader || '').trim() !== String((add.selectedLeader || val('roster-add-leader') || '').trim())) return;
+      if (!res || res.status !== 'ok' || !res.eligible) {
+        setRosterAddALevelBlocked((res && res.message) || '此姓名目前不是包月 A 級會員。', baseHtml);
+        return;
+      }
+      add.aLevelBlocked = false;
+      if (box) box.innerHTML = (baseHtml || '') + renderALevelPassNoticeClient(res.plan);
+      setRosterAddSubmitDisabled(false, '送出加報');
+    })
+    .catch(err => {
+      if (seq !== add.aLevelSeq || clean !== cleanNameLocal(val('roster-add-name'))) return;
+      setRosterAddALevelBlocked('包月資格核對失敗：' + (err.message || err), baseHtml);
+    });
 }
 
 function setExtraAnswerValue(key, value, prefix = 'r-extra-') {
@@ -5790,6 +5936,8 @@ function autoLookupMemberDebounced() {
   clearTimeout(lookupTimer);
   selectedLeader = '';
   isCurrentNameDuplicate = false;
+  isCurrentALevelBlocked = false;
+  aLevelCheckSeq++;
   clearRegisterMsg();
   resetPlatinumClassAutoSelection();
 
@@ -5805,7 +5953,12 @@ function autoLookupMemberDebounced() {
   }
 
   setFloatingYaya('form');
-  setRegisterButtonDisabled(false, '送出報名');
+  if (courseRequiresALevelClient(currentCourse)) {
+    isCurrentALevelBlocked = true;
+    setRegisterButtonDisabled(true, '核對包月資格');
+  } else {
+    setRegisterButtonDisabled(false, '送出報名');
+  }
   if (box) box.innerHTML = '<div class="msg on info">查詢名冊中...</div>';
   lookupTimer = setTimeout(() => autoLookupMemberRemote(clean, name), 180);
 }
@@ -5862,7 +6015,7 @@ function renderLookupResult(res, clean, name) {
     }
     const autoClassType = applyPlatinumClassAutoSelection(res.member);
     const prefilled = applyMemberProfileToRegistration(res.member);
-    box.innerHTML = `
+    const foundHtml = `
       <div class="msg on ok">
         ✅ 已找到名冊資料<br>
         姓名：${esc((res.member && res.member.name) || name)}<br>
@@ -5871,10 +6024,17 @@ function renderLookupResult(res, clean, name) {
       </div>
       <input id="r-leader" type="hidden" value="${esc(selectedLeader)}">
     `;
+    box.innerHTML = foundHtml;
+    checkRegistrationALevelNow(name, selectedLeader, foundHtml);
   } else if (res.status === 'multiple') {
     selectedLeader = '';
     isCurrentNameDuplicate = false;
-    setRegisterButtonDisabled(false, '送出報名');
+    if (courseRequiresALevelClient(currentCourse)) {
+      isCurrentALevelBlocked = true;
+      setRegisterButtonDisabled(true, '請先選擇名冊');
+    } else {
+      setRegisterButtonDisabled(false, '送出報名');
+    }
     box.innerHTML = `
       <div class="msg on warn">找到多筆同名資料，請選擇正確的名冊資料。若同組同名，請用電話末四碼辨識。</div>
       ${renderLookupMemberSelect(res.members || [], 'r-member-choice', 'handleLookupMemberChoice', '請選擇正確名冊資料')}
@@ -5882,10 +6042,14 @@ function renderLookupResult(res, clean, name) {
   } else {
     selectedLeader = '';
     const autoClassType = applyPlatinumClassAutoSelection(null);
-    box.innerHTML = `
-      <div class="msg on warn">查無名冊資料，請選擇上手白金/雁群組長<br>建立資料${autoClassType ? '<br>上課類別：' + esc(autoClassType) : ''}</div>
-      ${renderLeaderSelect(getLeaderOptionsForForm())}
-    `;
+    if (courseRequiresALevelClient(currentCourse)) {
+      setRegistrationALevelBlocked('此課程限包月 A 級會員（AA、A 方案）報名。請先在包月資訊建立資料，不能從報名頁順便建立。');
+    } else {
+      box.innerHTML = `
+        <div class="msg on warn">查無名冊資料，請選擇上手白金/雁群組長<br>建立資料${autoClassType ? '<br>上課類別：' + esc(autoClassType) : ''}</div>
+        ${renderLeaderSelect(getLeaderOptionsForForm())}
+      `;
+    }
   }
 }
 
@@ -5907,10 +6071,14 @@ async function autoLookupMemberRemote(clean, name) {
     renderLookupResult(res, clean, name);
   } catch (err) {
     selectedLeader = '';
-    box.innerHTML = `
-      <div class="msg on warn">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長</div>
-      ${renderLeaderSelect(getLeaderOptionsForForm())}
-    `;
+    if (courseRequiresALevelClient(currentCourse)) {
+      setRegistrationALevelBlocked('A 級限定課必須先查到包月資格；目前名冊查詢失敗，請稍後重試。');
+    } else {
+      box.innerHTML = `
+        <div class="msg on warn">名冊查詢較慢或失敗，請手動選擇上手白金/雁群組長</div>
+        ${renderLeaderSelect(getLeaderOptionsForForm())}
+      `;
+    }
   }
 }
 
@@ -5944,8 +6112,8 @@ function refreshRegistrationAfterInitData() {
   }
 
   isCurrentNameDuplicate = false;
-  setRegisterButtonDisabled(false, '送出報名');
   if (box && phoneTail) box.innerHTML = renderRegistrationPhonePassNotice(leader);
+  checkRegistrationALevelNow(name, leader, box && phoneTail ? renderRegistrationPhonePassNotice(leader) : '');
 }
 
 function autoLookupMemberLocal() {
@@ -6001,14 +6169,13 @@ function handleLeaderSelectChange(selectEl) {
     return;
   }
   isCurrentNameDuplicate = false;
-  setRegisterButtonDisabled(false, '送出報名');
   const cached = lookupCache[clean];
   if (!cached || cached.status !== 'multiple') {
     clearExtraAnswerValues();
     const autoClassType = applyPlatinumClassAutoSelection(null);
     const options = getLeaderOptionsForForm();
     if (box && selectedLeader) {
-      box.innerHTML = `
+      const manualHtml = `
         <div class="msg on warn">
           已改以 ${esc(selectedLeader)} 小組 的同名者報名<br>
           請確認這是另一位同名同姓的人。
@@ -6016,6 +6183,8 @@ function handleLeaderSelectChange(selectEl) {
         </div>
         ${renderLeaderSelect(options, selectedLeader)}
       `;
+      box.innerHTML = manualHtml;
+      checkRegistrationALevelNow(val('r-name'), selectedLeader, manualHtml);
     }
     return;
   }
@@ -6056,10 +6225,9 @@ function handleLookupMemberChoice(value) {
   }
 
   isCurrentNameDuplicate = false;
-  setRegisterButtonDisabled(false, '送出報名');
   const autoClassType = applyPlatinumClassAutoSelection(member);
   applyMemberProfileToRegistration(member);
-  box.innerHTML = `
+  const selectedHtml = `
     <div class="msg on ok">
       ✅ 已選擇名冊資料<br>
       姓名：${esc(member.name || val('r-name'))}<br>
@@ -6069,6 +6237,8 @@ function handleLookupMemberChoice(value) {
     </div>
     <input id="r-leader" type="hidden" value="${esc(selectedLeader)}">
   `;
+  box.innerHTML = selectedHtml;
+  checkRegistrationALevelNow(val('r-name'), selectedLeader, selectedHtml);
 }
 
 function findLookupMemberByLeader(members, leader) {
@@ -6306,6 +6476,7 @@ async function submitRegister() {
   if (!leader && leaderField) leader = leaderField.value.trim();
 
   if (!leader) return showRegisterMsg('查無名冊資料，請選擇上手白金/雁群組長', 'warn');
+  if (isCurrentALevelBlocked) return showRegisterMsg('此人不是包月 A 級會員，不能報名此課程。', 'err');
 
   const priceInfo = getSelectedClassPrice();
   if (!priceInfo.classType) return showRegisterMsg('請選擇上課類別', 'err');
@@ -6384,6 +6555,7 @@ async function submitRegister() {
       const lookupBox = document.getElementById('lookup-box');
       selectedLeader = '';
       isCurrentNameDuplicate = false;
+      isCurrentALevelBlocked = false;
       if (nameInput) nameInput.value = '';
       if (remarkInput) remarkInput.value = '';
       document.querySelectorAll('[id^="r-extra-"]').forEach(el => { el.value = ''; });
@@ -6408,6 +6580,9 @@ async function submitRegister() {
         ? '請填寫電話，系統會用電話末四碼核對是否為同一人。'
         : esc(res.message || '此姓名已報名過本課程，若是同名同姓的另一個人，請改選上手白金/雁群組長。').replace(/\n/g, '<br>'), 'warn');
     } else {
+      if (courseRequiresALevelClient(currentCourse)) {
+        setRegistrationALevelBlocked(res.message || '此人不是包月 A 級會員，不能報名此課程。');
+      }
       showRegisterMsg('⚠️ ' + esc(res.message || '報名失敗'), 'err');
     }
   } catch (err) {
@@ -6417,7 +6592,7 @@ async function submitRegister() {
     hideActionLock();
     if (submittedOk) setTimeout(() => { if (currentView === 'register') setFloatingYaya(''); }, 3200);
     else setFloatingYaya('');
-    if (!isCurrentNameDuplicate) setRegisterButtonDisabled(false, '送出報名');
+    if (!isCurrentNameDuplicate && !isCurrentALevelBlocked) setRegisterButtonDisabled(false, '送出報名');
   }
 }
 
@@ -7120,7 +7295,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.87';
+const SEAT_DIAG_VERSION = 'V6.88';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
