@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.88</title>
+  <title>CYP135 課程報名 V6.89</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -550,7 +550,8 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .myreg-intro .mi-title{font-size:15.5px;font-weight:900;color:#2d5a3d}
 .myreg-intro .mi-sub{font-size:12.5px;color:#777;margin-top:4px}
 .info-table{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:12px;overflow:hidden;text-align:left}
-.it-head,.it-row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) minmax(0,.8fr) minmax(0,1.3fr);gap:8px;padding:8px 12px;align-items:baseline;text-align:left}
+.it-head,.it-row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) minmax(0,.8fr) minmax(0,1.3fr);gap:8px;padding:8px 12px;align-items:baseline;text-align:left}
+.info-table.sub-editable .it-head,.info-table.sub-editable .it-row{grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) minmax(0,.8fr) minmax(0,1.3fr) 42px}
 .it-head{background:#f4faf6;font-size:11px;font-weight:900;color:#6b8c78;letter-spacing:.04em}
 .it-row{font-size:13px;color:#555;border-top:1px solid rgba(45,90,61,.09)}
 .it-row .it-name{font-weight:900;color:#2a2620;overflow-wrap:anywhere}
@@ -578,8 +579,13 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .sub-hint{font-size:12.5px;color:#6b8c78;background:#f4faf6;border-radius:10px;padding:9px 12px;margin-bottom:12px;line-height:1.7}
 .sub-hint b{color:#2d5a3d}
 .sub-row-click{cursor:pointer}
-.sub-row-click:active{background:#f4faf6}
-.a-tag{font-size:10.5px;color:#8a6d1f;background:#f6efdc;border-radius:999px;padding:1px 7px;margin-left:5px;font-weight:900}
+.sub-row-click:active{background:#f4faf6}
+.sub-edit-cell{display:flex;justify-content:flex-end;align-items:center}
+.sub-edit-btn{width:34px;height:34px;border:1px solid rgba(45,90,61,.18);border-radius:10px;background:#e8f0ea;color:#2d5a3d;display:grid;place-items:center;cursor:pointer}
+.sub-edit-btn svg{width:17px;height:17px;stroke:currentColor;stroke-width:2.3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.sub-edit-btn:active{transform:scale(.96)}
+@media(max-width:480px){.info-table.sub-editable .it-row{grid-template-columns:minmax(0,1fr) auto 38px}.info-table.sub-editable .it-row .it-name{grid-column:1 / 3}.info-table.sub-editable .it-row .it-when{grid-column:2;text-align:right}.sub-edit-cell{grid-column:3;grid-row:1 / 3;align-self:center}}
+.a-tag{font-size:10.5px;color:#8a6d1f;background:#f6efdc;border-radius:999px;padding:1px 7px;margin-left:5px;font-weight:900}
 .sub-def{font-size:10.5px;color:#aaa;font-style:normal;margin-left:4px}
 .sub-del{color:#a35b5b}
 @media(max-width:420px){
@@ -598,7 +604,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.88</small>
+    <small>CYP135 課程系統 V6.89</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7295,7 +7301,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.88';
+const SEAT_DIAG_VERSION = 'V6.89';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8724,10 +8730,11 @@ function fmtWhen(v) {
       新增時後端會插進該雁群的區塊，不要改成直接 append。
 ═══════════════════════════════════════════════════════════════ */
 
-let subState = { data: null, editing: null };
+let subState = { data: null, editing: null, includeAll: false };
 
 async function renderMonthlyPage(includeAll) {
   includeAll = !!includeAll;
+  subState.includeAll = includeAll;
   const token = beginPage('monthly', includeAll ? '全教室包月' : '查詢包月', true);
   const app = document.getElementById('app');
 
@@ -8753,6 +8760,19 @@ async function renderMonthlyPage(includeAll) {
     return;
   }
   subState.data = data;
+  subState.editing = null;
+  renderMonthlyBody_();
+}
+
+function monthlyEditIconSvg() {
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg>';
+}
+
+function monthlyListLabel() {
+  return subState.includeAll ? '全體包月名單' : '包月名單';
+}
+
+function returnToMonthlyList() {
   subState.editing = null;
   renderMonthlyBody_();
 }
@@ -8795,13 +8815,14 @@ function renderMonthlyBody_() {
     const sum = list.reduce((n, m) => n + m.perMonth * m.months, 0);
     html += `<div class="home-section">
         <p class="home-section-title">${esc(f)}　${list.length} 人　${money(sum)}</p>
-        <div class="info-table">
-          <div class="it-head"><span>姓名</span><span>方案</span><span>月數</span><span>金額</span></div>
-          ${list.map(m => `<div class="it-row${d.canEdit ? ' sub-row-click' : ''}"${d.canEdit ? ` onclick="openMonthlyForm(${m.row})"` : ''}>
+        <div class="info-table${d.canEdit ? ' sub-editable' : ''}">
+          <div class="it-head"><span>姓名</span><span>方案</span><span>月數</span><span>金額</span>${d.canEdit ? '<span>操作</span>' : ''}</div>
+          ${list.map(m => `<div class="it-row">
             <span class="it-name">${esc(m.name)}${m.aLevel ? ' <b class="a-tag">A級</b>' : ''}</span>
             <span>${esc(m.plan || '—')}</span>
             <span>${m.months}${m.monthsBlank ? '<i class="sub-def">預設</i>' : ''}</span>
             <span class="it-when">${money(m.perMonth * m.months)}</span>
+            ${d.canEdit ? `<span class="sub-edit-cell"><button type="button" class="sub-edit-btn" onclick="openMonthlyForm(${m.row})" title="編輯 ${esc(m.name)}" aria-label="編輯 ${esc(m.name)}">${monthlyEditIconSvg()}</button></span>` : ''}
           </div>`).join('')}
         </div>
       </div>`;
@@ -8822,8 +8843,10 @@ function openMonthlyForm(row) {
 
   const sug = d.suggest || { options: [2], note: '' };
   const defMonths = m ? m.months : sug.options[0];
+  const backLabel = '← 返回' + monthlyListLabel();
 
   const html = `
+    <button class="btn btn-ghost" style="margin-bottom:12px" onclick="returnToMonthlyList()">${backLabel}</button>
     <div class="card">
       <h2>${m ? '編輯包月會員' : '新增包月會員'}</h2>
       <div class="field"><label>姓名</label>
@@ -8843,7 +8866,7 @@ function openMonthlyForm(row) {
         <input id="sub-note" value="${esc(m ? m.note : '')}" placeholder="例如 6/5 加入、新人"></div>
       <div class="cls-actions" style="margin-top:6px">
         <button class="btn" onclick="saveMonthlyForm(${m ? m.row : 0})">儲存</button>
-        <button class="btn btn-sub" onclick="renderMonthlyBody_()">取消</button>
+        <button class="btn btn-sub" onclick="returnToMonthlyList()">${backLabel}</button>
         ${m ? `<button class="btn btn-sub sub-del" onclick="deleteMonthlyForm(${m.row})">刪除</button>` : ''}
       </div>
     </div>`;
@@ -8868,7 +8891,7 @@ async function saveMonthlyForm(row) {
     const res = await post('saveMonthlyMember', payload, 45000);
     if (!res || res.status !== 'ok') { showMsg(esc((res && res.message) || '儲存失敗'), 'err'); return; }
     showMsg('已儲存。', 'ok');
-    renderMonthlyPage();
+    renderMonthlyPage(subState.includeAll);
   } catch (err) {
     showMsg(esc(err.message || err), 'err');
   } finally {
@@ -8888,7 +8911,7 @@ async function deleteMonthlyForm(row) {
     const res = await post('deleteMonthlyMember', { userId, row }, 45000);
     if (!res || res.status !== 'ok') { showMsg(esc((res && res.message) || '刪除失敗'), 'err'); return; }
     showMsg('已刪除。', 'ok');
-    renderMonthlyPage();
+    renderMonthlyPage(subState.includeAll);
   } catch (err) {
     showMsg(esc(err.message || err), 'err');
   } finally {
