@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V6.98</title>
+  <title>CYP135 課程報名 V6.99</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -628,7 +628,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V6.98</small>
+    <small>CYP135 課程系統 V6.99</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1097,16 +1097,20 @@ function openTextDialog(options) {
   return new Promise(resolve => {
     const backdrop = document.getElementById('dialog-backdrop');
     if (!backdrop) return resolve(null);
+    const multiline = options.multiline !== false;
+    const fieldHtml = multiline
+      ? `<textarea id="dialog-input" placeholder="${esc(options.placeholder || '請輸入內容')}" ${options.readonly ? 'readonly' : ''}></textarea>`
+      : `<input id="dialog-input" type="text" placeholder="${esc(options.placeholder || '請輸入內容')}" ${options.readonly ? 'readonly' : ''}>`;
 
     backdrop.innerHTML = `
       <div class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="dialog-title" onclick="event.stopPropagation()">
         <div id="dialog-title" class="dialog-title">${esc(options.title || 'CYP135 票務系統')}</div>
-        <div class="dialog-text">${esc(options.message || '請輸入原因')}</div>
-        <textarea id="dialog-input" placeholder="${esc(options.placeholder || '請輸入原因')}"></textarea>
-        <div id="dialog-error" class="dialog-error">請輸入原因</div>
+        <div class="dialog-text">${esc(options.message || '請輸入內容')}</div>
+        ${fieldHtml}
+        <div id="dialog-error" class="dialog-error">${esc(options.errorText || '請輸入內容')}</div>
         <div class="dialog-actions">
-          <button type="button" class="btn btn-sub" id="dialog-cancel">取消</button>
-          <button type="button" class="btn btn-main" id="dialog-ok">確定</button>
+          <button type="button" class="btn btn-sub" id="dialog-cancel">${esc(options.cancelText || '取消')}</button>
+          <button type="button" class="btn btn-main" id="dialog-ok">${esc(options.okText || '確定')}</button>
         </div>
       </div>
     `;
@@ -1115,6 +1119,7 @@ function openTextDialog(options) {
 
     const input = document.getElementById('dialog-input');
     const error = document.getElementById('dialog-error');
+    if (input && options.defaultValue !== undefined) input.value = options.defaultValue || '';
     const cleanup = value => {
       backdrop.classList.remove('on');
       backdrop.innerHTML = '';
@@ -1138,7 +1143,11 @@ function openTextDialog(options) {
       if (event.key === 'Escape') cleanup(null);
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') submit();
     };
-    setTimeout(() => { if (input) input.focus(); }, 30);
+    setTimeout(() => {
+      if (!input) return;
+      input.focus();
+      if (options.selectAll !== false) input.select();
+    }, 30);
   });
 }
 
@@ -1159,7 +1168,7 @@ function openConfirmDialog(options) {
 
     backdrop.innerHTML = `
       <div class="dialog-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="confirm-title" onclick="event.stopPropagation()">
-        <div id="confirm-title" class="dialog-title">${esc(options.title || 'CYP135課程管理')}</div>
+        <div id="confirm-title" class="dialog-title">${esc(options.title || 'CYP135 票務系統')}</div>
         <div class="dialog-text">${esc(options.message || '確認執行這個操作？')}</div>
         <div class="dialog-actions">
           <button type="button" class="btn btn-sub" id="confirm-cancel">${esc(options.cancelText || '取消')}</button>
@@ -2035,7 +2044,15 @@ async function copyShareText(text) {
     }
   } catch (e) {}
 
-  prompt('請複製這段分享文字', text);
+  await openTextDialog({
+    title: 'CYP135 票務系統',
+    message: '請複製以下分享文字。',
+    defaultValue: text,
+    readonly: true,
+    required: false,
+    okText: '完成',
+    cancelText: '關閉'
+  });
 }
 
 async function shareCourseLink(courseCode, event) {
@@ -3240,8 +3257,14 @@ async function updateRosterStatus(rowNumber, status) {
     if (cancelReason === null) return;
     cancelReason = cancelReason.trim();
     if (!cancelReason) return showBoxMsg('roster-msg', '取消報名必須填寫原因。', 'err');
-  } else if (!confirm('確認要' + label + '？')) {
-    return;
+  } else {
+    const ok = await openConfirmDialog({
+      title: 'CYP135 票務系統',
+      message: '確認要' + label + '？',
+      okText: '確定',
+      cancelText: '取消'
+    });
+    if (!ok) return;
   }
   const lockTitle = status === '取消' ? '正在取消報名' : '正在恢復報名';
   const lockText = status === '取消'
@@ -3272,7 +3295,13 @@ async function updateRosterStatus(rowNumber, status) {
 
 async function fillRosterDerivedData() {
   if (!rosterState.course) return;
-  if (!confirm('確認整理本課名單資料？')) return;
+  const ok = await openConfirmDialog({
+    title: 'CYP135 票務系統',
+    message: '確認整理本課名單資料？',
+    okText: '開始整理',
+    cancelText: '取消'
+  });
+  if (!ok) return;
   showActionLock('正在整理名單', '請稍候，正在補齊名單資料。');
   showBoxMsg('roster-msg', '整理中...', 'info');
   try {
@@ -5205,7 +5234,13 @@ async function commitExternalImport() {
 
   const okCount = Number((state.preview.summary && state.preview.summary.ok) || 0);
   if (!okCount) return showBoxMsg('external-import-msg', '目前沒有可匯入資料。', 'err');
-  if (!confirm('確認匯入 ' + okCount + ' 筆資料？')) return;
+  const ok = await openConfirmDialog({
+    title: 'CYP135 票務系統',
+    message: '確認匯入 ' + okCount + ' 筆資料？',
+    okText: '確認匯入',
+    cancelText: '取消'
+  });
+  if (!ok) return;
 
   showActionLock('正在匯入名單', '請稍候，正在寫入可匯入資料。');
   try {
@@ -7106,7 +7141,15 @@ function ticketDriveSummaryHtml(summary, rootUrl) {
 
 async function uploadTicketsToDrive(forceOverwrite) {
   forceOverwrite = !!forceOverwrite;
-  if (forceOverwrite && !confirm('確認重新覆蓋這堂課所有雲端票券？')) return;
+  if (forceOverwrite) {
+    const ok = await openConfirmDialog({
+      title: 'CYP135 票務系統',
+      message: '確認重新覆蓋這堂課所有雲端票券？',
+      okText: '確認覆蓋',
+      cancelText: '取消'
+    });
+    if (!ok) return;
+  }
 
   showActionLock(forceOverwrite ? '正在準備覆蓋票券' : '正在檢查雲端票券', '請稍候，正在確認票券名單。');
   clearBoxMsg('ticket-msg');
@@ -7364,7 +7407,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V6.98';
+const SEAT_DIAG_VERSION = 'V6.99';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8301,7 +8344,15 @@ async function handleClassEdmUpload(input, idx) {
 async function editClassPromo(idx) {
   const c = currentDayCourses()[idx];
   if (!c) return;
-  const text = window.prompt('輸入這堂課的宣傳文（會顯示在課表上，也會一起被複製）：', c.promo || '');
+  const text = await openTextDialog({
+    title: 'CYP135 票務系統',
+    message: '輸入這堂課的宣傳文，會顯示在課表上，也會一起被複製。',
+    placeholder: '輸入宣傳文',
+    defaultValue: c.promo || '',
+    required: false,
+    okText: '儲存',
+    cancelText: '取消'
+  });
   if (text === null) return;
 
   showActionLock('正在儲存', '請稍候。');
@@ -8766,7 +8817,16 @@ function redirectToLiffEntryIfNeeded() {
 async function editClassMeetUrl(idx) {
   const c = currentDayCourses()[idx];
   if (!c) return;
-  const text = window.prompt('貼上這堂課的線上會議連結（留空可清除）：', c.meetUrl || '');
+  const text = await openTextDialog({
+    title: 'CYP135 票務系統',
+    message: '貼上這堂課的線上會議連結，留空可清除。',
+    placeholder: 'https://...',
+    defaultValue: c.meetUrl || '',
+    multiline: false,
+    required: false,
+    okText: '儲存',
+    cancelText: '取消'
+  });
   if (text === null) return;
   const url = (text || '').trim();
   if (url && !/^https?:\/\//i.test(url)) {
@@ -8980,7 +9040,13 @@ async function saveMonthlyForm(row) {
 async function deleteMonthlyForm(row) {
   const m = ((subState.data && subState.data.members) || []).find(x => x.row === row);
   const who = m ? m.name : '這筆資料';
-  if (!window.confirm('確定要刪除「' + who + '」的包月資料嗎？')) return;
+  const ok = await openConfirmDialog({
+    title: 'CYP135 票務系統',
+    message: '確定要刪除「' + who + '」的包月資料嗎？',
+    okText: '確認刪除',
+    cancelText: '取消'
+  });
+  if (!ok) return;
 
   showActionLock('正在刪除', '請稍候。');
   try {
