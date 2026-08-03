@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.06</title>
+  <title>CYP135 課程報名 V7.07</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -668,7 +668,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.06</small>
+    <small>CYP135 課程系統 V7.07</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -3801,6 +3801,20 @@ function renderCourseForm(course) {
               <option value="下架" ${publishValue === '下架' ? 'selected' : ''}>下架，只保留後台資料</option>
             </select>
           </div>
+          <div class="field full">
+            <label>DM / EDM 圖片</label>
+            <div class="edm-upload">
+              <input id="c-edm-file" class="file-input" type="file" accept="image/*" onchange="handleEdmFileChange(event)">
+              <input id="c-dm" type="hidden" value="${esc(course ? course.dmUrl : '')}">
+              <div id="edm-preview-box" class="edm-preview ${course && course.dmUrl ? '' : 'hide'}">
+                ${course && course.dmUrl ? `<img src="${esc(course.dmUrl)}" alt="EDM 預覽"><div class="edm-info">目前 EDM 圖片。若重新選擇圖片，更新時會覆蓋連結。</div>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="field full">
+            <label>活動介紹</label>
+            <textarea id="c-desc" placeholder="輸入學員點進活動詳情時會看到的介紹">${esc(course ? course.description : '')}</textarea>
+          </div>
         </div>
       </div>
 
@@ -3905,26 +3919,6 @@ function renderCourseForm(course) {
         <div class="custom-field-tools">
           <button class="btn btn-sub" type="button" onclick="addCustomRegistrationField(1)">新增 1 題</button>
           <button class="btn btn-ghost" type="button" onclick="addCustomRegistrationField(3)">新增 3 題</button>
-        </div>
-      </div>
-
-      <div class="mini-section">
-        <div class="section-title">圖片與活動介紹</div>
-        <div class="form-grid one">
-          <div class="field">
-            <label>DM / EDM 圖片</label>
-            <div class="edm-upload">
-              <input id="c-edm-file" class="file-input" type="file" accept="image/*" onchange="handleEdmFileChange(event)">
-              <input id="c-dm" type="hidden" value="${esc(course ? course.dmUrl : '')}">
-              <div id="edm-preview-box" class="edm-preview ${course && course.dmUrl ? '' : 'hide'}">
-                ${course && course.dmUrl ? `<img src="${esc(course.dmUrl)}" alt="EDM 預覽"><div class="edm-info">目前 EDM 圖片。若重新選擇圖片，更新時會覆蓋連結。</div>` : ''}
-              </div>
-            </div>
-          </div>
-          <div class="field">
-            <label>活動介紹</label>
-            <textarea id="c-desc" placeholder="輸入學員點進活動詳情時會看到的介紹">${esc(course ? course.description : '')}</textarea>
-          </div>
         </div>
       </div>
 
@@ -7455,7 +7449,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.06';
+const SEAT_DIAG_VERSION = 'V7.07';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
