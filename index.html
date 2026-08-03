@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.04</title>
+  <title>CYP135 課程報名 V7.05</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -625,6 +625,37 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .noperm-d{font-size:13.5px;color:#4a4a44;line-height:1.8;margin-bottom:14px}
 .noperm-s{font-size:12px;color:#8a8f85;line-height:1.9;background:#f7f5ef;
   border-radius:12px;padding:12px 14px;text-align:left}
+/* 建立／編輯課程表單：原本整片白，標題和設定欄分不出來。
+   每個 mini-section 變成一張卡，標題做成深綠色條，設定欄給淺米色底，
+   輸入框維持白底 —— 一眼就看得出「這是分類標題」還是「這是要填的東西」。*/
+.course-form-card .mini-section{background:#fff;border:1px solid rgba(45,90,61,.15);
+  border-radius:16px;margin:18px 0;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.course-form-card .section-title{background:linear-gradient(135deg,#2d5a3d,#3f7454);
+  color:#fff;margin:0;padding:11px 16px;font-size:13.5px;font-weight:900;letter-spacing:.09em}
+.course-form-card .form-grid{padding:14px}
+.course-form-card .form-grid.one{grid-template-columns:1fr}
+.course-form-card .mini-section > .field{margin:14px}
+.course-form-card .field{background:#f6f4ed;border:1px solid rgba(45,90,61,.08);
+  border-radius:12px;padding:10px 12px 11px;margin-bottom:0}
+.course-form-card .form-grid > .field{margin-bottom:0}
+.course-form-card .field label{display:block;font-size:11.5px;font-weight:900;
+  color:#5f7566;letter-spacing:.04em;margin-bottom:5px}
+.course-form-card .field input,.course-form-card .field select,
+.course-form-card .field textarea{background:#fff}
+.course-form-card .field .hint,.course-form-card .field .meta{color:#8a8f85}
+
+/* 平板（Samsung Tab 等 720–1100px）：原本落在桌機樣式，觸控目標偏小、
+   版面又被 760px 上限夾在中間。這裡放寬版面並把可點區域加大到 46px 以上。*/
+@media(min-width:721px) and (max-width:1100px){
+  .wrap{max-width:940px;padding:18px}
+  .course-form-card .form-grid{gap:12px}
+  input,select,textarea{min-height:46px;font-size:15px}
+  .btn{min-height:48px;font-size:15px}
+  .portal-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .quick-btn{max-width:150px}
+  .reg-event-head{padding:15px 16px}
+  .menu-item{min-height:48px}
+}
 </style>
 </head>
 <body>
@@ -634,7 +665,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.04</small>
+    <small>CYP135 課程系統 V7.05</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -3724,7 +3755,7 @@ function renderCourseForm(course) {
   const parsed = parseCourseDateTime(course ? course.dateTime : '');
   const ticketTypeBase = (course && course.ticketType && course.ticketType !== '一般票') ? '其他' : (course && course.ticketType ? course.ticketType : '一般票');
   const ticketOther = (ticketTypeBase === '其他' && course && course.ticketType !== '其他') ? course.ticketType : '';
-  const mediaOpen = isEdit && ((course && course.dmUrl) || (course && course.description)) ? 'open' : '';
+  // 圖片與活動介紹已改成固定展開的區塊，不再需要判斷要不要預設打開。
   const purposeValue = isEdit
     ? (course.coursePurpose || '報名網站')
     : (prefill.coursePurpose || '報名網站');
@@ -3840,13 +3871,6 @@ function renderCourseForm(course) {
             </select>
           </div>
           <div class="field">
-            <label>啟用 QR</label>
-            <select id="c-qr">
-              <option value="是" ${!course || course.qrFlag === '是' ? 'selected' : ''}>是</option>
-              <option value="否" ${course && course.qrFlag === '否' ? 'selected' : ''}>否</option>
-            </select>
-          </div>
-          <div class="field">
             <label>報名開始，可空白</label>
             ${renderDateTimeClockPicker('c-apply-start', course ? course.applyStart : '')}
           </div>
@@ -3881,9 +3905,9 @@ function renderCourseForm(course) {
         </div>
       </div>
 
-      <details class="fold" ${mediaOpen}>
-        <summary>圖片與活動介紹</summary>
-        <div class="fold-content">
+      <div class="mini-section">
+        <div class="section-title">圖片與活動介紹</div>
+        <div class="form-grid one">
           <div class="field">
             <label>DM / EDM 圖片</label>
             <div class="edm-upload">
@@ -3899,7 +3923,7 @@ function renderCourseForm(course) {
             <textarea id="c-desc" placeholder="輸入學員點進活動詳情時會看到的介紹">${esc(course ? course.description : '')}</textarea>
           </div>
         </div>
-      </details>
+      </div>
 
       <div class="compact-actions">
         <button class="btn btn-main" onclick="submitCourseForm()">${isEdit ? '更新課程' : '建立課程'}</button>
@@ -5476,7 +5500,10 @@ async function submitCourseForm() {
       categoryNames: categoryNormalized ? categoryNormalized.names : '',
       categoryPrices: categoryNormalized ? categoryNormalized.prices : '',
       openFlag: val('c-open'),
-      qrFlag: val('c-qr'),
+      // 「啟用 QR」欄位已從表單移除：追過整份程式碼，這個值寫進試算表 M 欄之後
+      // 沒有任何功能會讀它（票券產生是自己挑課程，跟它無關）。
+      // 這裡固定送「是」只為了不改動既有欄位內容，避免舊資料被誤改成「否」。
+      qrFlag: '是',
       dmUrl,
       description: val('c-desc'),
       applyStart: val('c-apply-start'),
@@ -7425,7 +7452,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.04';
+const SEAT_DIAG_VERSION = 'V7.05';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
