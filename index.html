@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.18</title>
+  <title>CYP135 課程報名 V7.19</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -698,6 +698,9 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .dc-lbl{font-size:12.5px;font-weight:800;color:#6b6b63;margin:10px 0 3px}
 .dc-lbl.bad{color:#b3543f}
 .dc-list{font-size:13px;color:#2a2620;line-height:1.85;margin:0}
+.inline-check{display:flex;align-items:center;gap:7px;font-size:12.5px;
+  font-weight:800;color:#5f7566;cursor:pointer}
+.inline-check input{width:auto;min-height:0;margin:0}
 </style>
 </head>
 <body>
@@ -707,7 +710,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.18</small>
+    <small>CYP135 課程系統 V7.19</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1993,6 +1996,17 @@ function showNoRegisterPermission() {
     okText: '我知道了',
     cancelText: '關閉'
   });
+}
+
+// 「不限人數」勾起來時把數字欄鎖住並清空，送出就會存成空值。
+// 後端看到空值／0 就完全跳過名額把關（連統計都不算），
+// 只有真的設了上限才會跑那段嚴格檢查。
+function toggleMaxUnlimited() {
+  const box = document.getElementById('c-max-unlimited');
+  const input = document.getElementById('c-max');
+  if (!box || !input) return;
+  input.disabled = box.checked;
+  if (box.checked) input.value = '';
 }
 
 function shareIconSvg() {
@@ -3849,7 +3863,14 @@ function renderCourseForm(course) {
           </div>
           <div class="field">
             <label>上限人數</label>
-            <input id="c-max" type="number" placeholder="例如 80" value="${esc(course ? course.maxCount : '')}">
+            <input id="c-max" type="number" placeholder="例如 80" value="${esc(course && Number(course.maxCount) > 0 ? course.maxCount : '')}"
+              ${(course && Number(course.maxCount) > 0) ? '' : 'disabled'}>
+            <label class="inline-check" style="margin-top:7px">
+              <input type="checkbox" id="c-max-unlimited"
+                ${(course && Number(course.maxCount) > 0) ? '' : 'checked'}
+                onchange="toggleMaxUnlimited()">
+              <span>不限人數</span>
+            </label>
           </div>
           <div class="field full">
             <label>活動名稱</label>
@@ -5557,7 +5578,8 @@ async function submitCourseForm() {
       coursePurpose: val('c-purpose'),
       publishStatus: val('c-publish'),
       registrationFields: collectRegistrationFieldSettings(),
-      maxCount: val('c-max'),
+      // 勾了「不限人數」就送空值，後端據此跳過名額把關。
+      maxCount: (document.getElementById('c-max-unlimited') || {}).checked ? '' : val('c-max'),
       pricingMode,
       platinumPrice: val('c-plat'),
       nonPlatinumPrice: val('c-nonplat'),
@@ -7435,7 +7457,7 @@ function portalTile(opts) {
 
 // ⚠️ showLoading() 會直接覆蓋整個 #app，stopLoading() 只停計時器不還原 DOM。
 //    所以載入結束後絕對不能去抓載入前放的子元素——那個節點早就不在了，
-//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.18 就是這樣卡在 92%）。
+//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.19 就是這樣卡在 92%）。
 //    正確作法：載入結束後重建整頁，一次把外框和結果一起寫進 #app。
 function rosterRebuildShellHtml() {
   return '<button class="btn btn-ghost" onclick="renderPortalPage()">\u2190 返回首頁</button>' +
@@ -7635,7 +7657,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.18';
+const SEAT_DIAG_VERSION = 'V7.19';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
