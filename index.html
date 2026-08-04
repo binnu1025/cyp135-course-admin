@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.25</title>
+  <title>CYP135 課程報名 V7.26</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -99,7 +99,11 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .course-actions.admin{grid-template-columns:1fr 1fr}
 .course-actions .btn{min-height:58px;padding:0 10px;font-size:13px;line-height:1.25;display:flex;align-items:center;justify-content:center;box-sizing:border-box;margin-top:0}
 .course-actions .btn:last-child:nth-child(odd){grid-column:1 / -1}
-.detail-hero{width:100%;border-radius:16px;margin-bottom:14px;background:#e7e2d7;max-height:420px;object-fit:cover}
+/* EDM 是海報，object-fit:cover ＋ max-height 會把上下裁掉，
+   同一張圖在列表（contain，完整顯示）與詳情（cover，被裁切）長得不一樣。
+   海報裁切等於把資訊切掉，兩邊統一用 contain 完整顯示。*/
+.detail-hero{width:100%;height:auto;border-radius:16px;margin-bottom:14px;
+  background:#e7e2d7;object-fit:contain;display:block}
 .desc{font-size:14px;color:#4f4a43;line-height:1.85;white-space:pre-wrap}
 .divider{height:1px;background:#eee;margin:14px 0}
 .category-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(82px,.8fr) 38px;gap:8px;align-items:end;margin-bottom:8px}
@@ -734,7 +738,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.25</small>
+    <small>CYP135 課程系統 V7.26</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1492,7 +1496,16 @@ function clearCourseClientCache(courseCode) {
   try { localStorage.removeItem(ADMIN_CACHE_KEY); } catch (e) {}
   const code = normalizeCode(courseCode);
   if (code) delete appState.registrationInitByCode[code];
+
+  // ⚠️ 記憶體裡的 courses / courseMap 也要清。
+  //    活動詳情頁有一條捷徑：courseMap 裡有這門課就直接畫、完全不重抓
+  //    （renderCourseDetailPage 的 localCourse 分支）。
+  //    只清 localStorage 的話，舊物件會一直留在記憶體被拿來用——
+  //    換了 EDM 之後列表更新了、詳情頁卻還是舊海報，就是這樣來的。
+  appState.courses = [];
+  appState.courseMap = {};
   appState.publicLoaded = false;
+  appState.publicLoading = null;
   appState.lastPublicRefresh = 0;
 }
 
@@ -2438,7 +2451,10 @@ function renderCourseDetailContent(c) {
         ${addButton}
         ${rosterButton}
       </div>
-      ${!isSharedEntry && isAdminUser ? '<button class="btn btn-ghost" style="margin-top:8px" onclick="renderHomePage({skipRefresh:true})">返回課程首頁</button>' : ''}
+      ${!isSharedEntry && isAdminUser ? `<div class="compact-actions" style="margin-top:8px">
+        <button class="btn btn-ghost" onclick="renderEditCoursePageByCode('${esc(c.eventCode)}')">編輯課程</button>
+        <button class="btn btn-ghost" onclick="renderHomePage({skipRefresh:true})">返回課程首頁</button>
+      </div>` : ''}
     </div>
   `;
 }
@@ -7505,7 +7521,7 @@ function portalTile(opts) {
 
 // ⚠️ showLoading() 會直接覆蓋整個 #app，stopLoading() 只停計時器不還原 DOM。
 //    所以載入結束後絕對不能去抓載入前放的子元素——那個節點早就不在了，
-//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.25 就是這樣卡在 92%）。
+//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.26 就是這樣卡在 92%）。
 //    正確作法：載入結束後重建整頁，一次把外框和結果一起寫進 #app。
 function rosterRebuildShellHtml() {
   return '<button class="btn btn-ghost" onclick="renderPortalPage()">\u2190 返回首頁</button>' +
@@ -7705,7 +7721,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.25';
+const SEAT_DIAG_VERSION = 'V7.26';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
