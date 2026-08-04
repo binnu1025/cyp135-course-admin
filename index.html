@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.23</title>
+  <title>CYP135 課程報名 V7.24</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -719,13 +719,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   .course-form-card{padding:14px 12px}
   .course-form-card .section-title{margin:0 -12px 12px;padding:9px 12px}
 }
-/* 沒有包月權限時金額欄不渲染，表格從 4 欄變 3 欄，grid 要跟著調 */
-.info-table.sub-readonly .it-head,.info-table.sub-readonly .it-row{
-  grid-template-columns:minmax(0,1.8fr) minmax(0,1fr) minmax(0,1fr)}
-@media(max-width:480px){
-  .info-table.sub-readonly .it-head,.info-table.sub-readonly .it-row{
-    grid-template-columns:minmax(0,1fr) auto auto}
-}
+
 </style>
 </head>
 <body>
@@ -735,7 +729,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.23</small>
+    <small>CYP135 課程系統 V7.24</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7482,7 +7476,7 @@ function portalTile(opts) {
 
 // ⚠️ showLoading() 會直接覆蓋整個 #app，stopLoading() 只停計時器不還原 DOM。
 //    所以載入結束後絕對不能去抓載入前放的子元素——那個節點早就不在了，
-//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.23 就是這樣卡在 92%）。
+//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.24 就是這樣卡在 92%）。
 //    正確作法：載入結束後重建整頁，一次把外框和結果一起寫進 #app。
 function rosterRebuildShellHtml() {
   return '<button class="btn btn-ghost" onclick="renderPortalPage()">\u2190 返回首頁</button>' +
@@ -7682,7 +7676,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.23';
+const SEAT_DIAG_VERSION = 'V7.24';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -9230,17 +9224,16 @@ function renderMonthlyBody_() {
 
   const aCount = members.filter(m => m.aLevel).length;
 
-  // 沒有 F 欄「包月權限」就不顯示人數與金額，只留「誰有包月、什麼方案」。
   let html = `<dl class="kv">
       <dt>資料範圍</dt><dd>${esc(d.scopeText || '—')}</dd>
-      ${d.canEdit ? `<dt>總人數</dt><dd>${members.length} 人</dd>` : ''}
-      ${d.canEdit ? `<dt>A 級會員</dt><dd>${aCount} 人（可報名限 A 級的課程）</dd>` : ''}
-      ${d.canEdit ? `<dt>本期應收</dt><dd>${money(d.total)}</dd>` : ''}
+      <dt>總人數</dt><dd>${members.length} 人</dd>
+      <dt>A 級會員</dt><dd>${aCount} 人（可報名限 A 級的課程）</dd>
+      <dt>本期應收</dt><dd>${money(d.total)}</dd>
     </dl>
     ${d.canEdit
       ? `<div class="sub-hint">建議月數：<b>${(d.suggest.options || []).join(' 或 ')}</b>　${esc(d.suggest.note || '')}</div>
          <button class="btn" style="margin-bottom:14px" onclick="openMonthlyForm()">＋ 新增包月會員</button>`
-      : '<div class="sub-hint">你可以查看自己雁群有哪些人包月、方案與月數。<br>人數統計與金額僅限有包月權限者查看，需要請聯絡會長。</div>'}`;
+      : '<div class="sub-hint">你可以查看自己雁群的包月資料，但沒有修改權限。需要修改請聯絡會長。</div>'}`;
 
   if (!members.length) {
     html += d.selfOnly
@@ -9252,14 +9245,14 @@ function renderMonthlyBody_() {
     const list = byFlock[f];
     const sum = list.reduce((n, m) => n + m.perMonth * m.months, 0);
     html += `<div class="home-section">
-        <p class="home-section-title">${esc(f)}${d.canEdit ? `　${list.length} 人　${money(sum)}` : ''}</p>
-        <div class="info-table${d.canEdit ? ' sub-editable' : ' sub-readonly'}">
-          <div class="it-head"><span>姓名</span><span>方案</span><span>月數</span>${d.canEdit ? '<span>金額</span><span>操作</span>' : ''}</div>
+        <p class="home-section-title">${esc(f)}　${list.length} 人　${money(sum)}</p>
+        <div class="info-table${d.canEdit ? ' sub-editable' : ''}">
+          <div class="it-head"><span>姓名</span><span>方案</span><span>月數</span><span>金額</span>${d.canEdit ? '<span>操作</span>' : ''}</div>
           ${list.map(m => `<div class="it-row">
             <span class="it-name">${esc(m.name)}${m.aLevel ? ' <b class="a-tag">A級</b>' : ''}</span>
             <span>${esc(m.plan || '—')}</span>
             <span>${m.months}${m.monthsBlank ? '<i class="sub-def">預設</i>' : ''}</span>
-            ${d.canEdit ? `<span class="it-when">${money(m.perMonth * m.months)}</span>` : ''}
+            <span class="it-when">${money(m.perMonth * m.months)}</span>
             ${d.canEdit ? `<span class="sub-edit-cell"><button type="button" class="sub-edit-btn" onclick="openMonthlyForm(${m.row})" title="編輯 ${esc(m.name)}" aria-label="編輯 ${esc(m.name)}">${monthlyEditIconSvg()}</button></span>` : ''}
           </div>`).join('')}
         </div>
