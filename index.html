@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.19</title>
+  <title>CYP135 課程報名 V7.20</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -631,11 +631,23 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 /* 建立／編輯課程表單：原本整片白，標題和設定欄分不出來。
    每個 mini-section 變成一張卡，標題做成深綠色條，設定欄給淺米色底，
    輸入框維持白底 —— 一眼就看得出「這是分類標題」還是「這是要填的東西」。*/
-.course-form-card .mini-section{background:#fff;border:1px solid rgba(45,90,61,.15);
-  border-radius:16px;margin:18px 0;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+/* ⚠️ 不要把 mini-section 做成卡片。
+   .wrap 已經有留白、.card 又是一個白框，mini-section 再包一層就是三層框，
+   手機上內容被擠到剩不到一半寬度。原始設計（.course-form-card .mini-section）
+   本來就是透明無框，V7.05 我把它改成卡片才產生這個問題，這裡改回去。
+   分層只留「標題色條」，那一條已經夠分辨區塊了。*/
+.course-form-card{padding:16px 14px}
+.course-form-card .mini-section{background:none;border:0;border-radius:0;box-shadow:none;
+  margin:20px 0 0;padding:0;overflow:visible}
+.course-form-card .mini-section:first-of-type{margin-top:0}
+/* 標題色條做滿版（負邊距抵銷卡片內距），看起來是分隔而不是又一個框 */
 .course-form-card .section-title{background:linear-gradient(135deg,#2d5a3d,#3f7454);
-  color:#fff;margin:0;padding:11px 16px;font-size:13.5px;font-weight:900;letter-spacing:.09em}
-.course-form-card .form-grid{padding:14px}
+  color:#fff;margin:0 -14px 13px;padding:10px 14px;font-size:14px;font-weight:900;
+  letter-spacing:.06em;border-radius:0}
+.course-form-card .section-title:before{display:none}
+/* align-items:start：欄位高度不同時（例如「上限人數」多一個不限人數勾選框）
+   預設會上下置中，看起來就跟隔壁的「活動代碼」不同高。*/
+.course-form-card .form-grid{padding:0;align-items:start}
 .course-form-card .form-grid.one{grid-template-columns:1fr}
 .course-form-card .mini-section > .field{margin:14px}
 /* 不要框中框：mini-section 已經是一個框，欄位再包一層會吃掉手機寬度，
@@ -701,6 +713,12 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .inline-check{display:flex;align-items:center;gap:7px;font-size:12.5px;
   font-weight:800;color:#5f7566;cursor:pointer}
 .inline-check input{width:auto;min-height:0;margin:0}
+@media(max-width:520px){
+  .wrap{padding:10px}
+  .card{padding:13px;border-radius:14px}
+  .course-form-card{padding:14px 12px}
+  .course-form-card .section-title{margin:0 -12px 12px;padding:9px 12px}
+}
 </style>
 </head>
 <body>
@@ -710,7 +728,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.19</small>
+    <small>CYP135 課程系統 V7.20</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7457,7 +7475,7 @@ function portalTile(opts) {
 
 // ⚠️ showLoading() 會直接覆蓋整個 #app，stopLoading() 只停計時器不還原 DOM。
 //    所以載入結束後絕對不能去抓載入前放的子元素——那個節點早就不在了，
-//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.19 就是這樣卡在 92%）。
+//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.20 就是這樣卡在 92%）。
 //    正確作法：載入結束後重建整頁，一次把外框和結果一起寫進 #app。
 function rosterRebuildShellHtml() {
   return '<button class="btn btn-ghost" onclick="renderPortalPage()">\u2190 返回首頁</button>' +
@@ -7657,7 +7675,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.19';
+const SEAT_DIAG_VERSION = 'V7.20';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
