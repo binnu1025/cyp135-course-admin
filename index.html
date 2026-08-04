@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.11</title>
+  <title>CYP135 課程報名 V7.12</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -684,6 +684,20 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   .course-form-card .date-time-clock{grid-template-columns:1fr;gap:8px}
   .course-form-card .form-grid{padding:12px;gap:12px}
 }
+/* 重建課程分頁頁面 */
+.dc-h{font-size:15px;font-weight:900;color:#2d5a3d;margin:0 0 8px}
+.dc-note{font-size:12.5px;color:#6b6b63;line-height:1.85;margin:0 0 8px}
+.dc-note:last-child{margin-bottom:0}
+.dc-bad{color:#b3543f;font-weight:800}
+.dc-card{margin-top:10px}
+.dc-card.bad{border-left:3px solid #d9a05b}
+.dc-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.dc-name{font-size:14.5px;font-weight:900;color:#2a2620}
+.dc-cnt{font-size:12px;color:#8a8f85;white-space:nowrap}
+.dc-ok{font-size:12.5px;color:#5c8a6c;margin:6px 0 0}
+.dc-lbl{font-size:12.5px;font-weight:800;color:#6b6b63;margin:10px 0 3px}
+.dc-lbl.bad{color:#b3543f}
+.dc-list{font-size:13px;color:#2a2620;line-height:1.85;margin:0}
 </style>
 </head>
 <body>
@@ -693,7 +707,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.11</small>
+    <small>CYP135 課程系統 V7.12</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7371,6 +7385,11 @@ const TILE_ICO = (function () {
     import: chip('#E8F2F8', 'tg-import', '<defs><linearGradient id="tg-import" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#35769E"/><stop offset="100%" stop-color="#80BADB"/></linearGradient></defs><path d="M20.4 14.4v4a2.2 2.2 0 0 1-2.2 2.2H5.8a2.2 2.2 0 0 1-2.2-2.2v-4"/><path d="M12 3.2v11.2"/><path class="acc" d="M7.8 10.2 12 14.4l4.2-4.2"/>'),
     refresh: chip('#F1F4E4', 'tg-refresh', '<defs><linearGradient id="tg-refresh" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#71833A"/><stop offset="100%" stop-color="#B2C273"/></linearGradient></defs><path d="M20.6 12a8.6 8.6 0 1 1-2.7-6.2"/><path class="acc" d="M20.8 3.6v5.2h-5.2"/>'),
     roster: chip('#EAF4EE', 'tg-roster', '<defs><linearGradient id="tg-roster" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4A8560"/><stop offset="100%" stop-color="#8DC7A3"/></linearGradient></defs><rect x="4.6" y="5" width="14.8" height="15.6" rx="2.4"/><rect x="9" y="2.6" width="6" height="3.6" rx="1.2"/><path class="acc" d="M8.6 11.4h6.8M8.6 15.4h4.4"/>'),
+    rebuild: chip('#EAF2F6', 'tg-rebuild', '<defs><linearGradient id="tg-rebuild" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0%" stop-color="#3A6E8F"/><stop offset="100%" stop-color="#84B4CE"/></linearGradient></defs>' +
+      '<rect x="3.4" y="4" width="7.4" height="16" rx="2"/>' +
+      '<path class="acc" d="M13.6 4h7v16h-7z" stroke-dasharray="1.8 2.2"/>' +
+      '<path d="M11.6 9.2h1.6M11.6 14.8h1.6"/>'),
     trophy: chip('#FAF2E0', 'tg-trophy', '<defs><linearGradient id="tg-trophy" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#C08A2B"/><stop offset="100%" stop-color="#F0C877"/></linearGradient></defs><path d="M7.6 3.6h8.8v4.8a4.4 4.4 0 0 1-8.8 0V3.6Z"/><path class="acc" d="M7.6 5.4H5v1.2a3.2 3.2 0 0 0 3 3.2M16.4 5.4H19v1.2a3.2 3.2 0 0 1-3 3.2"/><path d="M12 12.8v3.4M10 16.2h4v4.2h-4z"/><path class="acc" d="M9.4 20.4h5.2"/>')
   };
 })();
@@ -7387,6 +7406,75 @@ function portalTile(opts) {
   return `<button type="button" class="${cls}" onclick="${opts.onclick}">${body}</button>`;
 }
 
+async function renderRosterRebuildPage() {
+  const token = beginPage('rebuild', '重建課程分頁', true);
+  const app = document.getElementById('app');
+  const back = '<button class="btn btn-ghost" onclick="renderPortalPage()">\u2190 返回首頁</button>';
+
+  app.innerHTML = back +
+    '<div class="card" style="margin-top:12px">' +
+    '<p class="dc-h">重建課程分頁</p>' +
+    '<p class="dc-note">把每堂課的<b>報名總表</b>資料同步到該課程分頁。' +
+    '分頁缺少的人會補上；分頁有、但報名總表已經沒有的人<b>不會被刪除</b>，' +
+    '只會標成黃底並在狀態欄註明，由你自己判斷是故意刪的還是誤刪。</p>' +
+    '<p class="dc-note">分頁獨佔電話、身分證、生日、葷素等欄位，報名總表沒有這些資料——' +
+    '所以系統絕不主動刪除分頁的列。</p>' +
+    '<button class="btn btn-main" style="margin-top:12px" onclick="runRosterRebuild()">開始重建全部課程</button>' +
+    '</div><div id="rebuild-result"></div>';
+}
+
+async function runRosterRebuild() {
+  showLoading('比對報名總表與課程分頁');
+  let d = null, err = '';
+  try { d = await post('rebuildCourseRosters', { userId }, 120000); }
+  catch (e) { err = (e && e.message) || String(e); }
+  stopLoading();
+
+  const box = document.getElementById('rebuild-result');
+  if (!box) return;
+  if (err || !d || d.status !== 'ok') {
+    box.innerHTML = '<div class="card"><div class="reg-empty">' +
+      esc(err || (d && d.message) || '重建失敗') + '</div></div>';
+    return;
+  }
+
+  const list = d.courses || [];
+  if (!list.length) {
+    box.innerHTML = '<div class="card"><div class="reg-empty">沒有需要處理的課程。</div></div>';
+    return;
+  }
+
+  let html = '';
+  let totalAdded = 0, totalOrphan = 0;
+  list.forEach(c => {
+    totalAdded += c.added;
+    totalOrphan += c.orphans.length;
+    const bad = c.orphans.length > 0;
+    html += '<div class="card dc-card' + (bad ? ' bad' : '') + '">';
+    html += '<div class="dc-top"><span class="dc-name">' +
+      esc(c.eventName || c.eventCode) + '</span>';
+    html += '<span class="dc-cnt">總表 ' + c.masterCount + ' 人</span></div>';
+    const bits = [];
+    if (c.added) bits.push('補上 ' + c.added + ' 人');
+    if (c.updated) bits.push('更新 ' + c.updated + ' 人');
+    if (!bits.length && !bad) bits.push('已一致，沒有變動');
+    html += '<p class="dc-ok">' + bits.join('　') + '</p>';
+    if (bad) {
+      html += '<p class="dc-lbl bad">總表已無此人，資料保留並標黃（' + c.orphans.length + '）</p>';
+      html += '<p class="dc-list">' + c.orphans.map(esc).join('、') + '</p>';
+    }
+    html += '</div>';
+  });
+
+  let head = '<div class="card"><p class="dc-h">重建完成</p><p class="dc-note">';
+  head += '共處理 ' + list.length + ' 堂課，補上 ' + totalAdded + ' 人';
+  if (totalOrphan) {
+    head += '，<span class="dc-bad">標記 ' + totalOrphan + ' 人（總表已無，資料仍保留）</span>';
+  }
+  head += '。</p></div>';
+
+  box.innerHTML = head + html;
+}
 async function renderPortalPage() {
   const token = beginPage('portal', '系統入口', true);
   renderPortalShell();
@@ -7447,6 +7535,11 @@ function renderPortalShell() {
       onclick: 'renderSeatPage()'
     }));
 
+    toolTiles.push(portalTile({
+      ico: TILE_ICO.rebuild, title: '重建課程分頁', desc: '把報名總表同步到各課程分頁', admin: true,
+      onclick: 'renderRosterRebuildPage()'
+    }));
+
     if (links.schedule) {
       toolTiles.push(portalTile({
         ico: TILE_ICO.schedule, title: '課表編輯', desc: '排課程、產生課表圖', admin: true, ext: true,
@@ -7503,7 +7596,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.11';
+const SEAT_DIAG_VERSION = 'V7.12';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
