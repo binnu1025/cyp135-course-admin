@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.09</title>
+  <title>CYP135 課程報名 V7.10</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -683,7 +683,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.09</small>
+    <small>CYP135 課程系統 V7.10</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -740,6 +740,10 @@ let publicData = null;
 let adminCourseData = [];
 let isAdminUser = false;
 let canViewRoster = false;
+// LINE權限表「是否有報名權限」。空白＝不能報名（嚴格 opt-in）。
+// hasRegisterColumn 為 false 代表權限表還沒有這一欄，此時一律放行。
+let canRegisterSelf = true;
+let hasRegisterColumn = false;
 let selectedClassType = '';
 let lockedClassType = '';
 let lookupCache = {};
@@ -902,6 +906,8 @@ function setPublicData(data, fromCache) {
   else if (typeof data.isAdmin !== 'undefined') isAdminUser = !!data.isAdmin;
   if (typeof audit.canViewRoster !== 'undefined') canViewRoster = !!audit.canViewRoster;
   else canViewRoster = !!(isAdminUser || data.rosterAllowed);
+  hasRegisterColumn = !!data.hasRegisterColumn;
+  canRegisterSelf = hasRegisterColumn ? !!data.canRegister : true;
   renderMenu();
 
   if (!fromCache) {
@@ -909,6 +915,8 @@ function setPublicData(data, fromCache) {
       localStorage.setItem(PUBLIC_CACHE_KEY, JSON.stringify({
         savedAt: Date.now(),
         isAdmin: !!data.isAdmin,
+        canRegister: canRegisterSelf,
+        hasRegisterColumn: hasRegisterColumn,
         rosterAllowed: !!data.rosterAllowed,
         canManageRoster: !!data.canManageRoster,
         rosterScopeFlocks: data.rosterScopeFlocks || [],
@@ -931,6 +939,8 @@ function loadPublicCache() {
       cached: true,
       isAdmin: !!cached.isAdmin,
       rosterAllowed: !!cached.rosterAllowed,
+      canRegister: !!cached.canRegister,
+      hasRegisterColumn: !!cached.hasRegisterColumn,
       canManageRoster: !!cached.canManageRoster,
       rosterScopeFlocks: cached.rosterScopeFlocks || [],
       permissionAudit: cached.permissionAudit || null,
@@ -1677,7 +1687,7 @@ function renderMenu() {
   const courseBtns = currentCourse
     ? `
       <button class="menu-item" onclick="toggleMenu(false);renderCourseDetailPage('${esc(currentCourse.eventCode)}')">活動詳情</button>
-      ${canCourseRegister(currentCourse) ? '<button class="menu-item" onclick="toggleMenu(false);renderRegisterForm()">我要報名</button>' : ''}
+      ${(canRegisterSelf && canCourseRegister(currentCourse)) ? '<button class="menu-item" onclick="toggleMenu(false);renderRegisterForm()">我要報名</button>' : ''}
     `
     : '';
   const rosterBtns = currentCourse && (canViewRoster || isAdminUser)
@@ -1948,6 +1958,19 @@ function renderPublicCourseList(courses) {
   el.innerHTML = '<div class="course-grid">' + courses.map(courseCardHtml).join('') + '</div>';
 }
 
+// 前端只是把入口收起來，真正的閘在後端 submitRegistration。
+// 這裡負責把「為什麼不能報名、怎麼開通」講清楚，不要只給一個沒反應的灰鍵。
+function showNoRegisterPermission() {
+  openConfirmDialog({
+    title: '你目前沒有報名權限',
+    message: '可以瀏覽課程內容，但無法送出報名。\n\n' +
+      '開通方式：先用 LINE 對票務小助手傳一則訊息或貼圖，' +
+      '系統會自動記下你的帳號；再請會長在 LINE權限表 把「是否有報名權限」填「是」。',
+    okText: '我知道了',
+    cancelText: '關閉'
+  });
+}
+
 function shareIconSvg() {
   return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="5" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="M8.7 10.6 15.3 6.4"></path><path d="M8.7 13.4 15.3 17.6"></path></svg>';
 }
@@ -1984,7 +2007,9 @@ function courseCardHtml(c) {
       <div class="course-body">
         <div class="course-head">
           <div class="course-title">${esc(c.eventName || '未命名活動')}</div>
-          <button class="share-btn" onclick="shareCourseLink('${esc(c.eventCode)}', event)" title="分享課程" aria-label="分享課程">${shareIconSvg()}</button>
+          <!-- 分享報名連結：使用者 2026-08-03 要求先隱藏。
+               後端 createCourseShareLink 與相關函式全部保留，
+               要開回來只要把這個註解拿掉即可。 -->
         </div>
         <div class="badges">
           <span class="badge ${badgeClass}">${esc(c.statusBadge || c.statusText || '活動')}</span>
@@ -2319,7 +2344,11 @@ function renderCourseDetailContent(c) {
       ${c.description ? '<div class="divider"></div><div class="desc">' + esc(c.description) + '</div>' : ''}
       <div class="divider"></div>
       <div class="compact-actions${isSharedEntry ? ' share-entry-actions' : ''}">
-        ${canRegister ? '<button class="btn btn-main" onclick="renderRegisterForm()">我要報名</button>' : '<button class="btn btn-warn" disabled>目前無法報名</button>'}
+        ${!canRegisterSelf
+          ? '<button class="btn btn-warn" onclick="showNoRegisterPermission()">無報名權限</button>'
+          : (canRegister
+            ? '<button class="btn btn-main" onclick="renderRegisterForm()">我要報名</button>'
+            : '<button class="btn btn-warn" disabled>目前無法報名</button>')}
         ${addButton}
         ${rosterButton}
       </div>
@@ -7464,7 +7493,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.09';
+const SEAT_DIAG_VERSION = 'V7.10';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
