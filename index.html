@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.29</title>
+  <title>CYP135 課程報名 V7.30</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -738,7 +738,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.29</small>
+    <small>CYP135 課程系統 V7.30</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -5175,7 +5175,15 @@ function getDefaultExternalImportColumns(grid, headerIndex) {
     memberType: -1,
     registeredAt: -1,
     sourceChannel: -1,
-    remark: -1
+    remark: -1,
+
+    // 附加欄位：來源的標題常常不叫這些名字，所以猜不到就留 -1（不匯入），
+    // 由使用者自己在欄位對應那頁指定要拉哪一欄。
+    phone: findImportColumn(headers, ['電話','手機','聯絡電話','行動電話'], -1),
+    gender: findImportColumn(headers, ['性別'], -1),
+    meal: findImportColumn(headers, ['葷素','餐點','飲食','素食'], -1),
+    idNumber: findImportColumn(headers, ['身分證','身份證','身分證字號','證號'], -1),
+    birthday: findImportColumn(headers, ['生日','出生年月日','出生日期'], -1)
   };
 }
 
@@ -5192,7 +5200,12 @@ function extractExternalImportRows(grid, columns) {
       memberType: cellText(row[col.memberType]),
       registeredAt: cellText(row[col.registeredAt]),
       sourceChannel: cellText(row[col.sourceChannel]),
-      remark: cellText(row[col.remark])
+      remark: cellText(row[col.remark]),
+      phone: cellText(row[col.phone]),
+      gender: cellText(row[col.gender]),
+      meal: cellText(row[col.meal]),
+      idNumber: cellText(row[col.idNumber]),
+      birthday: cellText(row[col.birthday])
     };
     return item;
   }).filter(item => item.name || item.leader || item.packageName);
@@ -5290,7 +5303,8 @@ function renderExternalColumnMapper() {
         </div>
         <div class="field">
           <label>所屬活動</label>
-          <select id="import-col-package">${colOptions(columns.packageName)}</select>
+          <select id="import-col-package">${colOptions(columns.packageName, true, '與匯入的課程相同')}</select>
+          <p class="meta" style="margin:5px 0 0">來源沒有活動欄位時選「與匯入的課程相同」即可。</p>
         </div>
         <div class="field">
           <label>白金/非白金，可選</label>
@@ -5299,6 +5313,26 @@ function renderExternalColumnMapper() {
         <div class="field">
           <label>報名時間，可選</label>
           <select id="import-col-time">${colOptions(columns.registeredAt, true)}</select>
+        </div>
+        <div class="field">
+          <label>電話，可選</label>
+          <select id="import-col-phone">${colOptions(columns.phone, true)}</select>
+        </div>
+        <div class="field">
+          <label>性別，可選</label>
+          <select id="import-col-gender">${colOptions(columns.gender, true)}</select>
+        </div>
+        <div class="field">
+          <label>葷素，可選</label>
+          <select id="import-col-meal">${colOptions(columns.meal, true)}</select>
+        </div>
+        <div class="field">
+          <label>身分證，可選</label>
+          <select id="import-col-id">${colOptions(columns.idNumber, true)}</select>
+        </div>
+        <div class="field">
+          <label>出生年月日，可選</label>
+          <select id="import-col-birthday">${colOptions(columns.birthday, true)}</select>
         </div>
         <div class="field">
           <label>備註，可選</label>
@@ -5333,8 +5367,10 @@ function refreshExternalColumnMapperFromHeader() {
 }
 
 function buildExternalColumnOptions(grid, maxCols) {
-  return function(selectedIndex, allowBlank) {
-    let html = allowBlank ? '<option value="-1">不匯入</option>' : '';
+  // blankLabel：有些欄位留空不是「不匯入」而是「用預設值」，
+  //            例如所屬活動留空就是用你選的那堂課，講清楚比較不會猶豫。
+  return function(selectedIndex, allowBlank, blankLabel) {
+    let html = allowBlank ? '<option value="-1">' + (blankLabel || '不匯入') + '</option>' : '';
     for (let i = 0; i < maxCols; i++) {
       const selected = Number(selectedIndex) === i ? 'selected' : '';
       html += `<option value="${i}" ${selected}>${excelColumnName(i)} 欄</option>`;
@@ -5384,7 +5420,12 @@ async function applyExternalColumnMapping() {
     memberType: Number(val('import-col-member')),
     registeredAt: Number(val('import-col-time')),
     sourceChannel: -1,
-    remark: Number(val('import-col-remark'))
+    remark: Number(val('import-col-remark')),
+    phone: Number(val('import-col-phone')),
+    gender: Number(val('import-col-gender')),
+    meal: Number(val('import-col-meal')),
+    idNumber: Number(val('import-col-id')),
+    birthday: Number(val('import-col-birthday'))
   };
 
   if (columns.name < 0 || columns.leader < 0 || columns.packageName < 0) {
@@ -7633,7 +7674,7 @@ function portalTile(opts) {
 
 // ⚠️ showLoading() 會直接覆蓋整個 #app，stopLoading() 只停計時器不還原 DOM。
 //    所以載入結束後絕對不能去抓載入前放的子元素——那個節點早就不在了，
-//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.29 就是這樣卡在 92%）。
+//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.30 就是這樣卡在 92%）。
 //    正確作法：載入結束後重建整頁，一次把外框和結果一起寫進 #app。
 function rosterRebuildShellHtml() {
   return '<button class="btn btn-ghost" onclick="renderPortalPage()">\u2190 返回首頁</button>' +
@@ -7833,7 +7874,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.29';
+const SEAT_DIAG_VERSION = 'V7.30';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
