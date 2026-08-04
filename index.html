@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.27</title>
+  <title>CYP135 課程報名 V7.28</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -738,7 +738,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.27</small>
+    <small>CYP135 課程系統 V7.28</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -4821,6 +4821,15 @@ function renderExternalImportShell(selectedCode, loadingCourses) {
           <label>Excel 檔案</label>
           <input type="file" id="external-excel-file" accept=".xlsx,.xls" onchange="handleExternalExcelFile(this)">
         </div>
+        <div class="field full">
+          <label>或：直接讀 Google 試算表</label>
+          <input id="external-sheet-url" placeholder="貼上試算表網址，例如中壢教室的名單">
+          <p class="meta" style="margin:6px 0 0">
+            對方的試算表要先分享給本系統的 Google 帳號（檢視權限即可）。
+          </p>
+          <button class="btn btn-sub" style="margin-top:8px" onclick="loadExternalSheetTabs()">讀取分頁清單</button>
+          <div id="external-sheet-tabs" style="margin-top:8px"></div>
+        </div>
       </div>
       <div class="compact-actions" style="margin-top:10px">
         <button class="btn btn-sub" onclick="createCourseFromImportSuggestion()">用 Excel 建議名稱建立課程</button>
@@ -4933,6 +4942,107 @@ function ensureExcelParser() {
   });
 
   return excelParserLoading;
+}
+
+// 讀取指定試算表的分頁清單，讓使用者選要匯入哪一個。
+// 只回清單不回資料，避免一次搬整份回來。
+async function loadExternalSheetTabs() {
+  const url = (val('external-sheet-url') || '').trim();
+  if (!url) {
+    return showBoxMsg('external-import-msg', '請先貼上 Google 試算表網址。', 'err');
+  }
+  const box = document.getElementById('external-sheet-tabs');
+  let locked = false;
+  try {
+    locked = true;
+    showActionLock('正在開啟試算表', '請稍候，正在讀取分頁清單。');
+    const res = await post('readExternalSheetGrid', { userId, url }, 30000);
+    if (!res || res.status !== 'ok') {
+      if (box) box.innerHTML = '';
+      return showBoxMsg('external-import-msg', esc((res && res.message) || '讀取失敗').replace(/\n/g, '<br>'), 'err');
+    }
+    const sheets = res.sheets || [];
+    if (!sheets.length) {
+      if (box) box.innerHTML = '';
+      return showBoxMsg('external-import-msg', '這份試算表沒有任何分頁。', 'err');
+    }
+    if (box) {
+      box.innerHTML = '<label class="meta" style="display:block;margin-bottom:5px">選擇要匯入的分頁</label>' +
+        '<select id="external-sheet-tab">' +
+        sheets.map(function (x) {
+          return '<option value="' + esc(x.name) + '">' + esc(x.name) + '（' + x.rows + ' 筆）</option>';
+        }).join('') + '</select>' +
+        '<button class="btn btn-main" style="margin-top:8px" onclick="loadExternalSheetGrid()">讀取這個分頁</button>';
+    }
+    showBoxMsg('external-import-msg', '已開啟「' + esc(res.title || '') + '」，請選擇分頁。', 'ok');
+  } catch (err) {
+    showBoxMsg('external-import-msg', esc(err.message || err), 'err');
+  } finally {
+    if (locked) hideActionLock();
+  }
+}
+
+// 讀取選定分頁的內容。回來的 grid 跟解析 Excel 得到的格式完全一樣，
+// 所以後面的表頭偵測、欄位對應、預覽、寫入全部沿用同一套，不另外寫一份。
+async function loadExternalSheetGrid() {
+  const url = (val('external-sheet-url') || '').trim();
+  const sheetName = val('external-sheet-tab') || '';
+  const eventCode = normalizeCode(val('external-course-select'));
+  const preview = document.getElementById('external-import-preview');
+  if (preview) preview.innerHTML = '';
+  if (!url || !sheetName) return;
+
+  let locked = false;
+  try {
+    locked = true;
+    showActionLock('正在讀取分頁', '請稍候，正在取得名單內容。');
+    const res = await post('readExternalSheetGrid', { userId, url, sheetName }, 45000);
+    if (!res || res.status !== 'ok') {
+      return showBoxMsg('external-import-msg', esc((res && res.message) || '讀取失敗').replace(/\n/g, '<br>'), 'err');
+    }
+    const grid = res.grid || [];
+    if (!grid.length) {
+      return showBoxMsg('external-import-msg', '這個分頁沒有資料。', 'err');
+    }
+
+    const headerIndex = findExternalHeaderRow(grid);
+    const columns = getDefaultExternalImportColumns(grid, headerIndex);
+    const rows = extractExternalImportRows(grid, columns);
+    const label = (res.title || 'Google 試算表') + ' / ' + sheetName;
+
+    externalImportState = {
+      step: rows.length ? 3 : 2,
+      rows: [],
+      preview: null,
+      fileName: label,
+      eventCode,
+      meta: extractExternalImportMeta(grid, columns),
+      grid,
+      columns
+    };
+
+    if (!rows.length) {
+      return showBoxMsg('external-import-msg', '這個分頁沒有可匯入的資料列，請確認欄位對應。', 'err');
+    }
+
+    renderExternalImportSuggestion();
+    updateExternalImportSteps(eventCode ? 3 : 2);
+    hideActionLock();
+    locked = false;
+
+    if (res.truncated) {
+      showBoxMsg('external-import-msg', '⚠️ 這個分頁超過 2000 列，只讀取了前 2000 列。', 'warn');
+    }
+    if (eventCode) {
+      await applyExternalColumnMapping();
+    } else {
+      showBoxMsg('external-import-msg', '已讀取「' + esc(label) + '」，請選擇課程或建立新課程。', 'info');
+    }
+  } catch (err) {
+    showBoxMsg('external-import-msg', esc(err.message || err), 'err');
+  } finally {
+    if (locked) hideActionLock();
+  }
 }
 
 async function handleExternalExcelFile(input) {
@@ -7521,7 +7631,7 @@ function portalTile(opts) {
 
 // ⚠️ showLoading() 會直接覆蓋整個 #app，stopLoading() 只停計時器不還原 DOM。
 //    所以載入結束後絕對不能去抓載入前放的子元素——那個節點早就不在了，
-//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.27 就是這樣卡在 92%）。
+//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.28 就是這樣卡在 92%）。
 //    正確作法：載入結束後重建整頁，一次把外框和結果一起寫進 #app。
 function rosterRebuildShellHtml() {
   return '<button class="btn btn-ghost" onclick="renderPortalPage()">\u2190 返回首頁</button>' +
@@ -7721,7 +7831,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.27';
+const SEAT_DIAG_VERSION = 'V7.28';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
