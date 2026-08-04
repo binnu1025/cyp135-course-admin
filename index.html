@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.16</title>
+  <title>CYP135 課程報名 V7.17</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -707,7 +707,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.16</small>
+    <small>CYP135 課程系統 V7.17</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -6771,7 +6771,34 @@ async function submitRegister() {
       showRegisterMsg('⚠️ ' + esc(res.message || '報名失敗'), 'err');
     }
   } catch (err) {
-    showRegisterMsg('⚠️ ' + esc(err.message || err), 'err');
+    // ⚠️ 逾時不等於失敗。後端寫入可能早就完成，只是回應沒能傳回來。
+    //    直接說「失敗」會讓使用者再送一次 → 真的變成重複報名。
+    //    所以先回頭查證那筆到底有沒有進去，查到了就當成功。
+    let verified = null;
+    try {
+      verified = await post('verifyRegistrationSubmitted', {
+        userId,
+        eventCode: currentCourse && currentCourse.eventCode,
+        name: name,
+        leader: leader
+      }, 20000);
+    } catch (e) { verified = null; }
+
+    if (verified && verified.found) {
+      submittedOk = true;
+      showRegisterMsg(
+        '✅ 報名已完成。<br><span class="meta">（送出時連線較慢，系統已回頭確認過這筆資料確實存在，請不要重複報名。）</span>',
+        'ok');
+    } else if (verified) {
+      showRegisterMsg(
+        '⚠️ 送出失敗，系統已確認這筆報名沒有進入資料庫，請重新送出。',
+        'err');
+    } else {
+      showRegisterMsg(
+        '⚠️ ' + esc(err.message || err) +
+        '<br><span class="meta">（無法確認是否已送出成功。請先到「小組報名」查看，不要直接重送以免重複。）</span>',
+        'err');
+    }
   } finally {
     isSubmittingRegistration = false;
     hideActionLock();
@@ -7408,7 +7435,7 @@ function portalTile(opts) {
 
 // ⚠️ showLoading() 會直接覆蓋整個 #app，stopLoading() 只停計時器不還原 DOM。
 //    所以載入結束後絕對不能去抓載入前放的子元素——那個節點早就不在了，
-//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.16 就是這樣卡在 92%）。
+//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.17 就是這樣卡在 92%）。
 //    正確作法：載入結束後重建整頁，一次把外框和結果一起寫進 #app。
 function rosterRebuildShellHtml() {
   return '<button class="btn btn-ghost" onclick="renderPortalPage()">\u2190 返回首頁</button>' +
@@ -7608,7 +7635,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.16';
+const SEAT_DIAG_VERSION = 'V7.17';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
