@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.12</title>
+  <title>CYP135 課程報名 V7.13</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -707,7 +707,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.12</small>
+    <small>CYP135 課程系統 V7.13</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7406,12 +7406,12 @@ function portalTile(opts) {
   return `<button type="button" class="${cls}" onclick="${opts.onclick}">${body}</button>`;
 }
 
-async function renderRosterRebuildPage() {
-  const token = beginPage('rebuild', '重建課程分頁', true);
-  const app = document.getElementById('app');
-  const back = '<button class="btn btn-ghost" onclick="renderPortalPage()">\u2190 返回首頁</button>';
-
-  app.innerHTML = back +
+// ⚠️ showLoading() 會直接覆蓋整個 #app，stopLoading() 只停計時器不還原 DOM。
+//    所以載入結束後絕對不能去抓載入前放的子元素——那個節點早就不在了，
+//    抓到 null 就靜默 return，畫面會永遠停在載入卡（V7.13 就是這樣卡在 92%）。
+//    正確作法：載入結束後重建整頁，一次把外框和結果一起寫進 #app。
+function rosterRebuildShellHtml() {
+  return '<button class="btn btn-ghost" onclick="renderPortalPage()">\u2190 返回首頁</button>' +
     '<div class="card" style="margin-top:12px">' +
     '<p class="dc-h">重建課程分頁</p>' +
     '<p class="dc-note">把每堂課的<b>報名總表</b>資料同步到該課程分頁。' +
@@ -7420,50 +7420,61 @@ async function renderRosterRebuildPage() {
     '<p class="dc-note">分頁獨佔電話、身分證、生日、葷素等欄位，報名總表沒有這些資料——' +
     '所以系統絕不主動刪除分頁的列。</p>' +
     '<button class="btn btn-main" style="margin-top:12px" onclick="runRosterRebuild()">開始重建全部課程</button>' +
-    '</div><div id="rebuild-result"></div>';
+    '</div>';
+}
+
+async function renderRosterRebuildPage() {
+  beginPage('rebuild', '重建課程分頁', true);
+  document.getElementById('app').innerHTML = rosterRebuildShellHtml();
 }
 
 async function runRosterRebuild() {
+  const token = beginPage('rebuild', '重建課程分頁', true);
   showLoading('比對報名總表與課程分頁');
+
   let d = null, err = '';
   try { d = await post('rebuildCourseRosters', { userId }, 120000); }
   catch (e) { err = (e && e.message) || String(e); }
+  if (!isPageActive(token, 'rebuild')) return;
   stopLoading();
 
-  const box = document.getElementById('rebuild-result');
-  if (!box) return;
+  const app = document.getElementById('app');
+  if (!app) return;
+
   if (err || !d || d.status !== 'ok') {
-    box.innerHTML = '<div class="card"><div class="reg-empty">' +
+    app.innerHTML = rosterRebuildShellHtml() +
+      '<div class="card"><div class="reg-empty">' +
       esc(err || (d && d.message) || '重建失敗') + '</div></div>';
     return;
   }
 
   const list = d.courses || [];
   if (!list.length) {
-    box.innerHTML = '<div class="card"><div class="reg-empty">沒有需要處理的課程。</div></div>';
+    app.innerHTML = rosterRebuildShellHtml() +
+      '<div class="card"><div class="reg-empty">沒有需要處理的課程。</div></div>';
     return;
   }
 
-  let html = '';
+  let body = '';
   let totalAdded = 0, totalOrphan = 0;
   list.forEach(c => {
     totalAdded += c.added;
     totalOrphan += c.orphans.length;
     const bad = c.orphans.length > 0;
-    html += '<div class="card dc-card' + (bad ? ' bad' : '') + '">';
-    html += '<div class="dc-top"><span class="dc-name">' +
+    body += '<div class="card dc-card' + (bad ? ' bad' : '') + '">';
+    body += '<div class="dc-top"><span class="dc-name">' +
       esc(c.eventName || c.eventCode) + '</span>';
-    html += '<span class="dc-cnt">總表 ' + c.masterCount + ' 人</span></div>';
+    body += '<span class="dc-cnt">總表 ' + c.masterCount + ' 人</span></div>';
     const bits = [];
     if (c.added) bits.push('補上 ' + c.added + ' 人');
     if (c.updated) bits.push('更新 ' + c.updated + ' 人');
     if (!bits.length && !bad) bits.push('已一致，沒有變動');
-    html += '<p class="dc-ok">' + bits.join('　') + '</p>';
+    body += '<p class="dc-ok">' + bits.join('　') + '</p>';
     if (bad) {
-      html += '<p class="dc-lbl bad">總表已無此人，資料保留並標黃（' + c.orphans.length + '）</p>';
-      html += '<p class="dc-list">' + c.orphans.map(esc).join('、') + '</p>';
+      body += '<p class="dc-lbl bad">總表已無此人，資料保留並標黃（' + c.orphans.length + '）</p>';
+      body += '<p class="dc-list">' + c.orphans.map(esc).join('、') + '</p>';
     }
-    html += '</div>';
+    body += '</div>';
   });
 
   let head = '<div class="card"><p class="dc-h">重建完成</p><p class="dc-note">';
@@ -7473,8 +7484,9 @@ async function runRosterRebuild() {
   }
   head += '。</p></div>';
 
-  box.innerHTML = head + html;
+  app.innerHTML = rosterRebuildShellHtml() + head + body;
 }
+
 async function renderPortalPage() {
   const token = beginPage('portal', '系統入口', true);
   renderPortalShell();
@@ -7596,7 +7608,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.12';
+const SEAT_DIAG_VERSION = 'V7.13';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
