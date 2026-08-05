@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.31</title>
+  <title>CYP135 課程報名 V7.32</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -738,7 +738,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.31</small>
+    <small>CYP135 課程系統 V7.32</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -802,6 +802,39 @@ let hasRegisterColumn = false;
 let selectedClassType = '';
 let lockedClassType = '';
 let lookupCache = {};
+
+// 這兩份前端快取原本沒有有效期，一路用到重整頁面為止。中間別人報名、
+// 或是名冊在試算表被改過，你拿到的判斷就是舊的——而且會以「確定沒有」
+// 的樣子呈現。正確性優先，所以給它們一個有效期。
+const REGISTRATION_CACHE_TTL_MS = 60000;
+let lookupCacheAt = {};
+
+function setLookupCache(clean, res) {
+  lookupCache[clean] = res;
+  lookupCacheAt[clean] = Date.now();
+}
+
+// 只在「要不要重新查詢」這個決策點用。畫面上正在顯示的結果（例如同名多筆
+// 讓使用者挑選）仍然直接讀 lookupCache——那是使用者眼前的東西，
+// 不能因為超過 60 秒就變不見。
+function getFreshLookup(clean) {
+  const res = lookupCache[clean];
+  if (!res) return null;
+  if (Date.now() - (lookupCacheAt[clean] || 0) > REGISTRATION_CACHE_TTL_MS) return null;
+  return res;
+}
+
+function setRegistrationInitCache(code, data) {
+  appState.registrationInitByCode[code] = data;
+  appState.registrationInitAt[code] = Date.now();
+}
+
+function getFreshRegistrationInit(code) {
+  const data = appState.registrationInitByCode[code];
+  if (!data || data.status !== 'ok') return null;
+  if (Date.now() - (appState.registrationInitAt[code] || 0) > REGISTRATION_CACHE_TTL_MS) return null;
+  return data;
+}
 let lastLookupSeq = 0;
 let activeClockTarget = '';
 let activeClockHour = 9;
@@ -834,6 +867,7 @@ let appState = {
   publicLoaded: false,
   publicLoading: null,
   registrationInitByCode: {},
+  registrationInitAt: {},
   lastPublicRefresh: 0
 };
 
@@ -1495,7 +1529,10 @@ function clearCourseClientCache(courseCode) {
   try { localStorage.removeItem(PUBLIC_CACHE_KEY); } catch (e) {}
   try { localStorage.removeItem(ADMIN_CACHE_KEY); } catch (e) {}
   const code = normalizeCode(courseCode);
-  if (code) delete appState.registrationInitByCode[code];
+  if (code) {
+    delete appState.registrationInitByCode[code];
+    delete appState.registrationInitAt[code];
+  }
 
   // ⚠️ 記憶體裡的 courses / courseMap 也要清。
   //    活動詳情頁有一條捷徑：courseMap 裡有這門課就直接畫、完全不重抓
@@ -1526,6 +1563,9 @@ function clearAllCourseClientCaches() {
   appState.publicLoaded = false;
   appState.publicLoading = null;
   appState.registrationInitByCode = {};
+  appState.registrationInitAt = {};
+  lookupCache = {};
+  lookupCacheAt = {};
   appState.lastPublicRefresh = 0;
   publicData = null;
   adminCourseData = [];
@@ -1599,15 +1639,16 @@ function refreshPublicInBackground() {
 
 function ensureRegistrationData(courseCode, force) {
   const code = normalizeCode(courseCode);
-  if (!force && appState.registrationInitByCode[code]) {
-    initData = appState.registrationInitByCode[code];
+  const freshInit = !force && getFreshRegistrationInit(code);
+  if (freshInit) {
+    initData = freshInit;
     currentCourse = initData.course;
     return Promise.resolve(initData);
   }
 
   return post('getRegistrationInit', { eventCode: code, userId }, 12000).then(data => {
     if (data && data.status === 'ok') {
-      appState.registrationInitByCode[code] = data;
+      setRegistrationInitCache(code, data);
       initData = data;
       currentCourse = data.course;
       mergeCourseToState(data.course);
@@ -2539,7 +2580,8 @@ async function renderCourseAddRegistrationPage(courseCode, forceRefresh) {
   const token = beginPage('roster', '管理加報', true);
   const code = normalizeCode(courseCode);
   const localCourse = getCourseFromState(code);
-  const cachedInit = !forceRefresh && appState.registrationInitByCode[code];
+  // 加報一樣要判重複與 A 級資格，不能吃過期的名單。
+  const cachedInit = !forceRefresh && getFreshRegistrationInit(code);
 
   rosterState.openAdd = true;
   if (cachedInit && cachedInit.status === 'ok') {
@@ -5868,46 +5910,68 @@ function renderRegisterForm() {
   }
 
   const code = normalizeCode(currentCourse.eventCode);
-  if (!appState.registrationInitByCode[code]) {
-    initData = {
-      status: 'loading',
-      course: currentCourse,
-      classDetails: currentCourse.classDetails || [],
-      leaders: [],
-      platinumNames: [],
-      existingRegistrants: [],
-      memberDirectory: []
-    };
-    renderRegisterFormBody(true);
-
-    post('getRegistrationInit', { eventCode: code, userId }, 12000)
-      .then(data => {
-        if (!data || data.status !== 'ok') {
-          showRegisterMsg('背景檢查失敗：' + esc((data && data.message) || '無法取得報名狀態，送出時仍會再次檢查。'), 'err');
-          return;
-        }
-        appState.registrationInitByCode[code] = data;
-        initData = data;
-        currentCourse = data.course || currentCourse;
-        mergeCourseToState(currentCourse);
-        memberIndex = buildMemberIndex((data && data.memberDirectory) || []);
-        registrationIndex = buildRegistrationIndex((data && data.existingRegistrants) || []);
-        const status = document.getElementById('register-load-status');
-        if (status) status.innerHTML = '已完成報名狀態檢查。';
-        if (!val('r-name')) renderRegisterFormBody(false);
-        else refreshRegistrationAfterInitData();
-      })
-      .catch(err => {
-        showRegisterMsg('背景檢查較慢或失敗：' + esc(err.message || err) + '<br>送出時系統仍會再次檢查是否重複。', 'err');
-      });
+  const freshInit = getFreshRegistrationInit(code);
+  if (freshInit) {
+    initData = freshInit;
+    renderRegisterFormBody();
     return;
   }
-
-  initData = appState.registrationInitByCode[code];
-  renderRegisterFormBody(false);
+  loadRegistrationInitThenRender(code);
 }
 
-function renderRegisterFormBody(isBackgroundLoading) {
+// 正確性優先：資料沒到齊就不畫表單。
+//
+// 舊做法是先畫一份空殼讓人打字，existingRegistrants 和名冊都還是空陣列，
+// 背景才去抓真資料。結果是那幾秒內重複檢查一律回「沒報過」、自動帶入一律
+// 回「查無此人」——把「還不知道」講成了「確定不是」。
+//
+// 不用 showLoading()：那支會把 #app 整個換掉而且不還原，先前抓到舊節點的
+// 程式碼會拿到 null 然後靜默 return，畫面就永遠停在載入卡。
+function loadRegistrationInitThenRender(code) {
+  const app = document.getElementById('app');
+  if (app) {
+    app.innerHTML = `
+      <div class="card compact-card">
+        <h2>${esc((currentCourse && currentCourse.eventName) || '報名表')}</h2>
+        <div class="meta" id="register-load-status">正在載入報名資料...</div>
+        <p class="meta" style="margin-top:8px">為了正確判斷是否已報名與會員資格，資料載入完成後才會開放填寫。</p>
+      </div>
+    `;
+  }
+
+  post('getRegistrationInit', { eventCode: code, userId }, 20000)
+    .then(data => {
+      if (!data || data.status !== 'ok') {
+        throw new Error((data && data.message) || '無法取得報名資料');
+      }
+      setRegistrationInitCache(code, data);
+      initData = data;
+      currentCourse = data.course || currentCourse;
+      mergeCourseToState(currentCourse);
+      renderRegisterFormBody();
+    })
+    .catch(err => {
+      renderRegistrationInitError(code, err && (err.message || err));
+    });
+}
+
+// 載入失敗要給明確出口。以前 init 掛掉至少還看得到表單（只是檢查不準），
+// 現在改成等資料，就必須讓人知道發生什麼事、能重試，而不是卡在轉圈。
+function renderRegistrationInitError(code, message) {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderHomePage()">← 返回課程列表</button>
+    <div class="card compact-card" style="margin-top:12px">
+      <h2>報名資料載入失敗</h2>
+      <div class="msg on err">${esc(message || '連線未回應')}</div>
+      <p class="meta">系統無法確認你是否已經報名、以及會員資格，所以先不開放填寫，避免給你錯誤的結果。</p>
+      <button class="btn btn-main" style="margin-top:10px" onclick="loadRegistrationInitThenRender('${esc(code)}')">重新載入</button>
+    </div>
+  `;
+}
+
+function renderRegisterFormBody() {
   currentCourse = initData.course || currentCourse;
   selectedLeader = '';
   isCurrentNameDuplicate = false;
@@ -5926,7 +5990,7 @@ function renderRegisterFormBody(isBackgroundLoading) {
     <div class="card compact-card" style="margin-top:12px">
       <h2>${esc(c.eventName)}</h2>
       ${courseRequiresALevelClient(c) ? renderALevelNoticeClient() : ''}
-      <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>金額：${esc(c.priceSummary || '—')}<br><span id="register-load-status">${isBackgroundLoading ? '正在載入報名表...' : '請填寫以下資料。'}</span></div>
+      <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>金額：${esc(c.priceSummary || '—')}<br><span id="register-load-status">請填寫以下資料。</span></div>
     </div>
 
     <div class="card compact-card">
@@ -6240,12 +6304,86 @@ function setRegistrationALevelBlocked(message, baseHtml) {
   if (box) box.innerHTML = (baseHtml || '') + renderALevelBlockedNoticeClient(message);
 }
 
+// 「沒核對成功」跟「核對完不合格」是兩件事，畫面必須講清楚是哪一種。
+// 送出鈕一樣停用（確實還沒確認），但按鈕文字與訊息會指向重試而不是資格。
+function setRegistrationALevelUnknown(message, baseHtml) {
+  isCurrentALevelBlocked = true;
+  setRegisterButtonDisabled(true, '尚未完成核對');
+  const box = document.getElementById('lookup-box');
+  if (box) {
+    box.innerHTML = (baseHtml || '') + `
+      <div class="msg on warn">
+        包月資格<b>尚未核對成功</b>，這不代表你沒有資格。<br>
+        ${esc(message || '連線未回應')}
+        <br><button class="btn btn-sub" style="margin-top:8px" onclick="retryRegistrationALevel()">重新核對</button>
+      </div>
+    `;
+  }
+}
+
+function retryRegistrationALevel() {
+  const name = val('r-name');
+  if (!name) return;
+  checkRegistrationALevelNow(name, getRegistrationLeaderValue(), '');
+}
+
+// 名冊查詢失敗同理：不能顯示成「查無此人，請自己建立」。
+function setRegistrationLookupUnknown(message) {
+  selectedLeader = '';
+  isCurrentNameDuplicate = false;
+  setRegisterButtonDisabled(true, '尚未完成查詢');
+  const box = document.getElementById('lookup-box');
+  if (box) {
+    box.innerHTML = `
+      <div class="msg on warn">
+        名冊<b>查詢失敗</b>，不確定你是否已在名冊中。<br>
+        ${esc(message || '連線未回應')}
+        <br><button class="btn btn-sub" style="margin-top:8px" onclick="retryRegistrationLookup()">重新查詢</button>
+      </div>
+    `;
+  }
+}
+
+function retryRegistrationLookup() {
+  const name = val('r-name');
+  const clean = cleanNameLocal(name);
+  if (!clean) return;
+  delete lookupCache[clean];
+  delete lookupCacheAt[clean];
+  autoLookupMemberRemote(clean, name);
+}
+
 function setRosterAddALevelBlocked(message, baseHtml) {
   const add = rosterState.add || (rosterState.add = {});
   add.aLevelBlocked = true;
   setRosterAddSubmitDisabled(true, '非A級會員');
   const box = document.getElementById('roster-add-lookup');
   if (box) box.innerHTML = (baseHtml || '') + renderALevelBlockedNoticeClient(message);
+}
+
+// 跟報名那條同樣的道理：沒核對成功不等於不合格。
+// 加報一樣維持停用（確實還沒確認），但要指向重試而不是資格。
+function setRosterAddALevelUnknown(message, baseHtml) {
+  const add = rosterState.add || (rosterState.add = {});
+  add.aLevelBlocked = true;
+  setRosterAddSubmitDisabled(true, '尚未完成核對');
+  const box = document.getElementById('roster-add-lookup');
+  if (box) {
+    box.innerHTML = (baseHtml || '') + `
+      <div class="msg on warn">
+        包月資格<b>尚未核對成功</b>，這不代表此人沒有資格。<br>
+        ${esc(message || '連線未回應')}
+        <br><button class="btn btn-sub" style="margin-top:8px" onclick="retryRosterAddALevel()">重新核對</button>
+      </div>
+    `;
+  }
+}
+
+function retryRosterAddALevel() {
+  const add = rosterState.add || {};
+  const name = val('roster-add-name');
+  if (!name) return;
+  checkRosterAddALevelNow(name, add.selectedLeader || val('roster-add-leader') || '', '');
 }
 
 function checkRegistrationALevelNow(name, leader, baseHtml) {
@@ -6256,6 +6394,7 @@ function checkRegistrationALevelNow(name, leader, baseHtml) {
   }
   const clean = cleanNameLocal(name);
   const seq = ++aLevelCheckSeq;
+  let aLevelRetried = false;
   isCurrentALevelBlocked = true;
   setRegisterButtonDisabled(true, '核對包月資格');
   const box = document.getElementById('lookup-box');
@@ -6264,8 +6403,13 @@ function checkRegistrationALevelNow(name, leader, baseHtml) {
   checkCourseALevelEligibilityClient(currentCourse, name, leader)
     .then(res => {
       if (seq !== aLevelCheckSeq || clean !== cleanNameLocal(val('r-name')) || String(leader || '').trim() !== String(getRegistrationLeaderValue() || '').trim()) return;
-      if (!res || res.status !== 'ok' || !res.eligible) {
-        setRegistrationALevelBlocked((res && res.message) || '此姓名目前不是包月 A 級會員。', baseHtml);
+      // 三態分開：連線沒回來 / 後端出錯 → 沒核對成功，不是判決。
+      if (!res || res.status !== 'ok') {
+        setRegistrationALevelUnknown((res && res.message) || '連線未回應', baseHtml);
+        return;
+      }
+      if (!res.eligible) {
+        setRegistrationALevelBlocked(res.message || '此姓名目前不是包月 A 級會員。', baseHtml);
         return;
       }
       isCurrentALevelBlocked = false;
@@ -6274,7 +6418,32 @@ function checkRegistrationALevelNow(name, leader, baseHtml) {
     })
     .catch(err => {
       if (seq !== aLevelCheckSeq || clean !== cleanNameLocal(val('r-name'))) return;
-      setRegistrationALevelBlocked('包月資格核對失敗：' + (err.message || err), baseHtml);
+      // 傳輸失敗是暫時的（GAS 轉址鏈偶發掉包），先靜默重試一次再說。
+      // 只有傳輸層失敗才重試；後端明確回「不合格」不會走到這裡。
+      if (!aLevelRetried) {
+        aLevelRetried = true;
+        checkCourseALevelEligibilityClient(currentCourse, name, leader)
+          .then(res2 => {
+            if (seq !== aLevelCheckSeq || clean !== cleanNameLocal(val('r-name'))) return;
+            if (!res2 || res2.status !== 'ok') {
+              setRegistrationALevelUnknown((res2 && res2.message) || (err.message || err), baseHtml);
+              return;
+            }
+            if (!res2.eligible) {
+              setRegistrationALevelBlocked(res2.message || '此姓名目前不是包月 A 級會員。', baseHtml);
+              return;
+            }
+            isCurrentALevelBlocked = false;
+            if (box) box.innerHTML = (baseHtml || '') + renderALevelPassNoticeClient(res2.plan);
+            setRegisterButtonDisabled(false, '送出報名');
+          })
+          .catch(err2 => {
+            if (seq !== aLevelCheckSeq || clean !== cleanNameLocal(val('r-name'))) return;
+            setRegistrationALevelUnknown(err2.message || err2, baseHtml);
+          });
+        return;
+      }
+      setRegistrationALevelUnknown(err.message || err, baseHtml);
     });
 }
 
@@ -6288,6 +6457,7 @@ function checkRosterAddALevelNow(name, leader, baseHtml) {
   const clean = cleanNameLocal(name);
   const seq = (add.aLevelSeq || 0) + 1;
   add.aLevelSeq = seq;
+  let rosterAddALevelRetried = false;
   add.aLevelBlocked = true;
   setRosterAddSubmitDisabled(true, '核對包月資格');
   const box = document.getElementById('roster-add-lookup');
@@ -6296,8 +6466,13 @@ function checkRosterAddALevelNow(name, leader, baseHtml) {
   checkCourseALevelEligibilityClient(rosterState.course, name, leader)
     .then(res => {
       if (seq !== add.aLevelSeq || clean !== cleanNameLocal(val('roster-add-name')) || String(leader || '').trim() !== String((add.selectedLeader || val('roster-add-leader') || '').trim())) return;
-      if (!res || res.status !== 'ok' || !res.eligible) {
-        setRosterAddALevelBlocked((res && res.message) || '此姓名目前不是包月 A 級會員。', baseHtml);
+      // 三態分開：連線沒回來 / 後端出錯 → 沒核對成功，不是判決。
+      if (!res || res.status !== 'ok') {
+        setRosterAddALevelUnknown((res && res.message) || '連線未回應', baseHtml);
+        return;
+      }
+      if (!res.eligible) {
+        setRosterAddALevelBlocked(res.message || '此姓名目前不是包月 A 級會員。', baseHtml);
         return;
       }
       add.aLevelBlocked = false;
@@ -6306,7 +6481,31 @@ function checkRosterAddALevelNow(name, leader, baseHtml) {
     })
     .catch(err => {
       if (seq !== add.aLevelSeq || clean !== cleanNameLocal(val('roster-add-name'))) return;
-      setRosterAddALevelBlocked('包月資格核對失敗：' + (err.message || err), baseHtml);
+      // 傳輸失敗是暫時的，先靜默重試一次；後端明確回不合格不會走到這裡。
+      if (!rosterAddALevelRetried) {
+        rosterAddALevelRetried = true;
+        checkCourseALevelEligibilityClient(rosterState.course, name, leader)
+          .then(res2 => {
+            if (seq !== add.aLevelSeq || clean !== cleanNameLocal(val('roster-add-name'))) return;
+            if (!res2 || res2.status !== 'ok') {
+              setRosterAddALevelUnknown((res2 && res2.message) || (err.message || err), baseHtml);
+              return;
+            }
+            if (!res2.eligible) {
+              setRosterAddALevelBlocked(res2.message || '此姓名目前不是包月 A 級會員。', baseHtml);
+              return;
+            }
+            add.aLevelBlocked = false;
+            if (box) box.innerHTML = (baseHtml || '') + renderALevelPassNoticeClient(res2.plan);
+            setRosterAddSubmitDisabled(false, '送出加報');
+          })
+          .catch(err2 => {
+            if (seq !== add.aLevelSeq || clean !== cleanNameLocal(val('roster-add-name'))) return;
+            setRosterAddALevelUnknown(err2.message || err2, baseHtml);
+          });
+        return;
+      }
+      setRosterAddALevelUnknown(err.message || err, baseHtml);
     });
 }
 
@@ -6463,6 +6662,10 @@ function renderLookupResult(res, clean, name) {
       <div class="msg on warn">找到多筆同名資料，請選擇正確的名冊資料。若同組同名，請用電話末四碼辨識。</div>
       ${renderLookupMemberSelect(res.members || [], 'r-member-choice', 'handleLookupMemberChoice', '請選擇正確名冊資料')}
     `;
+  } else if (!res || res.status === 'error' || res.status === 'empty') {
+    // 「查詢沒成功」不等於「這個人不在名冊」。原本這兩種都掉進下面的 else，
+    // 顯示成「查無名冊資料，請自己建立」——那是把失敗講成了判決。
+    setRegistrationLookupUnknown((res && res.message) || '名冊查詢沒有回應');
   } else {
     selectedLeader = '';
     const autoClassType = applyPlatinumClassAutoSelection(null);
@@ -6482,15 +6685,16 @@ async function autoLookupMemberRemote(clean, name) {
   if (!box || clean !== cleanNameLocal(val('r-name'))) return;
 
   try {
-    if (lookupCache[clean]) {
-      renderLookupResult(lookupCache[clean], clean, name);
+    const freshLookup = getFreshLookup(clean);
+    if (freshLookup) {
+      renderLookupResult(freshLookup, clean, name);
       return;
     }
 
     const seq = ++lastLookupSeq;
     const res = await post('lookupMember', { name }, 7000);
     if (seq !== lastLookupSeq || clean !== cleanNameLocal(val('r-name'))) return;
-    lookupCache[clean] = res;
+    setLookupCache(clean, res);
 
     renderLookupResult(res, clean, name);
   } catch (err) {
@@ -6504,40 +6708,6 @@ async function autoLookupMemberRemote(clean, name) {
       `;
     }
   }
-}
-
-function refreshRegistrationAfterInitData() {
-  const name = val('r-name');
-  const clean = cleanNameLocal(name);
-  if (!clean) return;
-
-  const cached = lookupCache[clean];
-  const leader = getRegistrationLeaderValue();
-  if (!leader) {
-    if (cached) renderLookupResult(cached, clean, name);
-    return;
-  }
-
-  selectedLeader = leader;
-  const usesPhone = courseUsesPhoneIdentity(currentCourse && currentCourse.registrationFields);
-  const phoneTail = getEnteredPhoneTail();
-  const duplicate = getExistingRegistration(clean, leader, { usePhone: usesPhone, phoneTail });
-  const box = document.getElementById('lookup-box');
-
-  if (duplicate) {
-    if (usesPhone) {
-      refreshRegistrationPhoneDuplicateState();
-      return;
-    }
-    isCurrentNameDuplicate = true;
-    setRegisterButtonDisabled(true, '已重複報名');
-    if (box) box.innerHTML = duplicateNoticeHtml(leader);
-    return;
-  }
-
-  isCurrentNameDuplicate = false;
-  if (box && phoneTail) box.innerHTML = renderRegistrationPhonePassNotice(leader);
-  checkRegistrationALevelNow(name, leader, box && phoneTail ? renderRegistrationPhonePassNotice(leader) : '');
 }
 
 function autoLookupMemberLocal() {
@@ -7874,7 +8044,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.31';
+const SEAT_DIAG_VERSION = 'V7.32';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
