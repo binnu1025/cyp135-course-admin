@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.32</title>
+  <title>CYP135 課程報名 V7.33</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -738,7 +738,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.32</small>
+    <small>CYP135 課程系統 V7.33</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1839,12 +1839,14 @@ function renderMenu() {
         <button class="menu-item" onclick="toggleMenu(false);renderPortalPage()">首頁</button>
         <button class="menu-item" onclick="toggleMenu(false);renderSchedulePage()">課表</button>
         <button class="menu-item" onclick="toggleMenu(false);renderHomePage({skipRefresh:true})">報名課程</button>
+        <button class="menu-item" onclick="toggleMenu(false);renderMyRegistrationsHome()">我的報名</button>
+        <button class="menu-item" onclick="toggleMenu(false);renderMyMonthlyHome()">我的包月</button>
       `)}
       ${menuSection('目前活動', courseBtns + rosterBtns)}
-      ${menuSection('查詢', `
+      ${menuSection('雁群組長專區', (canViewRoster || isAdminUser) ? `
         <button class="menu-item" onclick="toggleMenu(false);renderMyRegistrationsPage(false)">小組報名</button>
         <button class="menu-item" onclick="toggleMenu(false);renderMonthlyPage(false)">小組包月</button>
-      `)}
+      ` : '')}
       ${menuSection('會長工具', adminBtns)}
       ${menuSection('系統', `
         <button class="menu-item" onclick="toggleMenu(false);openPermissionDebugDialog()">權限狀態</button>
@@ -7943,6 +7945,25 @@ async function renderPortalPage() {
 
 let portalLinks = {};
 
+// 個人報名查詢需要「查詢綁定」才能確定你是誰（見 SPEC-個人報名查詢.md）。
+// 那部分還沒建置，所以這裡先說清楚現況，不要給一顆按了沒反應的按鈕。
+function renderMyRegistrationsHome() { renderPersonalPendingPage('我的報名', '小組報名'); }
+function renderMyMonthlyHome() { renderPersonalPendingPage('我的包月', '小組包月'); }
+
+// 兩個個人專區共用一頁：都要等「查詢綁定」才知道你是誰，現況一樣。
+function renderPersonalPendingPage(title, fallbackName) {
+  beginPage('mypersonal', title, false);
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.innerHTML = `
+    <div class="card compact-card">
+      <h2>${esc(title)}</h2>
+      <p class="meta">這個功能需要先確認你的身分（綁定 LINE 帳號與名冊上的你），目前尚未開放。</p>
+      <p class="meta">在那之前，若你有查詢權限，可以從首頁的「雁群組長專區」查看${esc(fallbackName)}。</p>
+      <button class="btn btn-sub" style="margin-top:10px" onclick="renderPortalPage()">返回首頁</button>
+    </div>`;
+}
+
 function renderPortalShell() {
   const app = document.getElementById('app');
   const links = (portalLinks && portalLinks.schedule) ? portalLinks : ((initData && initData.links) || {});
@@ -7964,6 +7985,20 @@ function renderPortalShell() {
     }));
   }
 
+  // 雁群組長專區：只要 C 欄有雁群範圍就看得到（會長一律有）。
+  let flockHtml = '';
+  if (canViewRoster || isAdminUser) {
+    const flockTiles = [
+      portalTile({ ico: TILE_ICO.roster, title: '小組報名', desc: '查看你的雁群報名狀況', onclick: 'renderMyRegistrationsPage(false)' }),
+      portalTile({ ico: TILE_ICO.monthly, title: '小組包月', desc: '查看你的雁群包月狀況', onclick: 'renderMonthlyPage(false)' })
+    ];
+    flockHtml = `
+      <div class="portal-section">
+        <p class="portal-section-title">雁群組長專區</p>
+        <div class="portal-grid">${flockTiles.join('')}</div>
+      </div>`;
+  }
+
   let adminHtml = '';
   if (isAdminUser) {
     const toolTiles = [];
@@ -7978,23 +8013,27 @@ function renderPortalShell() {
       onclick: 'renderMonthlyPage(true)'
     }));
 
-    toolTiles.push(portalTile({
+    // 排座位／重建課程分頁／課表編輯改放到獨立的「工具」區，
+    // 會長工具只留「全教室」那兩個檢視。
+    const utilTiles = [];
+
+    utilTiles.push(portalTile({
       ico: TILE_ICO.seat, title: '排座位', desc: '白金小組座位自動分配', admin: true,
       onclick: 'renderSeatPage()'
     }));
 
-    toolTiles.push(portalTile({
+    utilTiles.push(portalTile({
       ico: TILE_ICO.rebuild, title: '重建課程分頁', desc: '把報名總表同步到各課程分頁', admin: true,
       onclick: 'renderRosterRebuildPage()'
     }));
 
     if (links.schedule) {
-      toolTiles.push(portalTile({
+      utilTiles.push(portalTile({
         ico: TILE_ICO.schedule, title: '課表編輯', desc: '排課程、產生課表圖', admin: true, ext: true,
         href: links.schedule
       }));
     } else {
-      toolTiles.push(portalTile({
+      utilTiles.push(portalTile({
         ico: TILE_ICO.schedule, title: '課表編輯', desc: '尚未設定網址', admin: true,
         tag: '未啟用', onclick: 'showMsg(\'排課表網址尚未設定，請聯絡系統維護者。\',\'err\')'
       }));
@@ -8015,6 +8054,10 @@ function renderPortalShell() {
         <div class="portal-grid">${toolTiles.join('')}</div>
       </div>
       <div class="portal-section">
+        <p class="portal-section-title">工具</p>
+        <div class="portal-grid">${utilTiles.join('')}</div>
+      </div>
+      <div class="portal-section">
         <p class="portal-section-title">課程管理</p>
         <div class="portal-grid">${manageTiles.join('')}</div>
       </div>`;
@@ -8030,6 +8073,7 @@ function renderPortalShell() {
       <p class="home-section-title">其他</p>
       <div class="portal-grid">${mainTiles.join('')}</div>
     </div>` : ''}
+    ${flockHtml}
     ${adminHtml}
   `;
   renderPortalUpcoming();
@@ -8044,7 +8088,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.32';
+const SEAT_DIAG_VERSION = 'V7.33';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8704,13 +8748,13 @@ function heroHtml() {
         <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgB)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgB" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7FD2F0"/><stop offset="100%" stop-color="#8FE3B0"/></linearGradient></defs><rect x="3.4" y="5" width="17.2" height="15" rx="4.2"/><path d="M3.4 10h17.2M8 3.4v3.2M16 3.4v3.2"/><circle cx="9" cy="14.6" r="1.15" fill="url(#qgB)" stroke="none"/><circle cx="15" cy="14.6" r="1.15" fill="url(#qgB)" stroke="none"/></svg></span>
         <span class="ql">課表</span>
       </button>
-      <button type="button" class="quick-btn" onclick="renderMyRegistrationsPage(false)">
-        <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgC)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgC" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#F0D27F"/><stop offset="100%" stop-color="#D6F06B"/></linearGradient></defs><rect x="4.6" y="3.4" width="14.8" height="17.2" rx="4.2"/><path d="M8.6 8.8h6.8M8.6 12.6h6.8M8.6 16.4h4"/></svg></span>
-        <span class="ql">小組報名</span>
+      <button type="button" class="quick-btn" onclick="renderMyRegistrationsHome()">
+        <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgC)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgC" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#F0D27F"/><stop offset="100%" stop-color="#D6F06B"/></linearGradient></defs><path d="M12 12.4a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M4.8 20.2a7.4 7.4 0 0 1 14.4 0"/></svg></span>
+        <span class="ql">我的報名</span>
       </button>
-      <button type="button" class="quick-btn" onclick="renderMonthlyPage(false)">
+      <button type="button" class="quick-btn" onclick="renderMyMonthlyHome()">
         <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgD)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgD" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#C9A0F0"/><stop offset="100%" stop-color="#7FD2F0"/></linearGradient></defs><rect x="3" y="5.5" width="18" height="13" rx="3.4"/><path d="M3 10h18"/><path d="M7 14.5h3"/></svg></span>
-        <span class="ql">小組包月</span>
+        <span class="ql">我的包月</span>
       </button>
     </div>`;
 }
