@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.37</title>
+  <title>CYP135 課程報名 V7.38</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -729,6 +729,21 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   background:#f9f3e2;border-radius:10px;padding:0;max-height:0;overflow:hidden;
   transition:max-height .25s ease,padding .25s ease}
 .loading-hint:not(:empty){padding:9px 11px;max-height:120px}
+/* 小朋友選項：獨立一列、靠左，不受欄位格線的置中影響 */
+.child-opt{
+  grid-column:1/-1;margin-top:10px;padding:10px 12px;border-radius:12px;
+  background:rgba(143,227,176,.10);border:1px solid rgba(143,227,176,.35);text-align:left;
+}
+.child-opt label{
+  display:flex;align-items:center;gap:10px;margin:0;cursor:pointer;
+  font-size:.95rem;font-weight:600;color:#2f5d43;text-align:left;
+}
+.child-opt input[type=checkbox]{
+  flex:0 0 auto;width:20px;height:20px;margin:0;accent-color:#2f6b46;cursor:pointer;
+}
+.child-opt .child-hint{
+  margin:8px 0 0 30px;font-size:.85rem;line-height:1.5;color:#6b7f72;text-align:left;
+}
 </style>
 </head>
 <body>
@@ -738,7 +753,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.37</small>
+    <small>CYP135 課程系統 V7.38</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -7117,17 +7132,26 @@ function renderCustomRegistrationInput(field, inputId, required) {
   return `<input id="${esc(inputId)}" type="text" placeholder="${esc(field.label)}" ${requiredAttr}>`;
 }
 
-// 勾了「這是小朋友」就把電話欄位鎖住並清空——那一欄不再由使用者填，
-// 送出時由後端用填表人的電話補上。維持「不能填的東西就不要讓他點」。
+// 勾了「這是小朋友」不鎖電話欄，改成請他填家長的電話。
+//
+// 原本是鎖住並清空，訊息卻寫「將使用你的電話」——那支電話只能從填表人的
+// 綁定資料撈，沒綁定就撈不到，等於叫人提供一個他填不了的東西。
+// 改成直接請他填，欄位語意也跟著換成「家長電話」。
 function onChildToggle(prefix) {
   const on = !!(document.getElementById(prefix + 'isChild') || {}).checked;
-  const phone = document.getElementById(prefix + 'phone');
   const hint = document.getElementById(prefix + 'childHint');
-  if (phone) {
-    phone.disabled = on;
-    if (on) phone.value = '';
-  }
+  const phone = document.getElementById(prefix + 'phone');
+  const label = document.getElementById(prefix + 'phoneLabel');
+
   if (hint) hint.style.display = on ? '' : 'none';
+  if (phone) {
+    phone.disabled = false;
+    phone.placeholder = on ? '家長的電話' : '電話';
+  }
+  if (label) {
+    // 小朋友一定要有聯絡電話，所以這時候固定顯示必填
+    label.textContent = on ? '家長電話（必填）' : label.getAttribute('data-original') || '電話';
+  }
   if (prefix === 'roster-extra-') refreshRosterAddPhoneDuplicateState();
   else refreshRegistrationPhoneDuplicateState();
 }
@@ -7170,19 +7194,29 @@ function renderRegistrationExtraFields(fields, prefix = 'r-extra-') {
       // 只會逼人亂填；改成明確勾選，送出時用填表人的電話當聯絡方式。
       if (key === 'phone' && fields.allowChild) {
         input += `
-          <label class="child-toggle" style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
-            <input type="checkbox" id="${prefix}isChild" onchange="onChildToggle(\'${prefix}\')" style="flex:0 0 auto;width:18px;height:18px;margin:0">
-            <span style="flex:1 1 auto;line-height:1.4">這是小朋友，沒有電話</span>
-          </label>
-          <p class="meta" id="${prefix}childHint" style="margin:6px 0 0;display:none">將使用你的電話作為聯絡方式，並把這位小朋友加入你的個人報名查詢。</p>`;
+          <div class="child-opt">
+            <label>
+              <input type="checkbox" id="${prefix}isChild" onchange="onChildToggle(\'${prefix}\')">
+              <span>這是小朋友，沒有自己的電話</span>
+            </label>
+            <p class="child-hint" id="${prefix}childHint" style="display:none">
+              上面請改填<b>家長的電話</b>作為聯絡方式。送出後會建立小朋友的名冊資料，並加入你的個人報名查詢。
+            </p>
+          </div>`;
       }
     }
     // 電話欄位在開放小朋友時會多一個勾選，擠在半格寬裡文字會斷行，
     // 所以讓它橫跨整列。
-    const fieldStyle = (key === 'phone' && fields.allowChild) ? ' style="grid-column:1/-1"' : '';
+    // 電話欄位在開放小朋友時會多一塊選項，讓它橫跨整列才不會被擠斷行。
+    const isChildPhone = (key === 'phone' && fields.allowChild);
+    const fieldStyle = isChildPhone ? ' style="grid-column:1/-1"' : '';
+    const originalLabel = esc(labels[key]) + (required ? '（必填）' : '（選填）');
+    const labelAttr = isChildPhone
+      ? ' id="' + prefix + 'phoneLabel" data-original="' + originalLabel + '"'
+      : '';
     rows.push(`
       <div class="field"${fieldStyle}>
-        <label>${esc(labels[key])}${required ? '（必填）' : '（選填）'}</label>
+        <label${labelAttr}>${esc(labels[key])}${required ? '（必填）' : '（選填）'}</label>
         ${input}
       </div>
     `);
@@ -7249,6 +7283,12 @@ async function submitRegister() {
   if (!priceInfo.classType) return showRegisterMsg('請選擇上課類別', 'err');
   const extraCheck = collectRegistrationExtraAnswers(currentCourse && currentCourse.registrationFields);
   if (!extraCheck.ok) return showRegisterMsg(extraCheck.message, 'err');
+
+  // 小朋友沒有自己的電話，家長電話就是唯一的聯絡方式，一定要有。
+  // 課程若把電話設成選填，這裡仍然要擋。
+  if (isChildChecked('r-extra-') && !(extraCheck.answers && (extraCheck.answers.phone || '').trim())) {
+    return showRegisterMsg('勾選小朋友時請填家長的電話，那是唯一的聯絡方式。', 'err');
+  }
 
   const usesPhone = courseUsesPhoneIdentity(currentCourse && currentCourse.registrationFields);
   const phoneTail = getPhoneTailFromValue(extraCheck.answers && extraCheck.answers.phone);
@@ -8316,7 +8356,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.37';
+const SEAT_DIAG_VERSION = 'V7.38';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
