@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.34</title>
+  <title>CYP135 課程報名 V7.35</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -738,7 +738,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.34</small>
+    <small>CYP135 課程系統 V7.35</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -6031,16 +6031,9 @@ function renderRegisterForm() {
 // 不用 showLoading()：那支會把 #app 整個換掉而且不還原，先前抓到舊節點的
 // 程式碼會拿到 null 然後靜默 return，畫面就永遠停在載入卡。
 function loadRegistrationInitThenRender(code) {
-  const app = document.getElementById('app');
-  if (app) {
-    app.innerHTML = `
-      <div class="card compact-card">
-        <h2>${esc((currentCourse && currentCourse.eventName) || '報名表')}</h2>
-        <div class="meta" id="register-load-status">正在載入報名資料...</div>
-        <p class="meta" style="margin-top:8px">為了正確判斷是否已報名與會員資格，資料載入完成後才會開放填寫。</p>
-      </div>
-    `;
-  }
+  // 用原本的載入動畫。V7.32 當時避開 showLoading() 是怕「先抓 DOM 再用」
+  // 那個坑，但這裡載入完會整個重畫 #app，不會有殘留節點，安全。
+  showLoading('正在載入報名資料', '為了正確判斷是否已報名與會員資格，資料載入完成後才會開放填寫。');
 
   post('getRegistrationInit', { eventCode: code, userId }, 20000)
     .then(data => {
@@ -6051,9 +6044,11 @@ function loadRegistrationInitThenRender(code) {
       initData = data;
       currentCourse = data.course || currentCourse;
       mergeCourseToState(currentCourse);
+      stopLoading();
       renderRegisterFormBody();
     })
     .catch(err => {
+      stopLoading();
       renderRegistrationInitError(code, err && (err.message || err));
     });
 }
@@ -6506,13 +6501,15 @@ function checkRegistrationALevelNow(name, leader, baseHtml) {
   checkCourseALevelEligibilityClient(currentCourse, name, leader)
     .then(res => {
       if (seq !== aLevelCheckSeq || clean !== cleanNameLocal(val('r-name')) || String(leader || '').trim() !== String(getRegistrationLeaderValue() || '').trim()) return;
-      // 三態分開：連線沒回來 / 後端出錯 → 沒核對成功，不是判決。
-      if (!res || res.status !== 'ok') {
-        setRegistrationALevelUnknown((res && res.message) || '連線未回應', baseHtml);
+      // 三態分開。注意後端在「確定不合格」時回的也是 status:'error'，
+      // 所以要先看有沒有明確判決（eligible 欄位存在＝後端查過了），
+      // 只有連判決都沒有的情況才算「沒核對成功」。
+      if (res && typeof res.eligible !== 'undefined' && !res.eligible) {
+        setRegistrationALevelBlocked(res.message || '此姓名目前不是包月 A 級會員。', baseHtml);
         return;
       }
-      if (!res.eligible) {
-        setRegistrationALevelBlocked(res.message || '此姓名目前不是包月 A 級會員。', baseHtml);
+      if (!res || res.status !== 'ok' || !res.eligible) {
+        setRegistrationALevelUnknown((res && res.message) || '連線未回應', baseHtml);
         return;
       }
       isCurrentALevelBlocked = false;
@@ -6528,12 +6525,12 @@ function checkRegistrationALevelNow(name, leader, baseHtml) {
         checkCourseALevelEligibilityClient(currentCourse, name, leader)
           .then(res2 => {
             if (seq !== aLevelCheckSeq || clean !== cleanNameLocal(val('r-name'))) return;
-            if (!res2 || res2.status !== 'ok') {
-              setRegistrationALevelUnknown((res2 && res2.message) || (err.message || err), baseHtml);
+            if (res2 && typeof res2.eligible !== 'undefined' && !res2.eligible) {
+              setRegistrationALevelBlocked(res2.message || '此姓名目前不是包月 A 級會員。', baseHtml);
               return;
             }
-            if (!res2.eligible) {
-              setRegistrationALevelBlocked(res2.message || '此姓名目前不是包月 A 級會員。', baseHtml);
+            if (!res2 || res2.status !== 'ok' || !res2.eligible) {
+              setRegistrationALevelUnknown((res2 && res2.message) || (err.message || err), baseHtml);
               return;
             }
             isCurrentALevelBlocked = false;
@@ -6569,13 +6566,13 @@ function checkRosterAddALevelNow(name, leader, baseHtml) {
   checkCourseALevelEligibilityClient(rosterState.course, name, leader)
     .then(res => {
       if (seq !== add.aLevelSeq || clean !== cleanNameLocal(val('roster-add-name')) || String(leader || '').trim() !== String((add.selectedLeader || val('roster-add-leader') || '').trim())) return;
-      // 三態分開：連線沒回來 / 後端出錯 → 沒核對成功，不是判決。
-      if (!res || res.status !== 'ok') {
-        setRosterAddALevelUnknown((res && res.message) || '連線未回應', baseHtml);
+      // 同報名那條：後端「確定不合格」也是回 status:'error'，判決優先。
+      if (res && typeof res.eligible !== 'undefined' && !res.eligible) {
+        setRosterAddALevelBlocked(res.message || '此姓名目前不是包月 A 級會員。', baseHtml);
         return;
       }
-      if (!res.eligible) {
-        setRosterAddALevelBlocked(res.message || '此姓名目前不是包月 A 級會員。', baseHtml);
+      if (!res || res.status !== 'ok' || !res.eligible) {
+        setRosterAddALevelUnknown((res && res.message) || '連線未回應', baseHtml);
         return;
       }
       add.aLevelBlocked = false;
@@ -6590,12 +6587,12 @@ function checkRosterAddALevelNow(name, leader, baseHtml) {
         checkCourseALevelEligibilityClient(rosterState.course, name, leader)
           .then(res2 => {
             if (seq !== add.aLevelSeq || clean !== cleanNameLocal(val('roster-add-name'))) return;
-            if (!res2 || res2.status !== 'ok') {
-              setRosterAddALevelUnknown((res2 && res2.message) || (err.message || err), baseHtml);
+            if (res2 && typeof res2.eligible !== 'undefined' && !res2.eligible) {
+              setRosterAddALevelBlocked(res2.message || '此姓名目前不是包月 A 級會員。', baseHtml);
               return;
             }
-            if (!res2.eligible) {
-              setRosterAddALevelBlocked(res2.message || '此姓名目前不是包月 A 級會員。', baseHtml);
+            if (!res2 || res2.status !== 'ok' || !res2.eligible) {
+              setRosterAddALevelUnknown((res2 && res2.message) || (err.message || err), baseHtml);
               return;
             }
             add.aLevelBlocked = false;
@@ -8243,7 +8240,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.34';
+const SEAT_DIAG_VERSION = 'V7.35';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
