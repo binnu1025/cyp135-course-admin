@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.36</title>
+  <title>CYP135 課程報名 V7.37</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -738,7 +738,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.36</small>
+    <small>CYP135 課程系統 V7.37</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -4205,7 +4205,7 @@ function renderCourseForm(course) {
         <p class="meta" style="margin:6px 0 0">勾選後，一般報名與會長加報都會擋下不符合的人。不勾＝不限。</p>
 
         <label class="alevel-toggle" style="margin-top:12px">
-          <input type="checkbox" id="c-allow-child"${regFields.allowChild ? ' checked' : ''}>
+          <input type="checkbox" id="c-allow-child"${regFields.allowChild ? ' checked' : ''} onchange="onAllowChildToggle()">
           <span>開放<b>小朋友</b>報名</span>
         </label>
         <p class="meta" style="margin:6px 0 0">勾選後，報名表的電話欄位會多一個「這是小朋友，沒有電話」選項。選了會用填表人的電話建立名冊資料，家長之後就能在個人報名查到小孩的記錄。</p>
@@ -4562,12 +4562,17 @@ function normalizeRegistrationFieldsClient(fields) {
     }
     return '';
   };
+  const allowChild = fields.allowChild === true || fields.allowChild === 'true' ||
+    fields.allowChild === 1 || fields.allowChild === '1';
+  let phoneMode = normalizeFieldModeClient(pick(['phone', '電話']));
+  // 開放小朋友時電話不能隱藏——「這是小朋友」的勾選畫在電話欄位裡，
+  // 隱藏了整塊都不會出現，那個開關就靜默失效。跟後端同一個規則。
+  if (allowChild && phoneMode === 'hidden') phoneMode = 'optional';
   return {
     requireALevel: fields.requireALevel === true || fields.requireALevel === 'true' ||
       fields.requireALevel === 1 || fields.requireALevel === '1',
-    allowChild: fields.allowChild === true || fields.allowChild === 'true' ||
-      fields.allowChild === 1 || fields.allowChild === '1',
-    phone: normalizeFieldModeClient(pick(['phone', '電話'])),
+    allowChild: allowChild,
+    phone: phoneMode,
     gender: normalizeFieldModeClient(pick(['gender', '性別'])),
     idNumber: normalizeFieldModeClient(pick(['idNumber', 'id', '身分證', '身分證字號'])),
     birthDate: normalizeFieldModeClient(pick(['birthDate', 'birthday', '生日', '出生年月日'])),
@@ -4797,11 +4802,25 @@ function removeCustomRegistrationField(index) {
   setCustomRegistrationFieldRows(fields);
 }
 
+// 開放小朋友需要電話欄位是顯示的。勾了卻設成隱藏會讓那個開關靜默失效，
+// 所以直接幫他打開並說明，不要讓他存下一份自相矛盾的設定。
+function onAllowChildToggle() {
+  const on = !!(document.getElementById('c-allow-child') || {}).checked;
+  const sel = document.getElementById('c-field-phone');
+  if (on && sel && sel.value === 'hidden') {
+    sel.value = 'optional';
+    showMsg('開放小朋友需要顯示電話欄位，已自動改為「選填」。', 'info');
+  }
+}
+
 function collectRegistrationFieldSettings() {
   return {
     requireALevel: !!(document.getElementById('c-require-alevel') || {}).checked,
     allowChild: !!(document.getElementById('c-allow-child') || {}).checked,
-    phone: val('c-field-phone') || 'hidden',
+    // 保險：即使有人繞過 UI，存下來的設定也不會自相矛盾。
+    phone: (!!(document.getElementById('c-allow-child') || {}).checked && (val('c-field-phone') || 'hidden') === 'hidden')
+      ? 'optional'
+      : (val('c-field-phone') || 'hidden'),
     gender: val('c-field-gender') || 'hidden',
     idNumber: val('c-field-id') || 'hidden',
     birthDate: val('c-field-birth') || 'hidden',
@@ -6882,10 +6901,18 @@ function handleLeaderSelectChange(selectEl) {
     const autoClassType = applyPlatinumClassAutoSelection(null);
     const options = getLeaderOptionsForForm();
     if (box && selectedLeader) {
+      // 這裡有兩種完全不同的情境，以前一律講成「同名者報名」：
+      //   名冊查無此人 → 使用者選雁群是為了「建立新資料」，不是同名
+      //   名冊有這個人 → 使用者手動改選別的雁群，那才是同名者
+      // 講錯的後果是叫人去確認一個根本不存在的同名同姓者。
+      const foundInDirectory = !!(cached && cached.status !== 'not_found' &&
+        cached.status !== 'empty' && cached.status !== 'error');
+      const noticeHtml = foundInDirectory
+        ? `已改以 ${esc(selectedLeader)} 小組 的同名者報名<br>請確認這是另一位同名同姓的人。`
+        : `將以 ${esc(selectedLeader)} 小組建立名冊資料。`;
       const manualHtml = `
         <div class="msg on warn">
-          已改以 ${esc(selectedLeader)} 小組 的同名者報名<br>
-          請確認這是另一位同名同姓的人。
+          ${noticeHtml}
           ${autoClassType ? `<br>上課類別：${esc(autoClassType)}` : ''}
         </div>
         ${renderLeaderSelect(options, selectedLeader)}
@@ -7143,15 +7170,18 @@ function renderRegistrationExtraFields(fields, prefix = 'r-extra-') {
       // 只會逼人亂填；改成明確勾選，送出時用填表人的電話當聯絡方式。
       if (key === 'phone' && fields.allowChild) {
         input += `
-          <label class="child-toggle" style="display:flex;align-items:center;gap:8px;margin-top:8px">
-            <input type="checkbox" id="${prefix}isChild" onchange="onChildToggle(\'${prefix}\')">
-            <span>這是小朋友，沒有電話</span>
+          <label class="child-toggle" style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
+            <input type="checkbox" id="${prefix}isChild" onchange="onChildToggle(\'${prefix}\')" style="flex:0 0 auto;width:18px;height:18px;margin:0">
+            <span style="flex:1 1 auto;line-height:1.4">這是小朋友，沒有電話</span>
           </label>
           <p class="meta" id="${prefix}childHint" style="margin:6px 0 0;display:none">將使用你的電話作為聯絡方式，並把這位小朋友加入你的個人報名查詢。</p>`;
       }
     }
+    // 電話欄位在開放小朋友時會多一個勾選，擠在半格寬裡文字會斷行，
+    // 所以讓它橫跨整列。
+    const fieldStyle = (key === 'phone' && fields.allowChild) ? ' style="grid-column:1/-1"' : '';
     rows.push(`
-      <div class="field">
+      <div class="field"${fieldStyle}>
         <label>${esc(labels[key])}${required ? '（必填）' : '（選填）'}</label>
         ${input}
       </div>
@@ -8286,7 +8316,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.36';
+const SEAT_DIAG_VERSION = 'V7.37';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
