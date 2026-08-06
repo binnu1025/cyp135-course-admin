@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.38</title>
+  <title>CYP135 課程報名 V7.39</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -744,6 +744,28 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .child-opt .child-hint{
   margin:8px 0 0 30px;font-size:.85rem;line-height:1.5;color:#6b7f72;text-align:left;
 }
+/* 個人報名歷史：課程名稱獨占一行，其餘資訊排在下方，不跟名稱搶寬度 */
+.myreg-person{margin-top:12px}
+.myreg-person h3{
+  display:flex;align-items:center;gap:8px;justify-content:flex-start;
+  margin:0 0 2px;font-size:1.05rem;text-align:left;
+}
+.myreg-person .myreg-flock{margin:0 0 10px;font-size:.85rem;color:#6b7f72;text-align:left}
+.myreg-item{
+  padding:12px 0;border-top:1px solid rgba(0,0,0,.07);text-align:left;
+}
+.myreg-item:first-of-type{border-top:none}
+.myreg-item.is-cancelled{opacity:.5}
+.myreg-name{
+  display:block;font-weight:700;font-size:1rem;line-height:1.4;color:#24483a;
+  margin:0 0 4px;word-break:break-word;
+}
+.myreg-meta{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;
+  font-size:.85rem;color:#6b7f72;line-height:1.5;
+}
+.myreg-price{font-weight:700;color:#2f6b46}
+.myreg-empty{margin:10px 0 0;font-size:.9rem;color:#6b7f72;text-align:left}
 </style>
 </head>
 <body>
@@ -753,7 +775,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.38</small>
+    <small>CYP135 課程系統 V7.39</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8202,17 +8224,21 @@ async function renderPersonalPage(title) {
       String(b.registeredAt || '').localeCompare(String(a.registeredAt || '')));
     const list = rows.length
       ? rows.map(r => `
-          <div class="roster-line" style="${r.cancelled ? 'opacity:.55' : ''}">
-            <b>${esc(r.eventName)}</b>
-            <span class="meta">${esc(r.dateTime || '')}</span>
-            <span class="meta">${esc(r.classType || '—')}｜${r.price === '' ? '—' : '$' + r.price}</span>
-            <span class="badge ${r.cancelled ? 'gray' : ''}">${esc(r.status)}</span>
+          <div class="myreg-item${r.cancelled ? ' is-cancelled' : ''}">
+            <span class="myreg-name">${esc(r.eventName)}</span>
+            <div class="myreg-meta">
+              ${r.dateTime ? '<span>' + esc(r.dateTime) + '</span>' : ''}
+              <span>${esc(r.classType || '—')}</span>
+              <span class="myreg-price">${r.price === '' || r.price === undefined ? '—' : '$' + r.price}</span>
+              ${r.inferred ? '<span class="badge yellow">推算</span>' : ''}
+              <span class="badge ${r.cancelled ? 'gray' : ''}">${esc(r.status)}</span>
+            </div>
           </div>`).join('')
-      : '<p class="meta">目前沒有報名記錄。</p>';
+      : '<p class="myreg-empty">目前沒有報名記錄。</p>';
     return `
-      <div class="card compact-card" style="margin-top:12px">
-        <h3>${esc(p.name)}<span class="badge ${p.type === '本人' ? '' : 'yellow'}" style="margin-left:6px">${esc(p.type)}</span></h3>
-        <p class="meta">${esc(p.flock || '')}</p>
+      <div class="card compact-card myreg-person">
+        <h3>${esc(p.name)}<span class="badge ${p.type === '本人' ? '' : 'yellow'}">${esc(p.type)}</span></h3>
+        <p class="myreg-flock">${esc(p.flock || '')}</p>
         ${list}
       </div>`;
   }).join('');
@@ -8356,7 +8382,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.38';
+const SEAT_DIAG_VERSION = 'V7.39';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
