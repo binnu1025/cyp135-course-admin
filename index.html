@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.33</title>
+  <title>CYP135 課程報名 V7.34</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -738,7 +738,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.33</small>
+    <small>CYP135 課程系統 V7.34</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -748,7 +748,8 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <button class="menu-btn" style="display:none" onclick="toggleMenu(true)" aria-label="開啟選單">☰</button>
   </div>
 </div>
-<div id="menu-backdrop" class="menu-backdrop" onclick="toggleMenu(false)"></div>
+<div id="bind-dialog"></div>
+  <div id="menu-backdrop" class="menu-backdrop" onclick="toggleMenu(false)"></div>
 <div id="side-menu" class="side-menu"></div>
 <div id="clock-backdrop" class="clock-backdrop" onclick="closeClockPicker(event)">
   <div id="clock-panel" class="clock-panel" onclick="event.stopPropagation()"></div>
@@ -807,6 +808,102 @@ let lookupCache = {};
 // 或是名冊在試算表被改過，你拿到的判斷就是舊的——而且會以「確定沒有」
 // 的樣子呈現。正確性優先，所以給它們一個有效期。
 const REGISTRATION_CACHE_TTL_MS = 60000;
+
+// ── 查詢綁定（我是誰）────────────────────────────────────────
+// 綁定狀態在 App 啟動時取得一次。未綁定就跳彈窗；按了「稍後再說」
+// 記 7 天，期間不再跳——但選單裡永遠留一個入口，否則想綁的人沒路走。
+
+let bindState = { loaded: false, bound: false, self: null, family: [], flockOptions: [] };
+
+
+// 啟動時載入。失敗不擋任何事——沿用三態原則：查不到不代表沒綁定，
+// 只是這次沒問到，那就不要跳彈窗去煩人。
+async function loadBindState() {
+  if (!userId) return;
+  try {
+    const res = await post('getMyQueryBindings', { userId }, 12000);
+    if (!res || res.status !== 'ok') return;
+    bindState = {
+      loaded: true,
+      bound: !!res.bound,
+      self: res.self || null,
+      family: res.family || [],
+      flockOptions: res.flockOptions || []
+    };
+  } catch (e) {}
+}
+
+
+// type=家人 時 forFamily 為 true
+function openBindDialog(forFamily) {
+  const wrap = document.getElementById('bind-dialog');
+  if (!wrap) return;
+  const opts = (bindState.flockOptions || [])
+    .map(o => '<option value="' + esc(o) + '">' + esc(o) + '</option>').join('');
+  wrap.innerHTML = `
+    <div class="dialog-backdrop on" onclick="closeBindDialog(event)">
+      <div class="dialog-panel" onclick="event.stopPropagation()">
+        <h3>${forFamily ? '加入家人' : '確認你的身分'}</h3>
+        <p class="meta">${forFamily
+          ? '幫沒有 LINE 的家人（例如小孩）建立查詢權限。對方若已自行綁定則無法加入。'
+          : '確認後就能查詢自己的報名與包月記錄。'}</p>
+        <div class="field">
+          <label>姓名（名冊上的本名）</label>
+          <input id="bind-name" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>雁群</label>
+          <select id="bind-flock"><option value="">請選擇</option>${opts}</select>
+        </div>
+        <div class="field">
+          <label>電話末四碼</label>
+          <input id="bind-tail" inputmode="numeric" maxlength="4" autocomplete="off">
+        </div>
+        <div id="bind-msg"></div>
+        <div class="dialog-actions">
+          <button class="btn btn-sub" onclick="closeBindDialog()">取消</button>
+          <button class="btn btn-main" onclick="submitBinding(${forFamily ? 'true' : 'false'})">確認</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function closeBindDialog(ev) {
+  if (ev && ev.target && ev.target.id !== 'bind-dialog-backdrop' && ev.type === 'click' && ev.currentTarget !== ev.target) return;
+  const wrap = document.getElementById('bind-dialog');
+  if (wrap) wrap.innerHTML = '';
+}
+
+async function submitBinding(forFamily) {
+  const name = (val('bind-name') || '').trim();
+  const flock = val('bind-flock') || '';
+  const tail = (val('bind-tail') || '').trim();
+  const box = document.getElementById('bind-msg');
+  const say = (t, k) => { if (box) box.innerHTML = '<div class="msg on ' + (k || 'err') + '">' + esc(t) + '</div>'; };
+
+  if (!name) return say('請輸入姓名。');
+  if (!flock) return say('請選擇雁群。');
+  if (!/^[0-9]{4}$/.test(tail)) return say('電話末四碼要 4 位數字。');
+
+  say('確認中…', 'info');
+  try {
+    const res = await post('createQueryBinding', {
+      userId, name, flock, phoneTail: tail, type: forFamily ? '家人' : '本人'
+    }, 20000);
+    // 三態：沒回應 ≠ 驗證失敗
+    if (!res) return say('連線未回應，請再試一次。');
+    if (res.status !== 'ok') return say(res.message || '確認失敗。');
+
+    await loadBindState();
+    const wrap = document.getElementById('bind-dialog');
+    if (wrap) wrap.innerHTML = '';
+    showMsg(esc(res.message || '已完成'), 'ok');
+    renderMenu();
+    if (currentView === 'mypersonal') renderMyRegistrationsHome();
+  } catch (err) {
+    say('連線失敗：' + (err.message || err));
+  }
+}
 let lookupCacheAt = {};
 
 function setLookupCache(clean, res) {
@@ -1839,8 +1936,7 @@ function renderMenu() {
         <button class="menu-item" onclick="toggleMenu(false);renderPortalPage()">首頁</button>
         <button class="menu-item" onclick="toggleMenu(false);renderSchedulePage()">課表</button>
         <button class="menu-item" onclick="toggleMenu(false);renderHomePage({skipRefresh:true})">報名課程</button>
-        <button class="menu-item" onclick="toggleMenu(false);renderMyRegistrationsHome()">我的報名</button>
-        <button class="menu-item" onclick="toggleMenu(false);renderMyMonthlyHome()">我的包月</button>
+        <button class="menu-item" onclick="toggleMenu(false);renderMyRegistrationsHome()">個人報名</button>
       `)}
       ${menuSection('目前活動', courseBtns + rosterBtns)}
       ${menuSection('雁群組長專區', (canViewRoster || isAdminUser) ? `
@@ -1849,6 +1945,7 @@ function renderMenu() {
       ` : '')}
       ${menuSection('會長工具', adminBtns)}
       ${menuSection('系統', `
+        <button class="menu-item" onclick="toggleMenu(false);openBindDialog(false)">${bindState.bound ? '我的綁定' : '確認身分'}</button>
         <button class="menu-item" onclick="toggleMenu(false);openPermissionDebugDialog()">權限狀態</button>
         ${isAdminUser ? '<button class="menu-item" onclick="toggleMenu(false);clearFrontendCourseCache()">清除前台快取</button>' : ''}
         <button class="menu-item" onclick="toggleMenu(false)">關閉選單</button>
@@ -2005,6 +2102,10 @@ window.addEventListener('DOMContentLoaded', async function() {
     renderPortalPage();
     ensurePublicData(true).catch(() => {});
   }
+
+  // 綁定狀態在背景取一次，讓選單知道要顯示「確認身分」還是「我的綁定」。
+  // 刻意不在這裡跳彈窗——綁定是「想查個人記錄才需要」，不該在進門時攔人。
+  loadBindState().then(() => { renderMenu(); });
 });
 
 // ─────────────────────────────
@@ -7947,21 +8048,69 @@ let portalLinks = {};
 
 // 個人報名查詢需要「查詢綁定」才能確定你是誰（見 SPEC-個人報名查詢.md）。
 // 那部分還沒建置，所以這裡先說清楚現況，不要給一顆按了沒反應的按鈕。
-function renderMyRegistrationsHome() { renderPersonalPendingPage('我的報名', '小組報名'); }
-function renderMyMonthlyHome() { renderPersonalPendingPage('我的包月', '小組包月'); }
+function renderMyRegistrationsHome() { renderPersonalPage('個人報名'); }
 
-// 兩個個人專區共用一頁：都要等「查詢綁定」才知道你是誰，現況一樣。
-function renderPersonalPendingPage(title, fallbackName) {
-  beginPage('mypersonal', title, false);
+// 只做報名歷史。包月是雁群層級的東西，個人查詢沒有意義，不做。
+async function renderPersonalPage(title) {
+  const token = beginPage('mypersonal', title, false);
   const app = document.getElementById('app');
   if (!app) return;
+
+  if (!bindState.bound) {
+    app.innerHTML = `
+      <div class="card compact-card">
+        <h2>${esc(title)}</h2>
+        <p class="meta">要先確認你的身分，系統才知道哪些記錄是你的。</p>
+        <button class="btn btn-main" style="margin-top:10px" onclick="openBindDialog(false)">確認身分</button>
+      </div>`;
+    return;
+  }
+
+  app.innerHTML = `<div class="card compact-card"><h2>${esc(title)}</h2><p class="meta">載入中…</p></div>`;
+  let res = null;
+  try {
+    res = await post('getMyRegistrationHistory', { userId }, 20000);
+  } catch (e) {}
+  if (!isPageActive(token, 'mypersonal')) return;
+
+  if (!res || res.status !== 'ok') {
+    app.innerHTML = `
+      <div class="card compact-card">
+        <h2>${esc(title)}</h2>
+        <div class="msg on err">查詢失敗，請重試。這不代表你沒有記錄。</div>
+        <button class="btn btn-sub" style="margin-top:10px" onclick="renderPersonalPage(\'${esc(title)}\')">重新載入</button>
+      </div>`;
+    return;
+  }
+
+  const people = res.people || [];
+  const blocks = people.map(p => {
+    const rows = (p.rows || []).slice().sort((a, b) =>
+      String(b.registeredAt || '').localeCompare(String(a.registeredAt || '')));
+    const list = rows.length
+      ? rows.map(r => `
+          <div class="roster-line" style="${r.cancelled ? 'opacity:.55' : ''}">
+            <b>${esc(r.eventName)}</b>
+            <span class="meta">${esc(r.dateTime || '')}</span>
+            <span class="meta">${esc(r.classType || '—')}｜${r.price === '' ? '—' : '$' + r.price}</span>
+            <span class="badge ${r.cancelled ? 'gray' : ''}">${esc(r.status)}</span>
+          </div>`).join('')
+      : '<p class="meta">目前沒有報名記錄。</p>';
+    return `
+      <div class="card compact-card" style="margin-top:12px">
+        <h3>${esc(p.name)}<span class="badge ${p.type === '本人' ? '' : 'yellow'}" style="margin-left:6px">${esc(p.type)}</span></h3>
+        <p class="meta">${esc(p.flock || '')}</p>
+        ${list}
+      </div>`;
+  }).join('');
+
   app.innerHTML = `
     <div class="card compact-card">
       <h2>${esc(title)}</h2>
-      <p class="meta">這個功能需要先確認你的身分（綁定 LINE 帳號與名冊上的你），目前尚未開放。</p>
-      <p class="meta">在那之前，若你有查詢權限，可以從首頁的「雁群組長專區」查看${esc(fallbackName)}。</p>
-      <button class="btn btn-sub" style="margin-top:10px" onclick="renderPortalPage()">返回首頁</button>
-    </div>`;
+      <p class="meta">只會顯示你本人與已加入家人的記錄。</p>
+      <button class="btn btn-sub" style="margin-top:8px" onclick="openBindDialog(true)">加入家人</button>
+    </div>
+    ${blocks}`;
 }
 
 function renderPortalShell() {
@@ -7971,12 +8120,6 @@ function renderPortalShell() {
   const mainTiles = [];
 
 
-  if (currentCourse && (canViewRoster || isAdminUser)) {
-    mainTiles.push(portalTile({
-      ico: TILE_ICO.roster, title: '課程名單', desc: '查看目前課程的報名名單',
-      onclick: `renderCourseRosterPage('${esc(currentCourse.eventCode)}')`
-    }));
-  }
 
   if (links.referral) {
     mainTiles.push(portalTile({
@@ -7984,6 +8127,17 @@ function renderPortalShell() {
       href: links.referral, ext: true
     }));
   }
+
+  // 個人專區：查自己的報名記錄。點進去才需要綁定——綁定是為了這個功能
+  // 才存在的，不該在進門時攔住只想報名的人。
+  const personalTiles = [
+    portalTile({ ico: TILE_ICO.roster, title: '個人報名', desc: '查詢你自己的報名記錄', onclick: 'renderMyRegistrationsHome()' })
+  ];
+  const personalHtml = `
+    <div class="portal-section">
+      <p class="portal-section-title">個人專區</p>
+      <div class="portal-grid">${personalTiles.join('')}</div>
+    </div>`;
 
   // 雁群組長專區：只要 C 欄有雁群範圍就看得到（會長一律有）。
   let flockHtml = '';
@@ -8073,6 +8227,7 @@ function renderPortalShell() {
       <p class="home-section-title">其他</p>
       <div class="portal-grid">${mainTiles.join('')}</div>
     </div>` : ''}
+    ${personalHtml}
     ${flockHtml}
     ${adminHtml}
   `;
@@ -8088,7 +8243,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.33';
+const SEAT_DIAG_VERSION = 'V7.34';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8748,13 +8903,13 @@ function heroHtml() {
         <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgB)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgB" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7FD2F0"/><stop offset="100%" stop-color="#8FE3B0"/></linearGradient></defs><rect x="3.4" y="5" width="17.2" height="15" rx="4.2"/><path d="M3.4 10h17.2M8 3.4v3.2M16 3.4v3.2"/><circle cx="9" cy="14.6" r="1.15" fill="url(#qgB)" stroke="none"/><circle cx="15" cy="14.6" r="1.15" fill="url(#qgB)" stroke="none"/></svg></span>
         <span class="ql">課表</span>
       </button>
-      <button type="button" class="quick-btn" onclick="renderMyRegistrationsHome()">
-        <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgC)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgC" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#F0D27F"/><stop offset="100%" stop-color="#D6F06B"/></linearGradient></defs><path d="M12 12.4a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M4.8 20.2a7.4 7.4 0 0 1 14.4 0"/></svg></span>
-        <span class="ql">我的報名</span>
+      <button type="button" class="quick-btn" onclick="renderMyRegistrationsPage(false)">
+        <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgC)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgC" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#F0D27F"/><stop offset="100%" stop-color="#D6F06B"/></linearGradient></defs><rect x="4.6" y="3.4" width="14.8" height="17.2" rx="4.2"/><path d="M8.6 8.8h6.8M8.6 12.6h6.8M8.6 16.4h4"/></svg></span>
+        <span class="ql">小組報名</span>
       </button>
-      <button type="button" class="quick-btn" onclick="renderMyMonthlyHome()">
+      <button type="button" class="quick-btn" onclick="renderMonthlyPage(false)">
         <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgD)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgD" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#C9A0F0"/><stop offset="100%" stop-color="#7FD2F0"/></linearGradient></defs><rect x="3" y="5.5" width="18" height="13" rx="3.4"/><path d="M3 10h18"/><path d="M7 14.5h3"/></svg></span>
-        <span class="ql">我的包月</span>
+        <span class="ql">小組包月</span>
       </button>
     </div>`;
 }
