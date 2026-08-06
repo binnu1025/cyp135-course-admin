@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.39</title>
+  <title>CYP135 課程報名 V7.40</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -775,7 +775,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.39</small>
+    <small>CYP135 課程系統 V7.40</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8191,16 +8191,8 @@ async function renderPersonalPage(title) {
   const app = document.getElementById('app');
   if (!app) return;
 
-  if (!bindState.bound) {
-    app.innerHTML = `
-      <div class="card compact-card">
-        <h2>${esc(title)}</h2>
-        <p class="meta">要先確認你的身分，系統才知道哪些記錄是你的。</p>
-        <button class="btn btn-main" style="margin-top:10px" onclick="openBindDialog(false)">確認身分</button>
-      </div>`;
-    return;
-  }
-
+  // 直接問後端，不看啟動時抓的 bindState——那次若失敗或還沒回來，就會把
+  // 「還不知道」顯示成「你沒綁定」，而使用者明明已經綁過了。
   app.innerHTML = `<div class="card compact-card"><h2>${esc(title)}</h2><p class="meta">載入中…</p></div>`;
   let res = null;
   try {
@@ -8212,8 +8204,24 @@ async function renderPersonalPage(title) {
     app.innerHTML = `
       <div class="card compact-card">
         <h2>${esc(title)}</h2>
-        <div class="msg on err">查詢失敗，請重試。這不代表你沒有記錄。</div>
+        <div class="msg on err">查詢失敗，請重試。這不代表你沒有記錄或沒有綁定。</div>
         <button class="btn btn-sub" style="margin-top:10px" onclick="renderPersonalPage(\'${esc(title)}\')">重新載入</button>
+      </div>`;
+    return;
+  }
+
+  // 後端說了算，順手把啟動時的狀態校正回來（選單文案才會跟著對）。
+  if (bindState.bound !== !!res.bound) {
+    bindState.bound = !!res.bound;
+    renderMenu();
+  }
+
+  if (!res.bound) {
+    app.innerHTML = `
+      <div class="card compact-card">
+        <h2>${esc(title)}</h2>
+        <p class="meta">要先確認你的身分，系統才知道哪些記錄是你的。</p>
+        <button class="btn btn-main" style="margin-top:10px" onclick="openBindDialog(false)">確認身分</button>
       </div>`;
     return;
   }
@@ -8382,7 +8390,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.39';
+const SEAT_DIAG_VERSION = 'V7.40';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
