@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.35</title>
+  <title>CYP135 課程報名 V7.36</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -738,7 +738,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.35</small>
+    <small>CYP135 課程系統 V7.36</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -4204,6 +4204,12 @@ function renderCourseForm(course) {
         </label>
         <p class="meta" style="margin:6px 0 0">勾選後，一般報名與會長加報都會擋下不符合的人。不勾＝不限。</p>
 
+        <label class="alevel-toggle" style="margin-top:12px">
+          <input type="checkbox" id="c-allow-child"${regFields.allowChild ? ' checked' : ''}>
+          <span>開放<b>小朋友</b>報名</span>
+        </label>
+        <p class="meta" style="margin:6px 0 0">勾選後，報名表的電話欄位會多一個「這是小朋友，沒有電話」選項。選了會用填表人的電話建立名冊資料，家長之後就能在個人報名查到小孩的記錄。</p>
+
         <div class="section-title" style="margin-top:18px">報名欄位設定</div>
         <div class="field-setting-grid">
           ${renderCourseFieldModeSelect('c-field-phone', '電話', regFields.phone)}
@@ -4559,6 +4565,8 @@ function normalizeRegistrationFieldsClient(fields) {
   return {
     requireALevel: fields.requireALevel === true || fields.requireALevel === 'true' ||
       fields.requireALevel === 1 || fields.requireALevel === '1',
+    allowChild: fields.allowChild === true || fields.allowChild === 'true' ||
+      fields.allowChild === 1 || fields.allowChild === '1',
     phone: normalizeFieldModeClient(pick(['phone', '電話'])),
     gender: normalizeFieldModeClient(pick(['gender', '性別'])),
     idNumber: normalizeFieldModeClient(pick(['idNumber', 'id', '身分證', '身分證字號'])),
@@ -4566,6 +4574,10 @@ function normalizeRegistrationFieldsClient(fields) {
     meal: normalizeFieldModeClient(pick(['meal', '葷素', '餐食'])),
     customFields: normalizeCustomRegistrationFieldsClient(fields.customFields || fields.custom || fields.fields || [])
   };
+}
+
+function courseAllowsChildClient(course) {
+  return !!normalizeRegistrationFieldsClient((course && course.registrationFields) || {}).allowChild;
 }
 
 function courseRequiresALevelClient(course) {
@@ -4788,6 +4800,7 @@ function removeCustomRegistrationField(index) {
 function collectRegistrationFieldSettings() {
   return {
     requireALevel: !!(document.getElementById('c-require-alevel') || {}).checked,
+    allowChild: !!(document.getElementById('c-allow-child') || {}).checked,
     phone: val('c-field-phone') || 'hidden',
     gender: val('c-field-gender') || 'hidden',
     idNumber: val('c-field-id') || 'hidden',
@@ -7077,6 +7090,25 @@ function renderCustomRegistrationInput(field, inputId, required) {
   return `<input id="${esc(inputId)}" type="text" placeholder="${esc(field.label)}" ${requiredAttr}>`;
 }
 
+// 勾了「這是小朋友」就把電話欄位鎖住並清空——那一欄不再由使用者填，
+// 送出時由後端用填表人的電話補上。維持「不能填的東西就不要讓他點」。
+function onChildToggle(prefix) {
+  const on = !!(document.getElementById(prefix + 'isChild') || {}).checked;
+  const phone = document.getElementById(prefix + 'phone');
+  const hint = document.getElementById(prefix + 'childHint');
+  if (phone) {
+    phone.disabled = on;
+    if (on) phone.value = '';
+  }
+  if (hint) hint.style.display = on ? '' : 'none';
+  if (prefix === 'roster-extra-') refreshRosterAddPhoneDuplicateState();
+  else refreshRegistrationPhoneDuplicateState();
+}
+
+function isChildChecked(prefix) {
+  return !!(document.getElementById((prefix || 'r-extra-') + 'isChild') || {}).checked;
+}
+
 function renderRegistrationExtraFields(fields, prefix = 'r-extra-') {
   fields = normalizeRegistrationFieldsClient(fields);
   const labels = registrationExtraFieldLabels();
@@ -7106,6 +7138,17 @@ function renderRegistrationExtraFields(fields, prefix = 'r-extra-') {
       const phoneHandler = prefix === 'roster-extra-' ? 'refreshRosterAddPhoneDuplicateState()' : 'refreshRegistrationPhoneDuplicateState()';
       const inputAttrs = key === 'phone' ? `type="tel" oninput="${phoneHandler}"` : 'type="text"';
       input = `<input id="${inputId}" ${inputAttrs} placeholder="${esc(labels[key])}" ${required ? 'required' : ''}>`;
+
+      // 課程開放小朋友時，電話欄位變成兩選一。小孩沒有手機，硬要他填電話
+      // 只會逼人亂填；改成明確勾選，送出時用填表人的電話當聯絡方式。
+      if (key === 'phone' && fields.allowChild) {
+        input += `
+          <label class="child-toggle" style="display:flex;align-items:center;gap:8px;margin-top:8px">
+            <input type="checkbox" id="${prefix}isChild" onchange="onChildToggle(\'${prefix}\')">
+            <span>這是小朋友，沒有電話</span>
+          </label>
+          <p class="meta" id="${prefix}childHint" style="margin:6px 0 0;display:none">將使用你的電話作為聯絡方式，並把這位小朋友加入你的個人報名查詢。</p>`;
+      }
     }
     rows.push(`
       <div class="field">
@@ -7207,7 +7250,10 @@ async function submitRegister() {
       uplinePlatinum: leader,
       classType: priceInfo.classType,
       remark: val('r-remark'),
-      extraAnswers: extraCheck.answers
+      extraAnswers: extraCheck.answers,
+      // 勾了「這是小朋友」：後端會用填表人的電話建名冊列，並把這位
+      // 小朋友加進填表人的個人報名查詢範圍。
+      isChild: isChildChecked('r-extra-')
     }, 65000);
 
     if (res.status === 'ok') {
@@ -8240,7 +8286,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.35';
+const SEAT_DIAG_VERSION = 'V7.36';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
