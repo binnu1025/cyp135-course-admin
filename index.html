@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.52</title>
+  <title>CYP135 課程報名 V7.53</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -371,11 +371,6 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 #page-seat .s-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:8px;flex-shrink:0}
 #page-seat .s-btn-row{display:flex;gap:10px;flex-wrap:wrap}
 #page-seat .s-png-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:11px}
-#page-seat .s-png-seat-names{display:grid;grid-template-columns:repeat(auto-fit,minmax(116px,1fr));gap:8px;margin:0 0 12px}
-#page-seat .s-png-seat-name{display:flex;flex-direction:column;gap:4px;background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;padding:7px}
-#page-seat .s-png-seat-name label{font-size:11px;color:var(--smuted);font-family:ui-monospace,Menlo,Consolas,monospace}
-#page-seat .s-png-seat-name input{width:100%;background:var(--scard);border:1px solid var(--sborder);border-radius:8px;color:var(--stext);padding:7px 8px;font-size:13px;font-family:inherit}
-#page-seat .s-png-seat-name input:focus{outline:none;border-color:var(--sgold);box-shadow:0 0 0 2px rgba(216,182,90,.12)}
 #page-seat .s-png-preview-card{display:inline-block;background:#fff;border:1px solid var(--sborder);border-radius:10px;padding:10px;box-shadow:0 8px 22px rgba(0,0,0,.16)}
 #page-seat .s-btn{font-family:inherit;font-size:14px;font-weight:700;border-radius:10px;padding:11px 20px;border:none;cursor:pointer;width:auto}
 #page-seat .s-btn:active{transform:scale(.97)}
@@ -795,7 +790,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.52</small>
+    <small>CYP135 課程系統 V7.53</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8410,13 +8405,12 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.52';
+const SEAT_DIAG_VERSION = 'V7.53';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
 let sState = null;
 let sDragSourceIdx = null;
-let sSeatPartnerNames = {};
 
 function sBuildBigGroups() {
   const groups = {};
@@ -8573,13 +8567,12 @@ function sSeatPageHtml() {
         <div id="s-chartArea"></div>
 
         <h2 style="margin-top:20px">各小組座位圖（圖片）</h2>
-        <p class="chart-hint">💡 選小組後下方座位圖會自動切換：只有該小組位子有顏色，其他座位是灰的。每個座位都可以填夥伴名字，會顯示在座位格底部，方便直接截圖。</p>
+        <p class="chart-hint">💡 選小組後下方座位圖會自動切換：只有該小組位子有顏色，其他座位是灰的。每個彩色座位底部會留空白格，讓各白金自己填夥伴名字。</p>
         <div class="s-png-tools">
-          <select id="s-pngWho" class="s-zone-input" style="max-width:220px" onchange="sHandleSeatImageSelectionChange()"></select>
+          <select id="s-pngWho" class="s-zone-input" style="max-width:220px" onchange="sRenderSeatImagePreview(true)"></select>
           <button class="s-btn s-btn-secondary s-btn-small" type="button" onclick="sDownloadOneSeatImage()">🖼 下載目前這張</button>
           <button class="s-btn s-btn-secondary s-btn-small" type="button" onclick="sDownloadAllSeatImages()">📦 產生全部</button>
         </div>
-        <div id="s-pngSeatNames" class="s-png-seat-names"></div>
         <div id="s-pngMsg" class="hint"></div>
         <div id="s-pngPreview" style="margin-top:10px;overflow:auto"></div>
 
@@ -9362,41 +9355,8 @@ function sColorToRgba(color, alpha) {
   return c || '#D2EFD8';
 }
 
-function sSeatPartnerKey(person, label) {
-  return String(person || '') + '|' + String(label || '');
-}
-
-function sSeatImageSeats(person) {
-  if (!sState) return [];
-  const { blocksWithRange, assignment } = sState;
-  const seats = [];
-  blocksWithRange.forEach(({ block, startIdx, count }) => {
-    const st = parseInt(block.start), en = parseInt(block.end);
-    if (isNaN(st) || isNaN(en)) return;
-    const step = en >= st ? 1 : -1;
-    let n = st;
-    for (let k = 0; k < count; k++) {
-      const owner = assignment[startIdx + k];
-      const zone = (block.zone || '').trim();
-      const row = (block.row || '').trim();
-      const label = sSeatImageLabel(zone, row, n);
-      if (owner && (!person || owner === person)) seats.push({ owner, zone, row, num: n, label });
-      n += step;
-    }
-  });
-  return seats;
-}
-
-function sSeatPartnerMap(person) {
-  const map = {};
-  sSeatImageSeats(person).forEach(seat => {
-    map[seat.label] = sSeatPartnerNames[sSeatPartnerKey(seat.owner, seat.label)] || '';
-  });
-  return map;
-}
-
 // 產生某個人的座位圖。person 為空字串＝全部都上色（給自己留存用）。
-function sBuildSeatImage(person, partnerMap) {
+function sBuildSeatImage(person) {
   if (!sState) return null;
   const { blocksWithRange, assignment } = sState;
 
@@ -9457,7 +9417,6 @@ function sBuildSeatImage(person, partnerMap) {
       const tint = mine ? sColorToRgba(ownerColor, 0.34) : '#EDEFF2';
       const edge = mine ? ownerColor : '#DCE0E6';
       const label = sSeatImageLabel(r.zone, r.row, c.num);
-      const partner = mine ? String((partnerMap && partnerMap[label]) || '').trim() : '';
 
       g.fillStyle = tint;
       g.strokeStyle = edge;
@@ -9492,11 +9451,6 @@ function sBuildSeatImage(person, partnerMap) {
         else g.rect(boxX, boxY, boxW, boxH);
         g.fill();
         g.stroke();
-        if (partner) {
-          g.fillStyle = '#17324A';
-          g.font = 'bold 13px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
-          g.fillText(partner, x + CW / 2, boxY + boxH / 2 + 1);
-        }
       }
 
       g.textAlign = 'left';
@@ -9546,38 +9500,6 @@ function sRenderSeatImagePicker() {
     '<option value="">（全場，所有人都上色）</option>';
   if (keep && names.indexOf(keep) >= 0) sel.value = keep;
   else if (keep === '') sel.value = '';
-  sRenderSeatPartnerInputs();
-  sRenderSeatImagePreview(false);
-}
-
-function sRenderSeatPartnerInputs() {
-  const sel = document.getElementById('s-pngWho');
-  const box = document.getElementById('s-pngSeatNames');
-  if (!box) return;
-  const who = sel ? sel.value : '';
-  if (!who) {
-    box.innerHTML = '<div class="hint">請先選一個小組，這裡會出現每個座位的夥伴名字欄位。</div>';
-    return;
-  }
-  const seats = sSeatImageSeats(who);
-  box.innerHTML = seats.map(seat => {
-    const key = sSeatPartnerKey(seat.owner, seat.label);
-    return `
-      <div class="s-png-seat-name">
-        <label>${esc(seat.label)}</label>
-        <input value="${esc(sSeatPartnerNames[key] || '')}" placeholder="夥伴名字"
-          data-key="${esc(key)}" oninput="sUpdateSeatPartnerName(this.dataset.key,this.value)">
-      </div>`;
-  }).join('');
-}
-
-function sHandleSeatImageSelectionChange() {
-  sRenderSeatPartnerInputs();
-  sRenderSeatImagePreview(true);
-}
-
-function sUpdateSeatPartnerName(key, value) {
-  sSeatPartnerNames[key] = value || '';
   sRenderSeatImagePreview(false);
 }
 
@@ -9587,7 +9509,7 @@ function sRenderSeatImagePreview(shouldScroll) {
   const prev = document.getElementById('s-pngPreview');
   if (!prev) return null;
   const who = sel ? sel.value : '';
-  const cv = sBuildSeatImage(who, sSeatPartnerMap(who));
+  const cv = sBuildSeatImage(who);
   prev.innerHTML = '';
   if (!cv) {
     if (msg) msg.textContent = '還沒有座位資料，請先分配或從文案還原。';
@@ -9608,7 +9530,7 @@ async function sDownloadOneSeatImage() {
   const msg = document.getElementById('s-pngMsg');
   const sel = document.getElementById('s-pngWho');
   const who = sel ? sel.value : '';
-  const cv = sRenderSeatImagePreview(false) || sBuildSeatImage(who, sSeatPartnerMap(who));
+  const cv = sRenderSeatImagePreview(false) || sBuildSeatImage(who);
   if (!cv) { if (msg) msg.textContent = '還沒有座位資料，請先分配或從文案還原。'; return; }
 
   await sDownloadCanvas(cv, '座位圖_' + (who || '全場') + '.png');
@@ -9622,7 +9544,7 @@ async function sDownloadAllSeatImages() {
 
   for (let i = 0; i < names.length; i++) {
     if (msg) msg.textContent = '產生中… ' + (i + 1) + ' / ' + names.length + '（' + names[i] + '）';
-    const cv = sBuildSeatImage(names[i], sSeatPartnerMap(names[i]));
+    const cv = sBuildSeatImage(names[i]);
     if (!cv) continue;
     await sDownloadCanvas(cv, '座位圖_' + names[i] + '.png');
   }
