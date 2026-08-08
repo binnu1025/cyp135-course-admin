@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.44</title>
+  <title>CYP135 課程報名 V7.45</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -776,7 +776,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.44</small>
+    <small>CYP135 課程系統 V7.45</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8391,7 +8391,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.44';
+const SEAT_DIAG_VERSION = 'V7.45';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8863,12 +8863,37 @@ function sImportFromText() {
     meetingName: parsed.meetingName || sState && sState.meetingName || ''
   };
 
+  // 把「各白金本次參加人數」也填回去。
+  //
+  // ⚠️ 文案裡沒有各白金的「參加人數」，只有分到幾個「座位」。
+  //    這裡填的是座位數，訊息要講清楚，不能讓人以為那是原本的參加人數。
+  let filled = 0;
+  const unknown = [];
+  const matchedNames = {};
+  sMembers.forEach((m, idx) => {
+    const el = document.getElementById('s-inp_' + idx);
+    if (!el) return;
+    const seatCount = finalAllocation[m.name];
+    if (seatCount === undefined) {
+      el.value = '';
+      return;
+    }
+    el.value = String(seatCount);
+    matchedNames[m.name] = true;
+    filled++;
+  });
+  Object.keys(finalAllocation).forEach(n => { if (!matchedNames[n]) unknown.push(n); });
+  sUpdateTotalSeatsDisplay();
+
   sRenderAll();
   const results = document.getElementById('s-results');
   if (results) { results.style.display = 'block'; results.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
-  say('已還原 ' + parsed.people.length + ' 人、' + pool.length + ' 個座位。' +
-      (bad ? '（有 ' + bad + ' 段看不懂，已略過）' : ''), true);
+  let msg = '已還原 ' + parsed.people.length + ' 人、' + pool.length + ' 個座位。';
+  msg += '人數欄位已填入各人的「座位數」（' + filled + ' 位）——文案裡沒有原本的參加人數，只有座位數，要重新分配前請自行確認。';
+  if (unknown.length) msg += '「' + unknown.join('、') + '」不在上手白金名單裡，座位圖有顯示但人數欄位沒有它們的位置。';
+  if (bad) msg += '（有 ' + bad + ' 段看不懂，已略過）';
+  say(msg, true);
 }
 
 function sBuildPool() {
