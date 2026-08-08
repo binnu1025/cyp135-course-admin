@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.46</title>
+  <title>CYP135 課程報名 V7.47</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -401,6 +401,15 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 #page-seat .s-seat-selected{border-color:var(--sgold);box-shadow:0 0 0 2px rgba(216,182,90,.35);transform:scale(1.06);z-index:2}
 #page-seat .s-seat .seat-num{font-size:10px;opacity:.75;font-family:ui-monospace,Menlo,Consolas,monospace}
 #page-seat .s-seat .seat-name{font-size:12.5px;font-weight:700;margin-top:2px}
+#page-seat .seat-adj-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0}
+#page-seat .seat-adj-row label{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--stext);margin:0}
+#page-seat .seat-adj-ctrl{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+#page-seat .seat-adj-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--sborder);background:var(--sbg-soft);color:var(--stext);font-size:16px;line-height:1;cursor:pointer;padding:0}
+#page-seat .seat-adj-btn:hover:not(:disabled){background:#2a3446}
+#page-seat .seat-adj-btn:disabled{opacity:.3;cursor:not-allowed}
+#page-seat .seat-adj-num{min-width:42px;text-align:center;font-weight:700;font-size:15px;color:var(--stext)}
+#page-seat .seat-adj-total{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--sbg-soft);border:1px solid var(--sborder);font-size:14px}
+#page-seat .seat-adj-total.is-free{color:#8FE3B0}
 #page-seat .s-zone-input{width:100%;background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;color:var(--stext);padding:10px 12px;font-size:14px}
 #page-seat textarea#s-importText{width:100%;min-height:120px;background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;color:var(--stext);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;padding:12px;resize:vertical;margin-bottom:10px}
 #page-seat textarea#s-exportText{width:100%;min-height:150px;background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;color:var(--smuted);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;padding:12px;resize:vertical}
@@ -777,7 +786,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.46</small>
+    <small>CYP135 課程系統 V7.47</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8392,7 +8401,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.46';
+const SEAT_DIAG_VERSION = 'V7.47';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8542,8 +8551,12 @@ function sSeatPageHtml() {
         <div class="s-stats" id="s-statsArea"></div>
         <div id="s-cardsArea"></div>
 
+        <h2 style="margin-top:20px">各白金分配座位數</h2>
+        <p class="chart-hint">💡 按 − 會把該白金最後一個位子釋出成空位，按 ＋ 從空位裡拿一個給他。<b>其他人的位置完全不動</b>，你排好的東西不會被重來。要精確指定位子，就在下方座位圖上點兩個位子互換。</p>
+        <div id="s-seatAdjustArea"></div>
+
         <h2 style="margin-top:20px">座位圖</h2>
-        <p class="chart-hint">💡 點兩個座位可互換位置（電腦也可直接拖曳）；左右區會分欄顯示。</p>
+        <p class="chart-hint">💡 點兩個座位可互換位置（電腦也可直接拖曳）；空位是灰色的，把人點到空位上就等於移過去。不同區域會分欄顯示。</p>
         <div class="s-btn-row" style="margin-bottom:11px">
           <button class="s-btn s-btn-secondary s-btn-small" id="s-resetAssignBtn" type="button">🔄 還原自動分配</button>
         </div>
@@ -8601,7 +8614,7 @@ function sResetAssign() {
   if (!sState) return;
   sState.assignment = [...sState.originalAssignment];
   sState.selectedSeatIdx = null;
-  sRenderChart(); sRenderCards(); sRenderExport();
+  sRenderChart(); sRenderCards(); sRenderSeatAdjust(); sRenderExport();
 }
 
 function sBlockSeatCount(b) {
@@ -9078,7 +9091,7 @@ function sShowEmptyResults() {
   sState = null;
 }
 
-function sRenderAll() { sRenderStats(); sRenderCards(); sRenderChart(); sRenderExport(); }
+function sRenderAll() { sRenderStats(); sRenderCards(); sRenderSeatAdjust(); sRenderChart(); sRenderExport(); }
 
 function sRenderStats() {
   const { totalPeople, totalSeats, usedSeats } = sState;
@@ -9197,6 +9210,95 @@ function sGetZoneOrder(blocks) {
   return zones;
 }
 
+// 各白金分配座位數：版面比照上方「各白金本次參加人數」，分大組顯示。
+function sRenderSeatAdjust() {
+  const area = document.getElementById('s-seatAdjustArea');
+  if (!area || !sState) return;
+  const { assignment } = sState;
+
+  const counts = {};
+  assignment.forEach(n => { if (n) counts[n] = (counts[n] || 0) + 1; });
+  const free = assignment.filter(x => !x).length;
+
+  const rowHtml = m => {
+    const c = counts[m.name] || 0;
+    return `
+      <div class="seat-adj-row">
+        <label><span class="s-dot" style="background:${esc(m.color)}"></span>${esc(m.name)}</label>
+        <div class="seat-adj-ctrl">
+          <button type="button" class="seat-adj-btn" ${c <= 0 ? 'disabled' : ''}
+            onclick="sAdjustSeatCount(\'${esc(m.name)}\',-1)" title="釋出一個位子">−</button>
+          <span class="seat-adj-num">${c}</span>
+          <button type="button" class="seat-adj-btn" ${free <= 0 ? 'disabled' : ''}
+            onclick="sAdjustSeatCount(\'${esc(m.name)}\',1)" title="從空位拿一個">＋</button>
+        </div>
+      </div>`;
+  };
+
+  let html = '<div class="group-grid">';
+  Object.keys(sBigGroups).sort().forEach(k => {
+    const members = sMembers.filter(m => m.group === k);
+    if (!members.length) return;
+    const first = members[0];
+    html += `<div class="group-card" style="border-top-color:${esc(first.color)}">
+      <h3>大組${esc(k)}</h3><div>${members.map(rowHtml).join('')}</div></div>`;
+  });
+  const solo = sMembers.filter(m => !m.group);
+  if (solo.length) {
+    html += `<div class="group-card" style="border-top-color:${esc(solo[0].color)}">
+      <h3>獨立小組</h3><div>${solo.map(rowHtml).join('')}</div></div>`;
+  }
+  html += '</div>';
+
+  // 名單外的人（例如從文案還原進來、已不在上手白金名單）也要看得到
+  const known = {};
+  sMembers.forEach(m => { known[m.name] = true; });
+  const strangers = Object.keys(counts).filter(n => !known[n]);
+  if (strangers.length) {
+    html += `<div class="seat-adj-total">名單外：${strangers.map(n => esc(n) + ' ' + counts[n] + ' 個').join('、')}（不在上手白金名單，無法用按鈕調整，請用座位圖互換）</div>`;
+  }
+
+  html += `<div class="seat-adj-total${free > 0 ? ' is-free' : ''}">
+    已分配 <b>${assignment.length - free}</b> / 總座位 <b>${assignment.length}</b>
+    ${free > 0 ? '　·　還有 <b>' + free + '</b> 個空位可以派' : '　·　已全部派完'}
+  </div>`;
+
+  area.innerHTML = html;
+}
+
+// 加減只動「這個人」與「空位」，其他人的位置一格都不會變——
+// 使用者明確要求排好的結果不可以被重來。
+// 因為「加」只能取用空位，總座位數天然不會被超過。
+function sAdjustSeatCount(name, delta) {
+  if (!sState) return;
+  const a = sState.assignment;
+
+  if (delta < 0) {
+    // 釋出他最後一個位子
+    for (let i = a.length - 1; i >= 0; i--) {
+      if (a[i] === name) { a[i] = null; break; }
+    }
+  } else {
+    // 優先拿緊鄰他現有位子的空位，讓同一組盡量連在一起
+    let target = -1;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i]) continue;
+      if ((i > 0 && a[i - 1] === name) || (i < a.length - 1 && a[i + 1] === name)) { target = i; break; }
+    }
+    if (target < 0) target = a.indexOf(null);
+    if (target < 0) return;   // 沒有空位
+    a[target] = name;
+  }
+
+  const counts = {};
+  a.forEach(n => { if (n) counts[n] = (counts[n] || 0) + 1; });
+  sState.finalAllocation = counts;
+  sState.usedSeats = a.filter(Boolean).length;
+  sState.selectedSeatIdx = null;
+
+  sRenderSeatAdjust(); sRenderChart(); sRenderCards(); sRenderExport(); sRenderStats();
+}
+
 function sRenderChart() {
   const { blocksWithRange, assignment, selectedSeatIdx } = sState;
   const colorMap = {};
@@ -9253,7 +9355,7 @@ function sSwapSeats(a, b) {
   sState.assignment[a] = sState.assignment[b];
   sState.assignment[b] = tmp;
   sState.selectedSeatIdx = null;
-  sRenderChart(); sRenderCards(); sRenderExport();
+  sRenderChart(); sRenderCards(); sRenderSeatAdjust(); sRenderExport();
 }
 
 function sCopyExport() {
