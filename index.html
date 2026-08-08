@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.47</title>
+  <title>CYP135 課程報名 V7.48</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -399,8 +399,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 #page-seat .chart-seats{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
 #page-seat .s-seat{min-width:56px;flex-shrink:0;border-radius:10px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;border:2px solid transparent}
 #page-seat .s-seat-selected{border-color:var(--sgold);box-shadow:0 0 0 2px rgba(216,182,90,.35);transform:scale(1.06);z-index:2}
-#page-seat .s-seat .seat-num{font-size:10px;opacity:.75;font-family:ui-monospace,Menlo,Consolas,monospace}
-#page-seat .s-seat .seat-name{font-size:12.5px;font-weight:700;margin-top:2px}
+#page-seat .s-seat{padding:0;overflow:hidden}
+#page-seat .s-seat .seat-num{display:block;width:100%;font-size:10px;font-family:ui-monospace,Menlo,Consolas,monospace;padding:3px 4px;color:#2a2a2a;font-weight:700;letter-spacing:.2px}
+#page-seat .s-seat .seat-name{padding:4px 4px 6px}
+#page-seat .s-seat .seat-name{font-size:12.5px;font-weight:700;margin-top:0}
 #page-seat .seat-adj-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0}
 #page-seat .seat-adj-row label{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--stext);margin:0}
 #page-seat .seat-adj-ctrl{display:flex;align-items:center;gap:6px;flex:0 0 auto}
@@ -786,7 +788,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.47</small>
+    <small>CYP135 課程系統 V7.48</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8401,7 +8403,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.47';
+const SEAT_DIAG_VERSION = 'V7.48';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -9203,6 +9205,24 @@ function sRenderExport() {
   document.getElementById('s-copyStatus').textContent = '';
 }
 
+// 區域名稱 → 淡色底。對照現場的座位表：座位號那一格用區域的顏色，
+// 底下的擁有者才是白金本人的顏色。刻意用很淡的色調，深色會讓號碼看不清楚。
+const S_ZONE_TINTS = {
+  '紫': '#E4D4F5', '紅': '#F7D2D2', '藍': '#CFE3F7', '黃': '#F7EDC4',
+  '綠': '#D2EFD8', '橙': '#F8DFC6', '粉': '#F8D8E6', '灰': '#E2E5E9',
+  '左': '#E6EAF0', '中': '#EDEDED', '右': '#E6EAF0'
+};
+
+// 沒有對照到的自訂區域，用名稱雜湊出一個固定的淡色——同一個名字永遠同一色。
+function sZoneTint(zone) {
+  const z = (zone || '').trim();
+  if (!z) return '#ECEEF1';
+  if (S_ZONE_TINTS[z]) return S_ZONE_TINTS[z];
+  let h = 0;
+  for (let i = 0; i < z.length; i++) h = (h * 31 + z.charCodeAt(i)) % 360;
+  return 'hsl(' + h + ', 55%, 88%)';
+}
+
 function sGetZoneOrder(blocks) {
   const zones = [];
   blocks.forEach(b => { const z = (b.zone || '').trim(); if (!zones.includes(z)) zones.push(z); });
@@ -9313,17 +9333,18 @@ function sRenderChart() {
     blocksWithRange.forEach(({ block, startIdx, count }) => {
       if ((block.zone || '').trim() !== zone) return;
       const s = parseInt(block.start), e = parseInt(block.end), step = e >= s ? 1 : -1;
+      const zoneTint = sZoneTint(block.zone);
       let seatsHTML = '', n = s;
       for (let k = 0; k < count; k++) {
         const gi = startIdx + k, person = assignment[gi];
         const cls = 's-seat' + (selectedSeatIdx === gi ? ' s-seat-selected' : '');
         seatsHTML += `<div class="${cls}" draggable="true"
-          style="background:${esc(colorMap[person] || '#444')}"
+          style="background:${esc(colorMap[person] || '#3a3f4a')}"
           ondragstart="sOnSeatDragStart(event,${gi})"
           ondragover="sOnSeatDragOver(event)"
           ondrop="sOnSeatDrop(event,${gi})"
           onclick="sOnSeatClick(${gi})">
-          <span class="seat-num">${n}號</span>
+          <span class="seat-num" style="background:${esc(zoneTint)}">${n}號</span>
           <span class="seat-name">${esc(person || '')}</span>
         </div>`;
         n += step;
