@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.41</title>
+  <title>CYP135 課程報名 V7.42</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -775,7 +775,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.41</small>
+    <small>CYP135 課程系統 V7.42</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8390,7 +8390,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.41';
+const SEAT_DIAG_VERSION = 'V7.42';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8623,6 +8623,7 @@ function sRenderSeatBlocks() {
       <div class="block-actions">
         <button type="button" class="s-icon-btn" onclick="sMoveBlock(${i},-1)" title="上移">↑</button>
         <button type="button" class="s-icon-btn" onclick="sMoveBlock(${i},1)" title="下移">↓</button>
+        <button type="button" class="s-icon-btn" onclick="sCopyBlock(${i})" title="複製這一排（排號 +1，座位號相同）">⧉</button>
         <button type="button" class="s-icon-btn danger" onclick="sRemoveBlock(${i})" title="刪除">✕</button>
       </div>
     </div>`).join('');
@@ -8630,26 +8631,17 @@ function sRenderSeatBlocks() {
   sUpdateTotalSeatsDisplay();
 }
 
+// 滾輪不再升降數字（使用者要求拿掉）。
+// 仍然綁 wheel 是為了擋掉瀏覽器原生的「捲到數字欄就改值」行為——
+// 那正是誤改的來源。blur 之後捲動就回到正常的捲頁。
 function sBindNumberWheelControls() {
-  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
   document.querySelectorAll('#s-blockList .s-wheel-number').forEach(input => {
-    input.addEventListener('wheel', sHandleNumberWheel, { passive: false });
+    input.addEventListener('wheel', sBlurOnWheel, { passive: true });
   });
 }
 
-function sHandleNumberWheel(event) {
-  event.preventDefault();
-  const input = event.currentTarget;
-  const step = Number(input.step) || 1;
-  const min = input.min !== '' ? Number(input.min) : -Infinity;
-  const max = input.max !== '' ? Number(input.max) : Infinity;
-  let current = input.value === '' ? (Number.isFinite(min) ? min - step : 0) : Number(input.value);
-  if (!Number.isFinite(current)) current = 0;
-  const direction = event.deltaY < 0 ? 1 : -1;
-  const next = Math.min(max, Math.max(min, current + direction * step));
-  input.value = String(next);
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-  try { input.focus({ preventScroll: true }); } catch (err) { input.focus(); }
+function sBlurOnWheel(event) {
+  if (document.activeElement === event.currentTarget) event.currentTarget.blur();
 }
 
 function sUpdateBlock(i, field, value) {
@@ -8665,6 +8657,22 @@ function sUpdateTotalSeatsDisplay() {
 }
 
 function sAddBlock() { sSeatBlocks.push({ zone: '', row: '', start: '', end: '' }); sRenderSeatBlocks(); }
+
+// 複製一排：座位號與區域照抄，排號 +1。
+// 實務上常常是連續好幾排拿同一段座位（2排21~25、3排21~25…），
+// 一排一排重打很煩。排號空白或不是數字就不加，讓使用者自己填。
+function sCopyBlock(i) {
+  const src = sSeatBlocks[i];
+  if (!src) return;
+  const rowNum = Number(src.row);
+  sSeatBlocks.splice(i + 1, 0, {
+    zone: src.zone,
+    row: Number.isFinite(rowNum) && String(src.row).trim() !== '' ? String(rowNum + 1) : src.row,
+    start: src.start,
+    end: src.end
+  });
+  sRenderSeatBlocks();
+}
 
 function sRemoveBlock(i) {
   if (sSeatBlocks.length === 1) sSeatBlocks[0] = { zone: '', row: '', start: '', end: '' };
@@ -8931,14 +8939,24 @@ function sRenderExport() {
   Object.keys(sBigGroups).sort().forEach(gk => sBigGroups[gk].members.forEach(n => order.push(n)));
   sMembers.forEach(m => { if (!m.group) order.push(m.name); });
 
+  // 文案格式（使用者 2026-08-06 指定）：
+  //   姓名、位子、位置各自獨立一行；只有一段座位時「位置:」與內容同行，
+  //   多段時「位置:」單獨一行、每段各一行。人與人之間空一行。
   order.forEach(n => {
     const m = sMemberByName(n);
     const seats = finalAllocation[n] || 0;
     if (seats <= 0) return;
     const segs = sGetPersonSegments(n);
     if (segs.length === 0) return;
-    lines.push(`${m.emoji} ${n}　位子:${seats}個　位置:${segs[0]}`);
-    segs.slice(1).forEach(seg => lines.push(seg));
+    lines.push(`${m.emoji} ${n}　`);
+    lines.push(`位子:${seats}個　`);
+    if (segs.length === 1) {
+      lines.push(`位置:${segs[0]}`);
+    } else {
+      lines.push('位置:');
+      segs.forEach(seg => lines.push(seg));
+    }
+    lines.push('');
   });
 
   lines.push(''); lines.push('✨ 請依座位入座，謝謝大家！');
