@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.43</title>
+  <title>CYP135 課程報名 V7.44</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -401,6 +401,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 #page-seat .s-seat-selected{border-color:var(--sgold);box-shadow:0 0 0 2px rgba(216,182,90,.35);transform:scale(1.06);z-index:2}
 #page-seat .s-seat .seat-num{font-size:10px;opacity:.75;font-family:ui-monospace,Menlo,Consolas,monospace}
 #page-seat .s-seat .seat-name{font-size:12.5px;font-weight:700;margin-top:2px}
+#page-seat textarea#s-importText{width:100%;min-height:120px;background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;color:var(--stext);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;padding:12px;resize:vertical;margin-bottom:10px}
 #page-seat textarea#s-exportText{width:100%;min-height:150px;background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;color:var(--smuted);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;padding:12px;resize:vertical}
 #page-seat .copy-status{font-size:12px;color:var(--sgold);margin-top:6px;min-height:16px}
 #page-seat .s-note{font-size:11.5px;color:var(--smuted);margin-top:10px;line-height:1.7}
@@ -775,7 +776,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.43</small>
+    <small>CYP135 課程系統 V7.44</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8390,7 +8391,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.43';
+const SEAT_DIAG_VERSION = 'V7.44';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8499,6 +8500,14 @@ function sSeatPageHtml() {
         <h1>座位分配系統</h1>
         <p class="sub">設定本次實際拿到的座位區域，輸入各白金參加人數，自動依比例分配並產出座位編號</p>
       </header>
+
+      <section class="panel s-layout-panel">
+        <h2>從文案還原</h2>
+        <p class="hint">把之前產生的座位文案貼進來，可以還原成座位圖與座位區域設定。適合手上只剩文字紀錄、想改幾個位子再重新產出的情況。</p>
+        <textarea id="s-importText" placeholder="貼上先前產生的座位分配文案"></textarea>
+        <button class="s-btn s-btn-secondary s-btn-small" type="button" onclick="sImportFromText()">↩ 還原座位圖</button>
+        <div id="s-importMsg" class="hint" style="margin-top:8px"></div>
+      </section>
 
       <section class="panel s-layout-panel">
         <h2>座位區域設定</h2>
@@ -8685,6 +8694,181 @@ function sMoveBlock(i, dir) {
   if (j < 0 || j >= sSeatBlocks.length) return;
   [sSeatBlocks[i], sSeatBlocks[j]] = [sSeatBlocks[j], sSeatBlocks[i]];
   sRenderSeatBlocks();
+}
+
+// ── 從匯出文案逆向還原 ──────────────────────────────────
+//
+// 文案的座位標籤格式是 sSeatLabelFromParts 產生的：{區域}{排}排{號}號，
+// 區間則是「A ~ B」。因為 sRangeSegmentLabels 會在換排時切段，
+// 所以一個區間一定落在同一排，不會跨排。
+//
+// 還原時「不靠順序」：先把所有座位號解析出來重建區塊，再用標籤去比對
+// 每個位子是誰的。這樣區塊的排列順序不影響結果。
+function sParseSeatLabel(text) {
+  // 允許前面有區域字樣、後面有括號註記
+  const m = String(text || '').match(/^\s*(左|中|右)?\s*(\d+)\s*排\s*(\d+)\s*號/);
+  if (!m) return null;
+  return { zone: m[1] || '', row: m[2], num: Number(m[3]) };
+}
+
+function sParseExportText(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const people = [];
+  let current = null;
+  let meetingName = '';
+
+  lines.forEach(raw => {
+    const line = raw.trim();
+    if (!line) return;
+
+    if (line.indexOf('🏛️') === 0) {
+      const idx = line.indexOf('📅');
+      if (idx >= 0) meetingName = line.slice(idx + 2).trim();
+      return;
+    }
+    if (line.indexOf('👥') === 0 || line.indexOf('✨') === 0) return;
+
+    // 新格式：姓名獨立一行（可能帶 📍 與「小組」）
+    if (line.indexOf('位子') < 0 && line.indexOf('位置') < 0 && !sParseSeatLabel(line)) {
+      const name = line.replace(/^[^\u4e00-\u9fa5A-Za-z]+/, '').replace(/小組\s*$/, '').trim();
+      if (name) { current = { name: name, segs: [] }; people.push(current); }
+      return;
+    }
+
+    // 舊格式：姓名　位子:N個　位置:XXX 全部在同一行
+    const posIdx = line.indexOf('位子');
+    if (posIdx >= 0) {
+      const namePart = line.slice(0, posIdx).replace(/^[^\u4e00-\u9fa5A-Za-z]+/, '').replace(/小組\s*$/, '').trim();
+      if (namePart) { current = { name: namePart, segs: [] }; people.push(current); }
+      const locIdx = line.indexOf('位置');
+      if (locIdx >= 0) {
+        const rest = line.slice(locIdx).replace(/^位置\s*[:：]\s*/, '').trim();
+        if (rest && current) current.segs.push(rest);
+      }
+      return;
+    }
+
+    if (line.indexOf('位置') === 0) {
+      const rest = line.replace(/^位置\s*[:：]\s*/, '').trim();
+      if (rest && current) current.segs.push(rest);
+      return;
+    }
+
+    if (current && sParseSeatLabel(line)) current.segs.push(line);
+  });
+
+  return { people: people, meetingName: meetingName };
+}
+
+function sImportFromText() {
+  const box = document.getElementById('s-importMsg');
+  const say = (t, ok) => { if (box) box.innerHTML = '<span style="color:' + (ok ? '#8FE3B0' : '#F0A0A0') + '">' + esc(t) + '</span>'; };
+  const text = (document.getElementById('s-importText') || {}).value || '';
+  if (!text.trim()) return say('請先貼上座位文案。');
+
+  const parsed = sParseExportText(text);
+  const seats = [];   // { zone, row, num, name }
+  let bad = 0;
+
+  parsed.people.forEach(p => {
+    p.segs.forEach(segText => {
+      const parts = segText.split('~');
+      const a = sParseSeatLabel(parts[0]);
+      if (!a) { bad++; return; }
+      const b = parts.length > 1 ? sParseSeatLabel(parts[1]) : a;
+      if (!b) { bad++; return; }
+      // 同一段一定同排（sRangeSegmentLabels 換排就切段），跨排就以起點那排為準
+      const from = Math.min(a.num, b.num);
+      const to = Math.max(a.num, b.num);
+      for (let n = from; n <= to; n++) {
+        seats.push({ zone: a.zone, row: a.row, num: n, name: p.name });
+      }
+    });
+  });
+
+  if (!seats.length) return say('看不懂這份文案，沒有解析出任何座位。');
+
+  // 依 區域＋排 分組，把連續的號碼併成一個區塊
+  const groups = {};
+  seats.forEach(x => {
+    const k = x.zone + '|' + x.row;
+    if (!groups[k]) groups[k] = { zone: x.zone, row: x.row, nums: [] };
+    groups[k].nums.push(x.num);
+  });
+
+  const blocks = [];
+  Object.keys(groups).sort((p, q) => {
+    const A = groups[p], B = groups[q];
+    if (A.zone !== B.zone) return A.zone < B.zone ? -1 : 1;
+    return Number(A.row) - Number(B.row);
+  }).forEach(k => {
+    const g = groups[k];
+    const nums = Array.from(new Set(g.nums)).sort((x, y) => x - y);
+    let runStart = nums[0], prev = nums[0];
+    for (let i = 1; i < nums.length; i++) {
+      if (nums[i] === prev + 1) { prev = nums[i]; continue; }
+      blocks.push({ zone: g.zone, row: g.row, start: String(runStart), end: String(prev) });
+      runStart = nums[i]; prev = nums[i];
+    }
+    blocks.push({ zone: g.zone, row: g.row, start: String(runStart), end: String(prev) });
+  });
+
+  sSeatBlocks = blocks;
+  sRenderSeatBlocks();
+
+  // 用標籤比對把人放回座位——不靠區塊順序，所以排序方式不影響結果
+  const pool = sBuildPool();
+  const owner = {};
+  seats.forEach(x => { owner[sSeatLabelFromParts(x.zone, x.row, x.num)] = x.name; });
+  const assignment = pool.map(seat => owner[seat.label] || null);
+
+  const finalAllocation = {};
+  assignment.forEach(n => { if (n) finalAllocation[n] = (finalAllocation[n] || 0) + 1; });
+  const participants = {};
+  Object.keys(finalAllocation).forEach(n => { participants[n] = finalAllocation[n]; });
+
+  const topAllocation = {};
+  const topLevelCounts = {};
+  Object.keys(sBigGroups).forEach(gk => {
+    let sum = 0;
+    sBigGroups[gk].members.forEach(n => { sum += finalAllocation[n] || 0; });
+    topAllocation[gk] = sum;
+    topLevelCounts[gk] = sum;
+  });
+  Object.keys(finalAllocation).forEach(n => {
+    const inGroup = Object.keys(sBigGroups).some(gk => sBigGroups[gk].members.indexOf(n) >= 0);
+    if (!inGroup) { topAllocation[n] = finalAllocation[n]; topLevelCounts[n] = finalAllocation[n]; }
+  });
+
+  const blocksWithRange = [];
+  let poolIdx = 0;
+  sSeatBlocks.forEach(b => {
+    const st = parseInt(b.start), en = parseInt(b.end);
+    if (isNaN(st) || isNaN(en)) return;
+    const count = Math.abs(en - st) + 1;
+    blocksWithRange.push({ block: b, startIdx: poolIdx, count: count });
+    poolIdx += count;
+  });
+
+  const used = assignment.filter(Boolean).length;
+  sState = {
+    pool: pool, blocksWithRange: blocksWithRange,
+    assignment: assignment, originalAssignment: assignment.slice(),
+    selectedSeatIdx: null,
+    finalAllocation: finalAllocation, topAllocation: topAllocation, topLevelCounts: topLevelCounts,
+    participants: participants,
+    totalPeople: Object.keys(finalAllocation).length,
+    totalSeats: pool.length,
+    usedSeats: used,
+    meetingName: parsed.meetingName || sState && sState.meetingName || ''
+  };
+
+  sRenderAll();
+  const results = document.getElementById('s-results');
+  if (results) { results.style.display = 'block'; results.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
+  say('已還原 ' + parsed.people.length + ' 人、' + pool.length + ' 個座位。' +
+      (bad ? '（有 ' + bad + ' 段看不懂，已略過）' : ''), true);
 }
 
 function sBuildPool() {
@@ -8948,7 +9132,8 @@ function sRenderExport() {
     if (seats <= 0) return;
     const segs = sGetPersonSegments(n);
     if (segs.length === 0) return;
-    lines.push(`${m.emoji} ${n}　小組`);
+    // 從文案還原時，名字可能不在上手白金名單裡，m 會是 undefined
+    lines.push(`${(m && m.emoji) || '📍'} ${n}　小組`);
     lines.push(`位子:${seats}個　`);
     if (segs.length === 1) {
       lines.push(`位置:${segs[0]}`);
