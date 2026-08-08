@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.53</title>
+  <title>CYP135 課程報名 V7.54</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -398,7 +398,8 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 #page-seat .zone-title{font-weight:700;font-size:12.5px;color:var(--spt2);text-align:center;letter-spacing:.1em;background:var(--scard2);border:1px solid var(--sborder);border-radius:8px;padding:6px;margin-bottom:9px}
 #page-seat .chart-block-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 #page-seat .block-chart-label{min-width:60px;flex-shrink:0;font-size:11.5px;color:var(--smuted);text-align:right;padding-right:4px;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.3}
-#page-seat .chart-seats{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+#page-seat .chart-seats{display:grid;gap:6px;overflow-x:auto;padding-bottom:4px}
+#page-seat .s-seat-placeholder{min-width:56px;height:56px;visibility:hidden}
 #page-seat .s-seat{min-width:56px;flex-shrink:0;border-radius:10px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;border:2px solid transparent}
 #page-seat .s-seat-selected{border-color:var(--sgold);box-shadow:0 0 0 2px rgba(216,182,90,.35);transform:scale(1.06);z-index:2}
 #page-seat .s-seat{padding:0;overflow:hidden}
@@ -790,7 +791,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.53</small>
+    <small>CYP135 課程系統 V7.54</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8405,7 +8406,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.53';
+const SEAT_DIAG_VERSION = 'V7.54';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -9242,6 +9243,24 @@ function sGetZoneOrder(blocks) {
   return zones;
 }
 
+function sSeatColumnsByZone(blocksWithRange) {
+  const columns = {};
+  blocksWithRange.forEach(({ block, count }) => {
+    const zone = (block.zone || '').trim();
+    if (!columns[zone]) columns[zone] = [];
+    const s = parseInt(block.start), e = parseInt(block.end);
+    if (isNaN(s) || isNaN(e)) return;
+    const step = e >= s ? 1 : -1;
+    let n = s;
+    for (let k = 0; k < count; k++) {
+      if (columns[zone].indexOf(n) < 0) columns[zone].push(n);
+      n += step;
+    }
+  });
+  Object.keys(columns).forEach(zone => columns[zone].sort((a, b) => a - b));
+  return columns;
+}
+
 // 各白金分配座位數：版面比照上方「各白金本次參加人數」，分大組顯示。
 function sRenderSeatAdjust() {
   const area = document.getElementById('s-seatAdjustArea');
@@ -9377,8 +9396,16 @@ function sBuildSeatImage(person) {
   if (!rows.length) return null;
 
   const CW = 118, CH = 88, GAP = 8, PADX = 28, LABELW = 76;
-  const maxCells = rows.reduce((m, r) => Math.max(m, r.cells.length), 0);
-  const width = PADX * 2 + LABELW + maxCells * (CW + GAP);
+  const columnsByZone = {};
+  rows.forEach(r => {
+    if (!columnsByZone[r.zone]) columnsByZone[r.zone] = [];
+    r.cells.forEach(c => {
+      if (columnsByZone[r.zone].indexOf(c.num) < 0) columnsByZone[r.zone].push(c.num);
+    });
+  });
+  Object.keys(columnsByZone).forEach(zone => columnsByZone[zone].sort((a, b) => a - b));
+  const maxCols = Object.keys(columnsByZone).reduce((m, zone) => Math.max(m, columnsByZone[zone].length), 0);
+  const width = PADX * 2 + LABELW + (maxCols * CW) + (Math.max(0, maxCols - 1) * GAP);
   const headH = 96;
   const height = headH + rows.length * (CH + GAP) + 46;
 
@@ -9409,8 +9436,10 @@ function sBuildSeatImage(person) {
     g.textBaseline = 'middle';
     g.fillText((r.zone ? r.zone + '區 ' : '') + r.row + '排', PADX, y + CH / 2);
 
-    let x = PADX + LABELW;
+    const columns = columnsByZone[r.zone] || [];
     r.cells.forEach(c => {
+      const col = columns.indexOf(c.num);
+      const x = PADX + LABELW + Math.max(0, col) * (CW + GAP);
       const mine = person ? (c.owner === person) : !!c.owner;
       const member = c.owner ? sMemberByName(c.owner) : null;
       const ownerColor = member && member.color ? member.color : '#2D8A5B';
@@ -9454,7 +9483,6 @@ function sBuildSeatImage(person) {
       }
 
       g.textAlign = 'left';
-      x += CW + GAP;
     });
     y += CH + GAP;
   });
@@ -9556,6 +9584,7 @@ function sRenderChart() {
   const colorMap = {};
   sMembers.forEach(m => colorMap[m.name] = m.color);
   const zones = sGetZoneOrder(blocksWithRange.map(x => x.block));
+  const columnsByZone = sSeatColumnsByZone(blocksWithRange);
   const showTitles = zones.length > 1;
 
   let html = `<div class="zone-columns" style="grid-template-columns:repeat(${zones.length},1fr)">`;
@@ -9566,11 +9595,12 @@ function sRenderChart() {
       if ((block.zone || '').trim() !== zone) return;
       const s = parseInt(block.start), e = parseInt(block.end), step = e >= s ? 1 : -1;
       const zoneTint = sZoneTint(block.zone);
-      let seatsHTML = '', n = s;
+      const seatsByNum = {};
+      let n = s;
       for (let k = 0; k < count; k++) {
         const gi = startIdx + k, person = assignment[gi];
         const cls = 's-seat' + (selectedSeatIdx === gi ? ' s-seat-selected' : '');
-        seatsHTML += `<div class="${cls}" draggable="true"
+        seatsByNum[n] = `<div class="${cls}" draggable="true"
           style="background:${esc(colorMap[person] || '#3a3f4a')}"
           ondragstart="sOnSeatDragStart(event,${gi})"
           ondragover="sOnSeatDragOver(event)"
@@ -9581,9 +9611,11 @@ function sRenderChart() {
         </div>`;
         n += step;
       }
+      const columns = columnsByZone[zone] || [];
+      const seatsHTML = columns.map(num => seatsByNum[num] || '<div class="s-seat-placeholder" aria-hidden="true"></div>').join('');
       html += `<div class="chart-block-row">
         <div class="block-chart-label">${esc(sBlockLabel(block))}</div>
-        <div class="chart-seats">${seatsHTML}</div>
+        <div class="chart-seats" style="grid-template-columns:repeat(${columns.length},56px)">${seatsHTML}</div>
       </div>`;
     });
     html += '</div>';
