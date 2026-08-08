@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.54</title>
+  <title>CYP135 課程報名 V7.55</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -791,7 +791,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.54</small>
+    <small>CYP135 課程系統 V7.55</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8406,7 +8406,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.54';
+const SEAT_DIAG_VERSION = 'V7.55';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8568,7 +8568,7 @@ function sSeatPageHtml() {
         <div id="s-chartArea"></div>
 
         <h2 style="margin-top:20px">各小組座位圖（圖片）</h2>
-        <p class="chart-hint">💡 選小組後下方座位圖會自動切換：只有該小組位子有顏色，其他座位是灰的。每個彩色座位底部會留空白格，讓各白金自己填夥伴名字。</p>
+        <p class="chart-hint">💡 可選大組或小組後下方座位圖會自動切換：只有該大組／小組位子有顏色，其他座位是灰的。每個彩色座位底部會留空白格，讓各白金自己填夥伴名字。</p>
         <div class="s-png-tools">
           <select id="s-pngWho" class="s-zone-input" style="max-width:220px" onchange="sRenderSeatImagePreview(true)"></select>
           <button class="s-btn s-btn-secondary s-btn-small" type="button" onclick="sDownloadOneSeatImage()">🖼 下載目前這張</button>
@@ -9375,9 +9375,35 @@ function sColorToRgba(color, alpha) {
 }
 
 // 產生某個人的座位圖。person 為空字串＝全部都上色（給自己留存用）。
-function sBuildSeatImage(person) {
+const S_SEAT_IMAGE_GROUP_PREFIX = '__group__:';
+
+function sSeatImageTarget(value) {
+  const raw = value || '';
+  if (!raw) return { type: 'all', value: '', title: '全場座位', filename: '全場', members: null };
+  if (raw.indexOf(S_SEAT_IMAGE_GROUP_PREFIX) === 0) {
+    const key = raw.slice(S_SEAT_IMAGE_GROUP_PREFIX.length);
+    const group = sBigGroups[key];
+    return {
+      type: 'group',
+      value: raw,
+      title: '大組' + key,
+      filename: '大組' + key,
+      members: group ? group.members.slice() : []
+    };
+  }
+  return { type: 'person', value: raw, title: raw + ' 小組', filename: raw + '小組', members: [raw] };
+}
+
+function sSeatImageOwns(target, owner) {
+  if (!owner) return false;
+  if (!target || target.type === 'all') return true;
+  return target.members && target.members.indexOf(owner) >= 0;
+}
+
+function sBuildSeatImage(targetValue) {
   if (!sState) return null;
   const { blocksWithRange, assignment } = sState;
+  const target = sSeatImageTarget(targetValue);
 
   // 先算出每一排要畫幾格，決定畫布寬度
   const rows = [];
@@ -9423,7 +9449,7 @@ function sBuildSeatImage(person) {
   g.fillStyle = '#1F3B2C';
   g.font = 'bold 26px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
   g.textBaseline = 'top';
-  g.fillText(person ? person + ' 小組' : '全場座位', PADX, 26);
+  g.fillText(target.title, PADX, 26);
 
   g.fillStyle = '#6B7F72';
   g.font = '15px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
@@ -9440,7 +9466,7 @@ function sBuildSeatImage(person) {
     r.cells.forEach(c => {
       const col = columns.indexOf(c.num);
       const x = PADX + LABELW + Math.max(0, col) * (CW + GAP);
-      const mine = person ? (c.owner === person) : !!c.owner;
+      const mine = sSeatImageOwns(target, c.owner);
       const member = c.owner ? sMemberByName(c.owner) : null;
       const ownerColor = member && member.color ? member.color : '#2D8A5B';
       const tint = mine ? sColorToRgba(ownerColor, 0.34) : '#EDEFF2';
@@ -9490,7 +9516,7 @@ function sBuildSeatImage(person) {
   g.fillStyle = '#9AA6B4';
   g.font = '13px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
   g.textBaseline = 'top';
-  g.fillText(person ? '灰色為其他小組的位子，僅供對照現場位置' : '', PADX, y + 12);
+  g.fillText(target.type === 'all' ? '' : '灰色為其他小組的位子，僅供對照現場位置', PADX, y + 12);
 
   return cv;
 }
@@ -9519,15 +9545,29 @@ function sSeatImageNames() {
   return names;
 }
 
+function sSeatImageTargets() {
+  const names = sSeatImageNames();
+  const nameSet = {};
+  names.forEach(n => { nameSet[n] = true; });
+  const targets = [];
+  Object.keys(sBigGroups).sort().forEach(k => {
+    const members = sBigGroups[k].members || [];
+    if (members.some(n => nameSet[n])) {
+      targets.push({ value: S_SEAT_IMAGE_GROUP_PREFIX + k, label: '大組' + k + '（' + members.join(' ・ ') + '）' });
+    }
+  });
+  names.forEach(n => targets.push({ value: n, label: n }));
+  targets.push({ value: '', label: '（全場，所有人都上色）' });
+  return targets;
+}
+
 function sRenderSeatImagePicker() {
   const sel = document.getElementById('s-pngWho');
   if (!sel) return;
-  const names = sSeatImageNames();
+  const targets = sSeatImageTargets();
   const keep = sel.value;
-  sel.innerHTML = names.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('') +
-    '<option value="">（全場，所有人都上色）</option>';
-  if (keep && names.indexOf(keep) >= 0) sel.value = keep;
-  else if (keep === '') sel.value = '';
+  sel.innerHTML = targets.map(t => '<option value="' + esc(t.value) + '">' + esc(t.label) + '</option>').join('');
+  if (targets.some(t => t.value === keep)) sel.value = keep;
   sRenderSeatImagePreview(false);
 }
 
@@ -9537,6 +9577,7 @@ function sRenderSeatImagePreview(shouldScroll) {
   const prev = document.getElementById('s-pngPreview');
   if (!prev) return null;
   const who = sel ? sel.value : '';
+  const target = sSeatImageTarget(who);
   const cv = sBuildSeatImage(who);
   prev.innerHTML = '';
   if (!cv) {
@@ -9549,7 +9590,7 @@ function sRenderSeatImagePreview(shouldScroll) {
   cv.style.height = 'auto';
   card.appendChild(cv);
   prev.appendChild(card);
-  if (msg) msg.textContent = '已切換到「' + (who || '全場') + '」的座位圖。';
+  if (msg) msg.textContent = '已切換到「' + target.title + '」的座位圖。';
   if (shouldScroll && prev.scrollIntoView) prev.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   return cv;
 }
@@ -9558,25 +9599,27 @@ async function sDownloadOneSeatImage() {
   const msg = document.getElementById('s-pngMsg');
   const sel = document.getElementById('s-pngWho');
   const who = sel ? sel.value : '';
+  const target = sSeatImageTarget(who);
   const cv = sRenderSeatImagePreview(false) || sBuildSeatImage(who);
   if (!cv) { if (msg) msg.textContent = '還沒有座位資料，請先分配或從文案還原。'; return; }
 
-  await sDownloadCanvas(cv, '座位圖_' + (who || '全場') + '.png');
-  if (msg) msg.textContent = '已產生「' + (who || '全場') + '」的座位圖。';
+  await sDownloadCanvas(cv, '座位圖_' + target.filename + '.png');
+  if (msg) msg.textContent = '已產生「' + target.title + '」的座位圖。';
 }
 
 async function sDownloadAllSeatImages() {
   const msg = document.getElementById('s-pngMsg');
-  const names = sSeatImageNames();
-  if (!names.length) { if (msg) msg.textContent = '還沒有座位資料，請先分配或從文案還原。'; return; }
+  const targets = sSeatImageTargets().filter(t => t.value !== '');
+  if (!targets.length) { if (msg) msg.textContent = '還沒有座位資料，請先分配或從文案還原。'; return; }
 
-  for (let i = 0; i < names.length; i++) {
-    if (msg) msg.textContent = '產生中… ' + (i + 1) + ' / ' + names.length + '（' + names[i] + '）';
-    const cv = sBuildSeatImage(names[i]);
+  for (let i = 0; i < targets.length; i++) {
+    const target = sSeatImageTarget(targets[i].value);
+    if (msg) msg.textContent = '產生中… ' + (i + 1) + ' / ' + targets.length + '（' + target.title + '）';
+    const cv = sBuildSeatImage(targets[i].value);
     if (!cv) continue;
-    await sDownloadCanvas(cv, '座位圖_' + names[i] + '.png');
+    await sDownloadCanvas(cv, '座位圖_' + target.filename + '.png');
   }
-  if (msg) msg.textContent = '已產生 ' + names.length + ' 張座位圖。';
+  if (msg) msg.textContent = '已產生 ' + targets.length + ' 張座位圖。';
 }
 
 function sRenderChart() {
