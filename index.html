@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.49</title>
+  <title>CYP135 課程報名 V7.50</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -370,6 +370,9 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 #page-seat .name-row input:focus{outline:none;border-color:var(--sgold)}
 #page-seat .s-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:8px;flex-shrink:0}
 #page-seat .s-btn-row{display:flex;gap:10px;flex-wrap:wrap}
+#page-seat .s-png-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:11px}
+#page-seat .s-png-name{width:160px;min-width:120px}
+#page-seat .s-png-preview-card{display:inline-block;background:#fff;border:1px solid var(--sborder);border-radius:10px;padding:10px;box-shadow:0 8px 22px rgba(0,0,0,.16)}
 #page-seat .s-btn{font-family:inherit;font-size:14px;font-weight:700;border-radius:10px;padding:11px 20px;border:none;cursor:pointer;width:auto}
 #page-seat .s-btn:active{transform:scale(.97)}
 #page-seat .s-btn-primary{background:linear-gradient(120deg,var(--sgold),var(--spt2));color:#1a1a1a}
@@ -788,7 +791,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.49</small>
+    <small>CYP135 課程系統 V7.50</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8403,7 +8406,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.49';
+const SEAT_DIAG_VERSION = 'V7.50';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8565,10 +8568,11 @@ function sSeatPageHtml() {
         <div id="s-chartArea"></div>
 
         <h2 style="margin-top:20px">各小組座位圖（圖片）</h2>
-        <p class="chart-hint">💡 產生單一白金的座位圖：<b>只有他自己的位子有顏色</b>，其他座位是灰的，看不出來是誰的。可以直接存下來丟到群組。</p>
-        <div class="s-btn-row" style="margin-bottom:11px">
-          <select id="s-pngWho" class="s-zone-input" style="max-width:220px"></select>
-          <button class="s-btn s-btn-secondary s-btn-small" type="button" onclick="sDownloadOneSeatImage()">🖼 產生這一張</button>
+        <p class="chart-hint">💡 選小組後下方座位圖會自動切換：只有該小組位子有顏色，其他座位是灰的。夥伴名字會標在圖片上，方便直接截圖。</p>
+        <div class="s-png-tools">
+          <select id="s-pngWho" class="s-zone-input" style="max-width:220px" onchange="sRenderSeatImagePreview(true)"></select>
+          <input id="s-pngPartner" class="s-zone-input s-png-name" placeholder="夥伴名字" oninput="sRenderSeatImagePreview(false)">
+          <button class="s-btn s-btn-secondary s-btn-small" type="button" onclick="sDownloadOneSeatImage()">🖼 下載目前這張</button>
           <button class="s-btn s-btn-secondary s-btn-small" type="button" onclick="sDownloadAllSeatImages()">📦 產生全部</button>
         </div>
         <div id="s-pngMsg" class="hint"></div>
@@ -9341,7 +9345,7 @@ function sSeatImageLabel(zone, row, num) {
 }
 
 // 產生某個人的座位圖。person 為空字串＝全部都上色（給自己留存用）。
-function sBuildSeatImage(person) {
+function sBuildSeatImage(person, partnerName) {
   if (!sState) return null;
   const { blocksWithRange, assignment } = sState;
 
@@ -9378,6 +9382,7 @@ function sBuildSeatImage(person) {
   g.fillRect(0, 0, width, height);
 
   const meeting = (sState.meetingName || '').trim();
+  const partner = (partnerName || '').trim();
   g.fillStyle = '#1F3B2C';
   g.font = 'bold 26px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
   g.textBaseline = 'top';
@@ -9386,6 +9391,27 @@ function sBuildSeatImage(person) {
   g.fillStyle = '#6B7F72';
   g.font = '15px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
   g.fillText('台北135教室' + (meeting ? '　·　' + meeting : ''), PADX, 60);
+  if (partner) {
+    g.fillStyle = '#1F3B2C';
+    g.font = 'bold 16px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+    const label = '夥伴：' + partner;
+    const labelW = Math.min(g.measureText(label).width + 26, width - PADX * 2);
+    const labelX = width - PADX - labelW;
+    g.fillStyle = '#EDF6EA';
+    g.strokeStyle = '#C8DCC8';
+    g.lineWidth = 1;
+    g.beginPath();
+    if (g.roundRect) g.roundRect(labelX, 25, labelW, 36, 18);
+    else g.rect(labelX, 25, labelW, 36);
+    g.fill();
+    g.stroke();
+    g.fillStyle = '#1F3B2C';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(label, labelX + labelW / 2, 43);
+    g.textAlign = 'left';
+    g.textBaseline = 'top';
+  }
 
   let y = headH;
   rows.forEach(r => {
@@ -9467,22 +9493,44 @@ function sRenderSeatImagePicker() {
   sel.innerHTML = names.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('') +
     '<option value="">（全場，所有人都上色）</option>';
   if (keep && names.indexOf(keep) >= 0) sel.value = keep;
+  else if (keep === '') sel.value = '';
+  sRenderSeatImagePreview(false);
+}
+
+function sRenderSeatImagePreview(shouldScroll) {
+  const msg = document.getElementById('s-pngMsg');
+  const sel = document.getElementById('s-pngWho');
+  const partner = document.getElementById('s-pngPartner');
+  const prev = document.getElementById('s-pngPreview');
+  if (!prev) return null;
+  const who = sel ? sel.value : '';
+  const cv = sBuildSeatImage(who, partner ? partner.value : '');
+  prev.innerHTML = '';
+  if (!cv) {
+    if (msg) msg.textContent = '還沒有座位資料，請先分配或從文案還原。';
+    return null;
+  }
+  const card = document.createElement('div');
+  card.className = 's-png-preview-card';
+  cv.style.maxWidth = '100%';
+  cv.style.height = 'auto';
+  card.appendChild(cv);
+  prev.appendChild(card);
+  if (msg) msg.textContent = '已切換到「' + (who || '全場') + '」的座位圖。';
+  if (shouldScroll && prev.scrollIntoView) prev.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  return cv;
 }
 
 async function sDownloadOneSeatImage() {
   const msg = document.getElementById('s-pngMsg');
   const sel = document.getElementById('s-pngWho');
+  const partner = document.getElementById('s-pngPartner');
   const who = sel ? sel.value : '';
-  const cv = sBuildSeatImage(who);
+  const cv = sRenderSeatImagePreview(false) || sBuildSeatImage(who, partner ? partner.value : '');
   if (!cv) { if (msg) msg.textContent = '還沒有座位資料，請先分配或從文案還原。'; return; }
 
-  const prev = document.getElementById('s-pngPreview');
-  if (prev) {
-    prev.innerHTML = '';
-    cv.style.maxWidth = '100%';
-    prev.appendChild(cv);
-  }
-  await sDownloadCanvas(cv, '座位圖_' + (who || '全場') + '.png');
+  const partnerName = partner && partner.value ? '_' + partner.value.trim().replace(/[\\/:*?"<>|]/g, '') : '';
+  await sDownloadCanvas(cv, '座位圖_' + (who || '全場') + partnerName + '.png');
   if (msg) msg.textContent = '已產生「' + (who || '全場') + '」的座位圖。';
 }
 
@@ -10624,4 +10672,3 @@ async function deleteMonthlyForm(row) {
 </script>
 </body>
 </html>
-
