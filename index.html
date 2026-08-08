@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.45</title>
+  <title>CYP135 課程報名 V7.46</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -401,6 +401,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 #page-seat .s-seat-selected{border-color:var(--sgold);box-shadow:0 0 0 2px rgba(216,182,90,.35);transform:scale(1.06);z-index:2}
 #page-seat .s-seat .seat-num{font-size:10px;opacity:.75;font-family:ui-monospace,Menlo,Consolas,monospace}
 #page-seat .s-seat .seat-name{font-size:12.5px;font-weight:700;margin-top:2px}
+#page-seat .s-zone-input{width:100%;background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;color:var(--stext);padding:10px 12px;font-size:14px}
 #page-seat textarea#s-importText{width:100%;min-height:120px;background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;color:var(--stext);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;padding:12px;resize:vertical;margin-bottom:10px}
 #page-seat textarea#s-exportText{width:100%;min-height:150px;background:var(--sbg-soft);border:1px solid var(--sborder);border-radius:10px;color:var(--smuted);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;padding:12px;resize:vertical}
 #page-seat .copy-status{font-size:12px;color:var(--sgold);margin-top:6px;min-height:16px}
@@ -776,7 +777,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.45</small>
+    <small>CYP135 課程系統 V7.46</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8391,7 +8392,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.45';
+const SEAT_DIAG_VERSION = 'V7.46';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
@@ -8511,7 +8512,7 @@ function sSeatPageHtml() {
 
       <section class="panel s-layout-panel">
         <h2>座位區域設定</h2>
-        <p class="hint">依實際拿到的座位逐排輸入。「區域」可選左／中／右，不分區則選「不分區」。起止號可由小到大或由大到小（例如左區第3排 8 號到 3 號＝共 6 個座位）。可新增多排，總座位數自動加總。</p>
+        <p class="hint">依實際拿到的座位逐排輸入。「區域」可以自己打（例如 紫、紅、藍），也可以從建議清單挑，留白就是不分區。起止號可由小到大或由大到小（例如左區第3排 8 號到 3 號＝共 6 個座位）。可新增多排，總座位數自動加總；同一排的設定可以按 ⧉ 複製。</p>
         <div id="s-blockList"></div>
         <button class="s-btn s-btn-secondary s-btn-small" id="s-addBlockBtn" type="button">＋ 新增一排</button>
         <div><div class="total-seats-display">目前設定總座位數：<b id="s-totalSeatsDisplay">0</b> 個</div></div>
@@ -8609,22 +8610,27 @@ function sBlockSeatCount(b) {
   return Math.abs(e - s) + 1;
 }
 
-function sZoneOptions(selected) {
-  const zones = [
-    { value: '', label: '不分區' },
-    { value: '左', label: '左' },
-    { value: '中', label: '中' },
-    { value: '右', label: '右' }
-  ];
-  return zones.map(z => `<option value="${z.value}"${selected === z.value ? ' selected' : ''}>${z.label}</option>`).join('');
+// 區域可以自己打（紫、紅、藍…），留白就是不分區。
+// 用 input + datalist 而不是「下拉＋其他」：現場常常整場都用同一個區域名，
+// 每排都要先選「其他」再打字太煩；這樣能直接輸入，常用值也還是有提示。
+function sZoneSuggestions() {
+  const common = ['左', '中', '右', '紫', '紅', '藍', '黃', '綠'];
+  const used = [];
+  sSeatBlocks.forEach(b => {
+    const z = (b.zone || '').trim();
+    if (z && common.indexOf(z) < 0 && used.indexOf(z) < 0) used.push(z);
+  });
+  return common.concat(used).map(z => `<option value="${esc(z)}"></option>`).join('');
 }
 
 function sRenderSeatBlocks() {
   const container = document.getElementById('s-blockList');
   if (!container) return;
-  container.innerHTML = sSeatBlocks.map((b, i) => `
+  // datalist 每次重畫都更新，才會把使用者剛打的新區域名也納入建議
+  container.innerHTML = '<datalist id="s-zone-list">' + sZoneSuggestions() + '</datalist>' +
+    sSeatBlocks.map((b, i) => `
     <div class="block-row">
-      <div class="block-field"><label>區域</label><select aria-label="第 ${i + 1} 排區域" onchange="sUpdateBlock(${i},'zone',this.value)">${sZoneOptions(b.zone)}</select></div>
+      <div class="block-field"><label>區域</label><input class="s-zone-input" list="s-zone-list" aria-label="第 ${i + 1} 排區域" placeholder="不分區" value="${esc(b.zone)}" oninput="sUpdateBlock(${i},'zone',this.value)"></div>
       <div class="block-field"><label>排</label><input class="s-wheel-number" type="number" min="1" max="999" step="1" inputmode="numeric" placeholder="例如 3" value="${esc(b.row)}" oninput="sUpdateBlock(${i},'row',this.value)"></div>
       <div class="block-field"><label>起始號</label><input class="s-wheel-number" type="number" min="1" max="9999" step="1" inputmode="numeric" placeholder="例如 8" value="${esc(b.start)}" oninput="sUpdateBlock(${i},'start',this.value)"></div>
       <div class="block-field"><label>結束號</label><input class="s-wheel-number" type="number" min="1" max="9999" step="1" inputmode="numeric" placeholder="例如 3" value="${esc(b.end)}" oninput="sUpdateBlock(${i},'end',this.value)"></div>
@@ -8704,11 +8710,15 @@ function sMoveBlock(i, dir) {
 //
 // 還原時「不靠順序」：先把所有座位號解析出來重建區塊，再用標籤去比對
 // 每個位子是誰的。這樣區塊的排列順序不影響結果。
+// 座位標籤：{區域}{排}排{號}號。區域可以是任何字（紫、紅、舞台右側…），
+// 也可以沒有。後面允許括號註記，例如「4排25號(子瑩+小麗姐)」。
+//
+// 區域用非貪婪 (.*?) 抓「排」之前的東西。區域名稱本身含數字時（例如
+// 「3號區11排11號」）靠回溯也能切對，因為 (\d+)排 必須緊接著「排」字。
 function sParseSeatLabel(text) {
-  // 允許前面有區域字樣、後面有括號註記
-  const m = String(text || '').match(/^\s*(左|中|右)?\s*(\d+)\s*排\s*(\d+)\s*號/);
+  const m = String(text || '').match(/^\s*(.*?)\s*(\d+)\s*排\s*(\d+)\s*號/);
   if (!m) return null;
-  return { zone: m[1] || '', row: m[2], num: Number(m[3]) };
+  return { zone: (m[1] || '').trim(), row: m[2], num: Number(m[3]) };
 }
 
 function sParseExportText(text) {
@@ -8796,10 +8806,16 @@ function sImportFromText() {
     groups[k].nums.push(x.num);
   });
 
+  // 區域照「文案裡第一次出現的順序」排，不要用字串排序——
+  // 中文區域名的 Unicode 順序不符合直覺（紫、紅、藍 會被排成亂的）。
+  // 同一區域內才依排號由小到大。
+  const zoneOrder = [];
+  seats.forEach(x => { if (zoneOrder.indexOf(x.zone) < 0) zoneOrder.push(x.zone); });
+
   const blocks = [];
   Object.keys(groups).sort((p, q) => {
     const A = groups[p], B = groups[q];
-    if (A.zone !== B.zone) return A.zone < B.zone ? -1 : 1;
+    if (A.zone !== B.zone) return zoneOrder.indexOf(A.zone) - zoneOrder.indexOf(B.zone);
     return Number(A.row) - Number(B.row);
   }).forEach(k => {
     const g = groups[k];
