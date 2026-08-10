@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.56</title>
+  <title>CYP135 課程報名 V7.57</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -795,7 +795,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.56</small>
+    <small>CYP135 課程系統 V7.57</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -5788,7 +5788,7 @@ function renderExternalImportPreview(data) {
 }
 
 function importPreviewRowHtml(row) {
-  const statusText = row.status === 'ok' ? '可匯入' : (row.status === 'duplicate' ? '重複' : '錯誤');
+  const statusText = row.status === 'ok' ? (row.committed ? '已匯入' : '可匯入') : (row.status === 'duplicate' ? '重複' : '錯誤');
   const cls = row.status === 'ok' ? 'import-status-ok' : (row.status === 'duplicate' ? 'import-status-duplicate' : 'import-status-error');
   return `
     <tr>
@@ -5805,20 +5805,22 @@ function importPreviewRowHtml(row) {
   `;
 }
 
-function externalImportCommitRows() {
+function externalImportCommitItems() {
   const state = externalImportState || {};
   const previewRows = (state.preview && state.preview.rows) || [];
   const rawRows = state.rows || [];
-  return rawRows.filter((_, idx) => previewRows[idx] && previewRows[idx].status === 'ok');
+  return rawRows
+    .map((row, idx) => ({ row, previewIndex: idx }))
+    .filter(item => previewRows[item.previewIndex] && previewRows[item.previewIndex].status === 'ok');
 }
 
-function renderExternalImportProgress(done, total, imported, totalRows) {
+function renderExternalImportProgress(done, total, imported, skipped, totalRows) {
   const pct = total ? Math.round(done / total * 100) : 0;
   showBoxMsg('external-import-msg', `
     <div class="external-import-progress">
       <strong>匯入進度：${done}/${total} 批</strong>
       <div class="external-import-progress-bar"><i style="width:${pct}%"></i></div>
-      <small>已寫入 ${imported}/${totalRows} 筆。請不要關閉頁面。</small>
+      <small>已新增 ${imported} 筆，重複跳過 ${skipped} 筆，共 ${totalRows} 筆。請不要關閉頁面。</small>
     </div>
   `, 'info');
 }
@@ -5831,11 +5833,11 @@ async function commitExternalImport() {
 
   const okCount = Number((state.preview.summary && state.preview.summary.ok) || 0);
   if (!okCount) return showBoxMsg('external-import-msg', '目前沒有可匯入資料。', 'err');
-  const rowsToImport = externalImportCommitRows();
-  if (!rowsToImport.length) return showBoxMsg('external-import-msg', '找不到可匯入資料，請重新預覽。', 'err');
+  const itemsToImport = externalImportCommitItems();
+  if (!itemsToImport.length) return showBoxMsg('external-import-msg', '找不到可匯入資料，請重新預覽。', 'err');
   const ok = await openConfirmDialog({
     title: 'CYP135 票務系統',
-    message: '確認匯入 ' + okCount + ' 筆資料？',
+    message: '確認匯入 ' + okCount + ' 筆資料？系統會再次檢查重複姓名，已匯入過的人會自動跳過。',
     okText: '確認匯入',
     cancelText: '取消'
   });
@@ -5844,14 +5846,17 @@ async function commitExternalImport() {
   showActionLock('正在匯入名單', '請稍候，正在寫入可匯入資料。');
   try {
     const batchSize = 50;
-    const totalBatches = Math.ceil(rowsToImport.length / batchSize);
+    const totalBatches = Math.ceil(itemsToImport.length / batchSize);
     let imported = 0;
+    let skippedDuplicate = 0;
     const writtenRows = [];
+    const finalRows = ((state.preview && state.preview.rows) || []).map(row => Object.assign({}, row));
 
-    for (let start = 0; start < rowsToImport.length; start += batchSize) {
+    for (let start = 0; start < itemsToImport.length; start += batchSize) {
       const batchNo = Math.floor(start / batchSize) + 1;
-      const batch = rowsToImport.slice(start, start + batchSize);
-      renderExternalImportProgress(batchNo - 1, totalBatches, imported, rowsToImport.length);
+      const batchItems = itemsToImport.slice(start, start + batchSize);
+      const batch = batchItems.map(item => item.row);
+      renderExternalImportProgress(batchNo - 1, totalBatches, imported, skippedDuplicate, itemsToImport.length);
       setActionLockProgress(
         Math.max(10, Math.round((batchNo - 1) / totalBatches * 92)),
         '正在匯入名單',
@@ -5872,18 +5877,38 @@ async function commitExternalImport() {
       }
 
       imported += Number(data.imported || 0);
+      skippedDuplicate += Number(data.skippedDuplicate || (data.summary && data.summary.duplicate) || 0);
       (data.writtenRows || []).forEach(n => writtenRows.push(Number(n)));
-      renderExternalImportProgress(batchNo, totalBatches, imported, rowsToImport.length);
+      const batchResultRows = data.rows || [];
+      batchItems.forEach((item, i) => {
+        if (finalRows[item.previewIndex] && batchResultRows[i]) {
+          finalRows[item.previewIndex] = Object.assign({}, finalRows[item.previewIndex], batchResultRows[i], {
+            committed: batchResultRows[i].status === 'ok'
+          });
+        }
+      });
+      renderExternalImportProgress(batchNo, totalBatches, imported, skippedDuplicate, itemsToImport.length);
     }
+
+    const duplicateTotal = finalRows.filter(row => row.status === 'duplicate').length;
+    const errorTotal = finalRows.filter(row => row.status !== 'ok' && row.status !== 'duplicate').length;
+    const okTotal = finalRows.filter(row => row.status === 'ok').length;
 
     const finalData = Object.assign({}, state.preview, {
       status: 'ok',
       committed: true,
       imported,
+      skippedDuplicate,
       writtenRows,
       firstWrittenRow: writtenRows.length ? Math.min(...writtenRows) : '',
       lastWrittenRow: writtenRows.length ? Math.max(...writtenRows) : '',
-      message: '已分 ' + totalBatches + ' 批匯入 ' + imported + ' 筆資料。' +
+      summary: Object.assign({}, state.preview.summary || {}, {
+        ok: okTotal,
+        duplicate: duplicateTotal,
+        error: errorTotal
+      }),
+      rows: finalRows,
+      message: '已分 ' + totalBatches + ' 批處理完成：新增匯入 ' + imported + ' 筆，重複跳過 ' + skippedDuplicate + ' 筆。' +
         (writtenRows.length ? ' 寫入報名總表第 ' + Math.min(...writtenRows) + ' 到 ' + Math.max(...writtenRows) + ' 列。' : '')
     });
 
@@ -8463,7 +8488,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.56';
+const SEAT_DIAG_VERSION = 'V7.57';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
