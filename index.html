@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.58</title>
+  <title>CYP135 課程報名 V7.59</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -294,6 +294,11 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .roster-stat{background:#f7f4ed;border:1px solid #eadfce;border-radius:10px;padding:8px;text-align:center}
 .roster-stat strong{display:block;color:#2d5a3d;font-size:18px;line-height:1.1}
 .roster-stat span{font-size:11px;color:#777}
+.roster-money-breakdown{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:-2px 0 12px}
+.roster-money-item{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#fbfaf6;border:1px solid #eadfce;border-radius:10px;padding:8px 10px;color:#2d5a3d;font-weight:900}
+.roster-money-item span{min-width:0;overflow-wrap:anywhere}
+.roster-money-item em{font-style:normal;color:#777;font-size:12px;margin-left:4px;white-space:nowrap}
+.roster-money-item strong{white-space:nowrap}
 .roster-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
 .roster-tabs .btn{padding:10px 6px;border-radius:12px;font-size:14px}
 .roster-tabs .btn.on{background:#2d5a3d;color:#fff}
@@ -804,7 +809,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.58</small>
+    <small>CYP135 課程系統 V7.59</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -2920,6 +2925,7 @@ function renderRosterContent() {
         <div class="roster-stat"><strong>${esc(stats.cancelled || 0)}</strong><span>取消</span></div>
         <div class="roster-stat"><strong>${stats.remaining === '' ? '不限' : esc(stats.remaining)}</strong><span>剩餘名額</span></div>
       </div>
+      ${renderRosterMoneyBreakdown(rosterState.rows || [])}
       <div id="roster-msg" class="msg"></div>
       ${renderRosterFillAction()}
       <div class="divider"></div>
@@ -3539,6 +3545,22 @@ function rosterMoneySummary(rows) {
     sum.total += Number(priceValue || 0);
     return sum;
   }, { active: 0, total: 0 });
+}
+
+function renderRosterMoneyBreakdown(rows) {
+  const groups = groupRosterRowsByClass(rows)
+    .filter(group => group.className && group.className !== '—' && Number(group.active || 0) > 0);
+  if (!groups.length) return '';
+  return `
+    <div class="roster-money-breakdown">
+      ${groups.map(group => `
+        <div class="roster-money-item">
+          <span>${esc(group.className)}<em>${esc(Number(group.active || 0))}人</em></span>
+          <strong>$${esc(Number(group.total || 0))}</strong>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 function rosterActionButton(row) {
@@ -8529,7 +8551,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.58';
+const SEAT_DIAG_VERSION = 'V7.59';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
