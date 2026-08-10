@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.55</title>
+  <title>CYP135 課程報名 V7.56</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -277,6 +277,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .import-table th{background:#faf8f3;color:#555;font-weight:700}
 .import-status-ok{color:#2d7d46;font-weight:700}
 .import-status-duplicate,.import-status-error{color:#b23b3b;font-weight:700}
+.external-import-progress{margin-top:10px}
+.external-import-progress-bar{height:9px;border-radius:999px;background:#e8f0ea;overflow:hidden;margin-top:8px}
+.external-import-progress-bar i{display:block;height:100%;width:0;background:#2d5a3d;transition:width .22s ease}
+.external-import-progress small{display:block;margin-top:6px;color:#6f6a60}
 .roster-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
 .roster-stat{background:#f7f4ed;border:1px solid #eadfce;border-radius:10px;padding:8px;text-align:center}
 .roster-stat strong{display:block;color:#2d5a3d;font-size:18px;line-height:1.1}
@@ -791,7 +795,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.55</small>
+    <small>CYP135 課程系統 V7.56</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1112,7 +1116,7 @@ function post(action, payload, timeoutMs) {
   }).catch(err => {
     clearTimeout(timer);
     if (err && err.name === 'AbortError') {
-      throw new Error('讀取時間過久，請重新開啟頁面或稍後再試。');
+      throw new Error('伺服器處理時間較久，這不代表資料沒有寫入。請先回列表或重新整理確認結果，再決定是否重試。');
     }
     throw err;
   });
@@ -5801,6 +5805,24 @@ function importPreviewRowHtml(row) {
   `;
 }
 
+function externalImportCommitRows() {
+  const state = externalImportState || {};
+  const previewRows = (state.preview && state.preview.rows) || [];
+  const rawRows = state.rows || [];
+  return rawRows.filter((_, idx) => previewRows[idx] && previewRows[idx].status === 'ok');
+}
+
+function renderExternalImportProgress(done, total, imported, totalRows) {
+  const pct = total ? Math.round(done / total * 100) : 0;
+  showBoxMsg('external-import-msg', `
+    <div class="external-import-progress">
+      <strong>匯入進度：${done}/${total} 批</strong>
+      <div class="external-import-progress-bar"><i style="width:${pct}%"></i></div>
+      <small>已寫入 ${imported}/${totalRows} 筆。請不要關閉頁面。</small>
+    </div>
+  `, 'info');
+}
+
 async function commitExternalImport() {
   const state = externalImportState || {};
   if (!state.rows || !state.rows.length || !state.preview) {
@@ -5809,6 +5831,8 @@ async function commitExternalImport() {
 
   const okCount = Number((state.preview.summary && state.preview.summary.ok) || 0);
   if (!okCount) return showBoxMsg('external-import-msg', '目前沒有可匯入資料。', 'err');
+  const rowsToImport = externalImportCommitRows();
+  if (!rowsToImport.length) return showBoxMsg('external-import-msg', '找不到可匯入資料，請重新預覽。', 'err');
   const ok = await openConfirmDialog({
     title: 'CYP135 票務系統',
     message: '確認匯入 ' + okCount + ' 筆資料？',
@@ -5819,22 +5843,55 @@ async function commitExternalImport() {
 
   showActionLock('正在匯入名單', '請稍候，正在寫入可匯入資料。');
   try {
-    showBoxMsg('external-import-msg', '匯入中，請不要關閉頁面...', 'info');
-    const data = await post('commitExternalImport', {
-      userId,
-      eventCode: state.eventCode,
-      fileName: state.fileName,
-      rows: state.rows
-    }, 90000);
+    const batchSize = 50;
+    const totalBatches = Math.ceil(rowsToImport.length / batchSize);
+    let imported = 0;
+    const writtenRows = [];
 
-    if (!data || data.status !== 'ok') {
-      return showBoxMsg('external-import-msg', esc((data && data.message) || '匯入失敗'), 'err');
+    for (let start = 0; start < rowsToImport.length; start += batchSize) {
+      const batchNo = Math.floor(start / batchSize) + 1;
+      const batch = rowsToImport.slice(start, start + batchSize);
+      renderExternalImportProgress(batchNo - 1, totalBatches, imported, rowsToImport.length);
+      setActionLockProgress(
+        Math.max(10, Math.round((batchNo - 1) / totalBatches * 92)),
+        '正在匯入名單',
+        '正在寫入第 ' + batchNo + ' / ' + totalBatches + ' 批，請不要關閉頁面。'
+      );
+
+      const data = await post('commitExternalImport', {
+        userId,
+        eventCode: state.eventCode,
+        fileName: state.fileName,
+        rows: batch
+      }, 75000);
+
+      if (!data || data.status !== 'ok') {
+        const msg = '第 ' + batchNo + ' / ' + totalBatches + ' 批匯入失敗。前面已寫入 ' + imported + ' 筆，請先到名單確認後再處理。' +
+          '<br>' + esc((data && data.message) || '匯入失敗');
+        return showBoxMsg('external-import-msg', msg, 'err');
+      }
+
+      imported += Number(data.imported || 0);
+      (data.writtenRows || []).forEach(n => writtenRows.push(Number(n)));
+      renderExternalImportProgress(batchNo, totalBatches, imported, rowsToImport.length);
     }
 
-    externalImportState.preview = data;
+    const finalData = Object.assign({}, state.preview, {
+      status: 'ok',
+      committed: true,
+      imported,
+      writtenRows,
+      firstWrittenRow: writtenRows.length ? Math.min(...writtenRows) : '',
+      lastWrittenRow: writtenRows.length ? Math.max(...writtenRows) : '',
+      message: '已分 ' + totalBatches + ' 批匯入 ' + imported + ' 筆資料。' +
+        (writtenRows.length ? ' 寫入報名總表第 ' + Math.min(...writtenRows) + ' 到 ' + Math.max(...writtenRows) + ' 列。' : '')
+    });
+
+    externalImportState.preview = finalData;
     updateExternalImportSteps(5);
-    showBoxMsg('external-import-msg', esc(data.message || '匯入完成'), 'ok');
-    renderExternalImportPreview(data);
+    showBoxMsg('external-import-msg', esc(finalData.message || '匯入完成'), 'ok');
+    renderExternalImportPreview(finalData);
+    setActionLockProgress(100, '匯入完成', '已完成外部名單匯入。');
   } catch (err) {
     showBoxMsg('external-import-msg', esc(err.message || err), 'err');
   } finally {
@@ -6046,7 +6103,7 @@ async function submitCourseForm() {
 
     setActionLockProgress(52, '正在' + actionText, '請稍候，正在寫入課程設定。');
     showFormMsg(editingCourseCode ? '更新中...' : '建立中...', 'info');
-    const res = await post(editingCourseCode ? 'updateCourse' : 'createCourse', payload);
+    const res = await post(editingCourseCode ? 'updateCourse' : 'createCourse', payload, 75000);
 
     if (res.status === 'ok') {
       setActionLockProgress(82, '正在更新畫面', '課程已儲存，正在重新整理課程資料。');
@@ -8406,7 +8463,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.55';
+const SEAT_DIAG_VERSION = 'V7.56';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
