@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.57</title>
+  <title>CYP135 課程報名 V7.58</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -78,6 +78,15 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .top-actions .icon-only{flex:0 0 42px;width:42px;min-width:42px;padding:0;font-size:18px;line-height:1}
 .course-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,380px));gap:14px;align-items:start;justify-content:start}
 .course-card{background:#fff;border:1px solid rgba(45,90,61,.12);border-radius:18px;overflow:hidden;box-shadow:0 3px 12px rgba(0,0,0,.045);display:flex;flex-direction:column;min-height:100%}
+.course-hidden{background:#fff7f2!important;border-color:#d46b45!important;box-shadow:0 0 0 2px rgba(212,107,69,.14),0 8px 24px rgba(142,70,42,.12)!important}
+.course-hidden .course-body,.course-hidden-detail{background:linear-gradient(180deg,#fff7f2 0%,#fff 58%)}
+.course-hidden .course-title,.course-hidden h2{color:#8a351f!important}
+.course-hidden::before,.course-hidden-detail::before,.admin-course-row.course-hidden::before,.past-course-row.course-hidden::before{content:"已下架";display:block;background:#b94725;color:#fff;font-weight:900;text-align:center;letter-spacing:.16em;padding:6px 10px}
+.course-hidden-detail{border-color:#d46b45!important;box-shadow:0 0 0 2px rgba(212,107,69,.14),0 8px 24px rgba(142,70,42,.12)!important}
+.badge.hidden{background:#b94725;color:#fff}
+.admin-course-row.course-hidden,.past-course-row.course-hidden{position:relative;overflow:hidden;background:#fff7f2;border-color:#d46b45;box-shadow:0 0 0 2px rgba(212,107,69,.12)}
+.admin-course-row.course-hidden::before,.past-course-row.course-hidden::before{text-align:left;padding-left:14px;margin:-12px -12px 10px}
+.course-hidden-note{margin:8px 0 10px;padding:9px 11px;border-radius:12px;background:#fff0e8;border:1px solid rgba(180,71,37,.28);color:#8a351f;font-weight:900;font-size:13px}
 .course-img{width:100%;height:auto;max-height:none;background:#f7f4ed;object-fit:contain;display:block}
 .course-img.placeholder{height:180px}
 .course-body{padding:14px;display:flex;flex-direction:column;flex:1}
@@ -795,7 +804,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.57</small>
+    <small>CYP135 課程系統 V7.58</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1646,6 +1655,21 @@ function isCoursePublished(c) {
   return status !== '下架';
 }
 
+function courseHiddenClass(c, extra) {
+  const classes = [];
+  if (extra) classes.push(extra);
+  if (isCourseHidden(c)) classes.push('course-hidden');
+  return classes.join(' ');
+}
+
+function courseHiddenBadge(c) {
+  return isCourseHidden(c) ? '<span class="badge hidden">已下架</span>' : '';
+}
+
+function courseHiddenNote(c) {
+  return isCourseHidden(c) ? '<div class="course-hidden-note">此課程目前已下架，只保留後台資料與名單管理。</div>' : '';
+}
+
 function isCourseHidden(c) {
   return !isCoursePublished(c);
 }
@@ -2277,6 +2301,7 @@ function shareIconSvg() {
 
 function courseCardHtml(c) {
   c = reconcileCourseStatus(Object.assign({}, c));
+  const hidden = isCourseHidden(c);
   const full = c.statusBadge === '已額滿';
   const closed = c.statusBadge === '尚未開放';
   const canRegister = canCourseRegister(c);
@@ -2295,14 +2320,14 @@ function courseCardHtml(c) {
     ? `<button class="btn btn-ghost" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button>`
     : '';
   const publishButton = isAdminUser
-    ? `<button class="btn btn-warn" onclick="toggleCoursePublishStatus(event, '${esc(c.eventCode)}', '下架')">下架</button>`
+    ? `<button class="btn ${hidden ? 'btn-main' : 'btn-warn'}" onclick="toggleCoursePublishStatus(event, '${esc(c.eventCode)}', '${hidden ? '上架' : '下架'}')">${hidden ? '上架' : '下架'}</button>`
     : '';
   const img = c.dmUrl
     ? `<img class="course-img" loading="lazy" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">`
     : `<div class="course-img placeholder"></div>`;
 
   return `
-    <div class="course-card">
+    <div class="${courseHiddenClass(c, 'course-card')}">
       ${img}
       <div class="course-body">
         <div class="course-head">
@@ -2312,10 +2337,12 @@ function courseCardHtml(c) {
                要開回來只要把這個註解拿掉即可。 -->
         </div>
         <div class="badges">
+          ${courseHiddenBadge(c)}
           <span class="badge ${badgeClass}">${esc(c.statusBadge || c.statusText || '活動')}</span>
           <span class="badge">${esc(c.session || '場次未設定')}</span>
           ${aLevelBadge}
         </div>
+        ${courseHiddenNote(c)}
         <div class="meta">
           日期時間：<b>${esc(c.dateTime || '尚未設定')}</b><br>
           票種：${esc(c.ticketType || '—')}<br>
@@ -2607,6 +2634,7 @@ function canCourseRegister(c) {
 function renderCourseDetailContent(c) {
   currentView = 'detail';
   setTitle('活動詳情');
+  c = reconcileCourseStatus(Object.assign({}, c));
   currentCourse = c;
   renderMenu();
 
@@ -2626,12 +2654,14 @@ function renderCourseDetailContent(c) {
 
   app.innerHTML = `
     ${backButton}
-    <div class="card" style="margin-top:12px">
+    <div class="card ${isCourseHidden(c) ? 'course-hidden course-hidden-detail' : ''}" style="margin-top:12px">
       ${img}
       <h2>${esc(c.eventName)}</h2>
+      ${courseHiddenNote(c)}
       ${courseRequiresALevelClient(c)
         ? '<div class="alevel-badge">限包月 A 級會員（AA、A 方案）報名</div>' : ''}
       <div class="badges">
+        ${courseHiddenBadge(c)}
         <span class="badge ${c.statusBadge === '已額滿' ? 'red' : ''}">${esc(c.statusBadge || '活動')}</span>
         <span class="badge">${esc(c.session || '場次未設定')}</span>
       </div>
@@ -2879,8 +2909,10 @@ function renderRosterContent() {
 
   app.innerHTML = `
     ${renderRosterTopActions(c)}
-    <div class="card compact-card">
+    <div class="card compact-card ${isCourseHidden(c) ? 'course-hidden course-hidden-detail' : ''}">
       <h2>${esc(c.eventName || '課程名單')}</h2>
+      ${courseHiddenNote(c)}
+      ${isCourseHidden(c) ? '<div class="badges">' + courseHiddenBadge(c) + '</div>' : ''}
       <div class="meta">${esc(c.dateTime || '')}｜${esc(c.session || '')}<br>名額：${esc(stats.active || 0)} / ${esc(stats.maxCount || '不限')}</div>
       <div class="roster-summary">
         <div class="roster-stat"><strong>${esc(stats.active || 0)}</strong><span>報名</span></div>
@@ -2935,8 +2967,11 @@ function renderRosterAddForm() {
   if (!rosterState.add) resetRosterAddState();
 
   return `
-    <div class="card compact-card">
+    <div class="card compact-card ${isCourseHidden(c) ? 'course-hidden course-hidden-detail' : ''}">
       <h2>管理加報</h2>
+      ${c.eventName ? '<div class="meta">' + esc(c.eventName) + '</div>' : ''}
+      ${courseHiddenNote(c)}
+      ${isCourseHidden(c) ? '<div class="badges">' + courseHiddenBadge(c) + '</div>' : ''}
       ${courseRequiresALevelClient(c) ? renderALevelNoticeClient() : ''}
       <div id="roster-msg" class="msg"></div>
       <div class="form-grid">
@@ -3915,7 +3950,7 @@ function renderPastCourseList(courses) {
   el.innerHTML = `
     <div class="past-course-list">
       ${hiddenCourses.map(c => `
-        <div class="past-course-row">
+        <div class="${courseHiddenClass(c, 'past-course-row')}">
           <div class="past-course-main">
             <div class="past-course-title">${esc(c.eventName || '未命名活動')}</div>
             <div class="past-course-meta">${esc(buildPastCourseMeta(c))}</div>
@@ -4957,8 +4992,9 @@ function renderAdminCourseList(courses) {
   }
 
   el.innerHTML = courses.map(c => `
-    <div class="admin-course-row">
-      <h2>${esc(c.eventCode)}｜${esc(c.eventName)} <span class="badge">${esc(c.statusBadge || c.statusText || '')}</span></h2>
+    <div class="${courseHiddenClass(c, 'admin-course-row')}">
+      <h2>${esc(c.eventCode)}｜${esc(c.eventName)} ${courseHiddenBadge(c)} <span class="badge">${esc(c.statusBadge || c.statusText || '')}</span></h2>
+      ${courseHiddenNote(c)}
       <div class="meta">
         日期：${esc(c.dateTime || '—')}<br>
         場次：${esc(c.session || '—')}　票種：${esc(c.ticketType || '—')}<br>
@@ -5017,8 +5053,10 @@ function refreshExternalCourseOptions(selectedCode) {
     const code = normalizeCode(c.eventCode);
     const selected = code === current ? 'selected' : '';
     // 現在會列出全部課程（含下架），標一下狀態免得選錯。
-    const tag = isCourseHidden(c) ? '（已下架）' : '';
-    return `<option value="${esc(code)}" ${selected}>${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}${tag}</option>`;
+    const hidden = isCourseHidden(c);
+    const tag = hidden ? '【已下架】' : '';
+    const style = hidden ? 'style="background:#fff0e8;color:#8a351f;font-weight:700"' : '';
+    return `<option value="${esc(code)}" ${selected} ${style}>${tag}${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`;
   }).join('');
   select.innerHTML = '<option value="">請選擇課程</option>' + options;
   externalImportState.eventCode = current;
@@ -5030,7 +5068,10 @@ function renderExternalImportShell(selectedCode, loadingCourses) {
   const options = courses.map(c => {
     const code = normalizeCode(c.eventCode);
     const selected = code === selectedCode ? 'selected' : '';
-    return `<option value="${esc(code)}" ${selected}>${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`;
+    const hidden = isCourseHidden(c);
+    const tag = hidden ? '【已下架】' : '';
+    const style = hidden ? 'style="background:#fff0e8;color:#8a351f;font-weight:700"' : '';
+    return `<option value="${esc(code)}" ${selected} ${style}>${tag}${esc(c.eventName)}${c.dateTime ? '｜' + esc(c.dateTime) : ''}</option>`;
   }).join('');
   const courseOptions = loadingCourses
     ? '<option value="">課程載入中，可先選 Excel</option>'
@@ -8488,7 +8529,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.57';
+const SEAT_DIAG_VERSION = 'V7.58';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
