@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.59</title>
+  <title>CYP135 課程報名 V7.60</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -299,6 +299,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .roster-money-item span{min-width:0;overflow-wrap:anywhere}
 .roster-money-item em{font-style:normal;color:#777;font-size:12px;margin-left:4px;white-space:nowrap}
 .roster-money-item strong{white-space:nowrap}
+.roster-field-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:-4px 0 12px}
+.roster-field-stat{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#eef7ef;border:1px solid #c9e5c8;border-radius:10px;padding:8px 10px;color:#2d5a3d;font-weight:900}
+.roster-field-stat strong{white-space:nowrap}
+.roster-field-stat span{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #dcebdd;border-radius:999px;padding:3px 8px;color:#2d5a3d;font-size:13px}
 .roster-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
 .roster-tabs .btn{padding:10px 6px;border-radius:12px;font-size:14px}
 .roster-tabs .btn.on{background:#2d5a3d;color:#fff}
@@ -809,7 +813,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.59</small>
+    <small>CYP135 課程系統 V7.60</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -2926,6 +2930,7 @@ function renderRosterContent() {
         <div class="roster-stat"><strong>${stats.remaining === '' ? '不限' : esc(stats.remaining)}</strong><span>剩餘名額</span></div>
       </div>
       ${renderRosterMoneyBreakdown(rosterState.rows || [])}
+      ${renderRosterFieldStats(c, rosterState.rows || [])}
       <div id="roster-msg" class="msg"></div>
       ${renderRosterFillAction()}
       <div class="divider"></div>
@@ -3561,6 +3566,60 @@ function renderRosterMoneyBreakdown(rows) {
       `).join('')}
     </div>
   `;
+}
+
+function normalizeRosterFieldStatValue(key, value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (key === 'gender') {
+    if (text.includes('男')) return '男';
+    if (text.includes('女')) return '女';
+    return '其他';
+  }
+  if (key === 'meal') {
+    if (text.includes('素')) return '素';
+    if (text.includes('葷') || text.includes('荤')) return '葷';
+    return text;
+  }
+  return text;
+}
+
+function rosterFieldStatGroups(rows, key) {
+  const map = {};
+  (rows || []).forEach(row => {
+    if (row.rawStatus === '取消') return;
+    const label = normalizeRosterFieldStatValue(key, row[key]);
+    if (!label) return;
+    map[label] = (map[label] || 0) + 1;
+  });
+  const preferred = key === 'gender' ? ['男', '女', '其他'] : ['葷', '素'];
+  return Object.keys(map).sort((a, b) => {
+    const rankA = preferred.indexOf(a);
+    const rankB = preferred.indexOf(b);
+    if (rankA !== -1 || rankB !== -1) return (rankA === -1 ? 999 : rankA) - (rankB === -1 ? 999 : rankB);
+    return String(a || '').localeCompare(String(b || ''), 'zh-Hant');
+  }).map(label => ({ label, count: map[label] }));
+}
+
+function renderRosterFieldStats(course, rows) {
+  const fields = normalizeRegistrationFieldsClient((course && course.registrationFields) || {});
+  const configs = [
+    { key: 'gender', label: '性別' },
+    { key: 'meal', label: '葷素' }
+  ];
+  const sections = configs.map(config => {
+    if (fields[config.key] === 'hidden') return '';
+    const groups = rosterFieldStatGroups(rows, config.key);
+    if (!groups.length) return '';
+    return `
+      <div class="roster-field-stat">
+        <strong>${esc(config.label)}</strong>
+        ${groups.map(group => `<span>${esc(group.label)} ${esc(group.count)}人</span>`).join('')}
+      </div>
+    `;
+  }).filter(Boolean);
+  if (!sections.length) return '';
+  return `<div class="roster-field-stats">${sections.join('')}</div>`;
 }
 
 function rosterActionButton(row) {
@@ -8551,7 +8610,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.59';
+const SEAT_DIAG_VERSION = 'V7.60';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
