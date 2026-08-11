@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.60</title>
+  <title>CYP135 課程報名 V7.61</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -813,7 +813,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.60</small>
+    <small>CYP135 課程系統 V7.61</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -2934,11 +2934,11 @@ function renderRosterContent() {
       <div id="roster-msg" class="msg"></div>
       ${renderRosterFillAction()}
       <div class="divider"></div>
-      <div class="searchbar"><input id="roster-search" placeholder="搜尋姓名 / 雁群 / 類別 / 狀態" value="${esc(rosterState.query || '')}" oninput="filterRosterList()"></div>
+      <div class="searchbar"><input id="roster-search" placeholder="搜尋姓名 / 雁群 / 類別 / 性別 / 葷素 / 狀態" value="${esc(rosterState.query || '')}" oninput="filterRosterList()"></div>
       <div class="roster-tabs">
-        <button class="btn btn-sub ${rosterState.view === 'grouped' ? 'on' : ''}" onclick="setRosterView('grouped')">報名名單</button>
-        <button class="btn btn-sub ${rosterState.view === 'detail' ? 'on' : ''}" onclick="setRosterView('detail')">報名詳情</button>
-        <button class="btn btn-sub ${rosterState.view === 'cancelled' ? 'on' : ''}" onclick="setRosterView('cancelled')">取消名單</button>
+        <button class="btn btn-sub ${rosterState.view === 'grouped' ? 'on' : ''}" data-roster-view="grouped" onclick="setRosterView('grouped')">報名名單</button>
+        <button class="btn btn-sub ${rosterState.view === 'detail' ? 'on' : ''}" data-roster-view="detail" onclick="setRosterView('detail')">報名詳情</button>
+        <button class="btn btn-sub ${rosterState.view === 'cancelled' ? 'on' : ''}" data-roster-view="cancelled" onclick="setRosterView('cancelled')">取消名單</button>
       </div>
       <div id="roster-list"></div>
     </div>
@@ -3369,17 +3369,57 @@ function filterRosterList() {
 
 function setRosterView(view) {
   rosterState.view = view;
-  renderRosterContent();
+  const list = document.getElementById('roster-list');
+  if (!list) {
+    renderRosterContent();
+    return;
+  }
+  document.querySelectorAll('[data-roster-view]').forEach(btn => {
+    btn.classList.toggle('on', btn.getAttribute('data-roster-view') === view);
+  });
+  renderRosterList();
+}
+
+function normalizeRosterSearchTerm(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function rosterSearchAliases(key, value) {
+  const text = String(value || '').trim();
+  if (!text) return [];
+  if (key === 'gender') return ['性別', text, normalizeRosterFieldStatValue('gender', text)];
+  if (key === 'meal') return ['葷素', '餐食', '飲食', text, normalizeRosterFieldStatValue('meal', text)];
+  return [text];
+}
+
+function rosterRowSearchText(row) {
+  const status = row.rawStatus || row.status || '正常';
+  const parts = [
+    row.name,
+    row.cleanName,
+    row.leader,
+    row.flock,
+    row.classType,
+    row.displayClassType,
+    status,
+    row.source,
+    row.cancelReason,
+    row.remark,
+    row.createdBy,
+    row.cancelledBy
+  ];
+  parts.push(...rosterSearchAliases('gender', row.gender));
+  parts.push(...rosterSearchAliases('meal', row.meal));
+  return normalizeRosterSearchTerm(parts.filter(Boolean).join(' '));
 }
 
 function getFilteredRosterRows() {
-  const q = String(rosterState.query || '').trim().toLowerCase();
+  const q = normalizeRosterSearchTerm(rosterState.query);
   let rows = (rosterState.rows || []).slice();
   if (rosterState.view === 'grouped') rows = rows.filter(row => row.rawStatus !== '取消');
   if (rosterState.view === 'cancelled') rows = rows.filter(row => row.rawStatus === '取消');
   if (q) {
-    rows = rows.filter(row => [row.name, row.cleanName, row.leader, row.flock, row.classType, row.displayClassType, row.status, row.source, row.cancelReason]
-      .join(' ').toLowerCase().includes(q));
+    rows = rows.filter(row => rosterRowSearchText(row).includes(q));
   }
   return rows;
 }
@@ -8610,7 +8650,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.60';
+const SEAT_DIAG_VERSION = 'V7.61';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
