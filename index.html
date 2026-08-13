@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.63</title>
+  <title>CYP135 課程報名 V7.64</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -817,7 +817,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.63</small>
+    <small>CYP135 課程系統 V7.64</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1042,7 +1042,7 @@ const DEFAULT_TICKET_DISPLAY_OPTIONS = {
   group: true,
   room: false
 };
-let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '', displayOptions: Object.assign({}, DEFAULT_TICKET_DISPLAY_OPTIONS), driveClassroom: '' };
+let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '', displayOptions: Object.assign({}, DEFAULT_TICKET_DISPLAY_OPTIONS), driveRouteMode: 'auto', driveCustomClassroom: '' };
 let ticketScriptsLoading = null;
 
 const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v98';
@@ -7893,12 +7893,13 @@ function renderTicketDisplayOptions() {
     ['flock', '白金/小組'],
     ['classType', '類別/資格'],
     ['group', '組別'],
-    ['room', '教室']
+    ['room', '票面教室']
   ];
   const opts = ticketState.displayOptions || DEFAULT_TICKET_DISPLAY_OPTIONS;
   return `
     <div class="ticket-member-note">
-      <b>票券顯示內容</b>
+      <b>票券上要印出的資料</b><br>
+      這裡只控制票券圖片文字，不影響雲端資料夾分派。
       <div class="ticket-option-grid">
         ${labels.map(([key, label]) => `
           <label class="ticket-check">
@@ -7912,13 +7913,28 @@ function renderTicketDisplayOptions() {
 }
 
 function renderTicketDriveOptions() {
+  const mode = ticketState.driveRouteMode || 'auto';
+  const custom = ticketState.driveCustomClassroom || '';
+  const options = [
+    ['auto', '自動判斷（推薦）'],
+    ['legacy', '沿用原本白金資料夾'],
+    ['taipei245', '台北245教室'],
+    ['zhongli', '中壢教室'],
+    ['custom', '自己輸入教室']
+  ];
   return `
     <div class="ticket-member-note">
-      <b>雲端分派</b><br>
-      台北135/新竹會沿用原本白金資料夾；其他教室會自動建立「教室 → 白金 → 課程」資料夾。
+      <b>雲端資料夾分派</b><br>
+      這裡只決定票券要放到哪個 Google Drive 資料夾，報名表不用新增「教室」欄位。
       <div class="field" style="margin:8px 0 0">
-        <label>教室分派名稱，可空白自動判斷</label>
-        <input id="ticket-drive-classroom" placeholder="例如 中壢教室 / 台北245教室；台北135、新竹可留空或填入" value="${esc(ticketState.driveClassroom || '')}" oninput="handleTicketDriveClassroomInput()">
+        <label>分派方式</label>
+        <select id="ticket-drive-mode" onchange="handleTicketDriveModeChange()">
+          ${options.map(([value, label]) => `<option value="${esc(value)}" ${mode === value ? 'selected' : ''}>${esc(label)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field" id="ticket-drive-custom-field" style="margin:8px 0 0;display:${mode === 'custom' ? 'block' : 'none'}">
+        <label>自訂教室資料夾名稱</label>
+        <input id="ticket-drive-custom-classroom" placeholder="例如 台中教室 / 高雄教室" value="${esc(custom)}" oninput="handleTicketDriveClassroomInput()">
       </div>
       <div class="ticket-route" id="ticket-drive-route">${ticketDriveRouteText()}</div>
     </div>
@@ -7959,8 +7975,13 @@ function handleTicketCourseChange() {
   updateTicketDriveRoute();
 }
 
+function handleTicketDriveModeChange() {
+  ticketState.driveRouteMode = val('ticket-drive-mode') || 'auto';
+  updateTicketDriveRoute();
+}
+
 function handleTicketDriveClassroomInput() {
-  ticketState.driveClassroom = val('ticket-drive-classroom');
+  ticketState.driveCustomClassroom = val('ticket-drive-custom-classroom');
   updateTicketDriveRoute();
 }
 
@@ -7979,7 +8000,12 @@ function inferTicketClassroom(course) {
 }
 
 function ticketDriveClassroomValue() {
-  return val('ticket-drive-classroom') || ticketState.driveClassroom || inferTicketClassroom();
+  const mode = val('ticket-drive-mode') || ticketState.driveRouteMode || 'auto';
+  if (mode === 'legacy') return '';
+  if (mode === 'taipei245') return '台北245教室';
+  if (mode === 'zhongli') return '中壢教室';
+  if (mode === 'custom') return val('ticket-drive-custom-classroom') || ticketState.driveCustomClassroom || '';
+  return inferTicketClassroom();
 }
 
 function isLegacyTicketDriveClassroom(name) {
@@ -7994,12 +8020,21 @@ function ticketDriveUsesClassroomFolder(name) {
 
 function ticketDriveRouteText() {
   const classroom = ticketDriveClassroomValue();
-  if (!classroom) return '目前路徑：白金資料夾 → 課程名稱';
+  const mode = val('ticket-drive-mode') || ticketState.driveRouteMode || 'auto';
+  if (!classroom) {
+    return mode === 'auto'
+      ? '目前路徑：白金資料夾 → 課程名稱（自動判斷不到教室，先沿用原本方式）'
+      : '目前路徑：白金資料夾 → 課程名稱';
+  }
   if (ticketDriveUsesClassroomFolder(classroom)) return `目前路徑：${esc(classroom)} → 白金資料夾 → 課程名稱`;
-  return `目前路徑：白金資料夾 → 課程名稱（${esc(classroom)} 沿用原本資料夾）`;
+  return `目前路徑：白金資料夾 → 課程名稱（${esc(classroom)} 沿用原本方式）`;
 }
 
 function updateTicketDriveRoute() {
+  const mode = val('ticket-drive-mode') || ticketState.driveRouteMode || 'auto';
+  ticketState.driveRouteMode = mode;
+  const custom = document.getElementById('ticket-drive-custom-field');
+  if (custom) custom.style.display = mode === 'custom' ? 'block' : 'none';
   const box = document.getElementById('ticket-drive-route');
   if (box) box.innerHTML = ticketDriveRouteText();
 }
@@ -8962,7 +8997,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.63';
+const SEAT_DIAG_VERSION = 'V7.64';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
