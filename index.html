@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.62</title>
+  <title>CYP135 課程報名 V7.63</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -272,6 +272,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .ticket-preview-card{background:#f7f4ed;border:1px solid #eadfce;border-radius:16px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.08)}
 .ticket-preview-card canvas{display:block;width:100%;height:auto}
 .ticket-member-note{font-size:12px;color:#777;line-height:1.7;background:#faf8f3;border:1px solid #eee3d4;border-radius:14px;padding:10px;margin-top:8px}
+.ticket-option-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.ticket-check{display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #eadfce;border-radius:10px;padding:8px 9px;color:#2d5a3d;font-weight:900}
+.ticket-check input{width:auto;margin:0}
+.ticket-route{margin-top:8px;padding:8px 10px;border-radius:10px;background:#fff;color:#2d5a3d;font-weight:900;border:1px solid #eadfce}
 .ticket-progress{display:none;margin-top:10px;background:#f5f2eb;border-radius:999px;height:8px;overflow:hidden}
 .ticket-progress.on{display:block}
 .ticket-progress > div{height:100%;width:0;background:#2d5a3d;transition:width .15s}
@@ -813,7 +817,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.62</small>
+    <small>CYP135 課程系統 V7.63</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1026,7 +1030,19 @@ let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grou
 let isSharedEntry = false;
 let sharedCourseToken = '';
 
-let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '' };
+const DEFAULT_TICKET_DISPLAY_OPTIONS = {
+  eventName: true,
+  dateTime: true,
+  session: true,
+  ticketType: true,
+  code: true,
+  name: true,
+  flock: true,
+  classType: false,
+  group: true,
+  room: false
+};
+let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '', displayOptions: Object.assign({}, DEFAULT_TICKET_DISPLAY_OPTIONS), driveClassroom: '' };
 let ticketScriptsLoading = null;
 
 const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v98';
@@ -7835,7 +7851,7 @@ async function renderTicketGeneratorPage() {
       <div id="ticket-msg" class="msg"></div>
       <div class="field">
         <label>選擇活動</label>
-        <select id="ticket-course-select">
+        <select id="ticket-course-select" onchange="handleTicketCourseChange()">
           <option value="">請選擇活動</option>
           ${options}
         </select>
@@ -7846,12 +7862,14 @@ async function renderTicketGeneratorPage() {
           <input type="file" id="ticket-bg-file" accept="image/*" onchange="handleTicketBgUpload(this)">
         </div>
       </div>
+      ${renderTicketDisplayOptions()}
+      ${renderTicketDriveOptions()}
       <div class="ticket-toolbar">
         <button class="btn btn-main" onclick="syncTicketMembers()">同步報名名單 / 補 CODE</button>
         <button class="btn btn-sub" onclick="renderTicketPreview()">預覽前兩張</button>
       </div>
       <button class="btn btn-main" style="width:100%" onclick="downloadTicketZip()">下載全部票券 ZIP</button>
-      <button class="btn btn-sub" style="width:100%" onclick="uploadTicketsToDrive(false)">補缺到雲端</button>
+      <button class="btn btn-sub" style="width:100%" onclick="uploadTicketsToDrive(false)">補單：只上傳雲端缺少票券</button>
       <button class="btn btn-ghost" style="width:100%" onclick="uploadTicketsToDrive(true)">重新覆蓋全部</button>
       <div class="ticket-progress" id="ticket-progress"><div id="ticket-progress-fill"></div></div>
       <div class="ticket-member-note" id="ticket-summary">尚未同步名單。</div>
@@ -7862,6 +7880,128 @@ async function renderTicketGeneratorPage() {
       <div class="ticket-preview-wrap" id="ticket-preview-list"></div>
     </div>
   `;
+}
+
+function renderTicketDisplayOptions() {
+  const labels = [
+    ['eventName', '課程名稱'],
+    ['dateTime', '日期時間'],
+    ['session', '場次'],
+    ['ticketType', '票種'],
+    ['code', '票券代碼'],
+    ['name', '姓名'],
+    ['flock', '白金/小組'],
+    ['classType', '類別/資格'],
+    ['group', '組別'],
+    ['room', '教室']
+  ];
+  const opts = ticketState.displayOptions || DEFAULT_TICKET_DISPLAY_OPTIONS;
+  return `
+    <div class="ticket-member-note">
+      <b>票券顯示內容</b>
+      <div class="ticket-option-grid">
+        ${labels.map(([key, label]) => `
+          <label class="ticket-check">
+            <input type="checkbox" id="ticket-show-${esc(key)}" ${opts[key] ? 'checked' : ''} onchange="handleTicketDisplayOptionChange()">
+            ${esc(label)}
+          </label>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderTicketDriveOptions() {
+  return `
+    <div class="ticket-member-note">
+      <b>雲端分派</b><br>
+      台北135/新竹會沿用原本白金資料夾；其他教室會自動建立「教室 → 白金 → 課程」資料夾。
+      <div class="field" style="margin:8px 0 0">
+        <label>教室分派名稱，可空白自動判斷</label>
+        <input id="ticket-drive-classroom" placeholder="例如 中壢教室 / 台北245教室；台北135、新竹可留空或填入" value="${esc(ticketState.driveClassroom || '')}" oninput="handleTicketDriveClassroomInput()">
+      </div>
+      <div class="ticket-route" id="ticket-drive-route">${ticketDriveRouteText()}</div>
+    </div>
+  `;
+}
+
+function getTicketSelectedCourse() {
+  const code = normalizeCode(val('ticket-course-select'));
+  return code ? getCourseFromState(code) : null;
+}
+
+function readTicketDisplayOptions() {
+  const next = {};
+  Object.keys(DEFAULT_TICKET_DISPLAY_OPTIONS).forEach(key => {
+    const box = document.getElementById('ticket-show-' + key);
+    next[key] = box ? !!box.checked : !!DEFAULT_TICKET_DISPLAY_OPTIONS[key];
+  });
+  ticketState.displayOptions = next;
+  return next;
+}
+
+function handleTicketDisplayOptionChange() {
+  readTicketDisplayOptions();
+  if (ticketState.members.length) renderTicketPreview();
+}
+
+function handleTicketCourseChange() {
+  const course = getTicketSelectedCourse();
+  ticketState.course = course || null;
+  ticketState.members = [];
+  ticketState.stats = null;
+  const summary = document.getElementById('ticket-summary');
+  if (summary) summary.innerHTML = ticketState.bgName ? `已選票券底圖：${esc(ticketState.bgName)}<br>請同步新活動名單。` : '尚未同步名單。';
+  const card = document.getElementById('ticket-preview-card');
+  const list = document.getElementById('ticket-preview-list');
+  if (card) card.style.display = 'none';
+  if (list) list.innerHTML = '';
+  updateTicketDriveRoute();
+}
+
+function handleTicketDriveClassroomInput() {
+  ticketState.driveClassroom = val('ticket-drive-classroom');
+  updateTicketDriveRoute();
+}
+
+function normalizeTicketClassroomName(text) {
+  return String(text || '').replace(/[\s\u3000]/g, '').replace(/教室$/g, '').trim();
+}
+
+function inferTicketClassroom(course) {
+  const c = course || ticketState.course || getTicketSelectedCourse() || {};
+  const text = [c.eventName, c.session, c.ticketType, c.description].filter(Boolean).join(' ');
+  if (/台北\s*135|北\s*135|135\s*教室/i.test(text)) return '台北135教室';
+  if (/台北\s*245|北\s*245|245\s*教室/i.test(text)) return '台北245教室';
+  if (/新竹/i.test(text)) return '新竹教室';
+  if (/中壢|中坜/i.test(text)) return '中壢教室';
+  return '';
+}
+
+function ticketDriveClassroomValue() {
+  return val('ticket-drive-classroom') || ticketState.driveClassroom || inferTicketClassroom();
+}
+
+function isLegacyTicketDriveClassroom(name) {
+  const key = normalizeTicketClassroomName(name);
+  return key === '台北135' || key === '北135' || key === '新竹';
+}
+
+function ticketDriveUsesClassroomFolder(name) {
+  const classroom = String(name || '').trim();
+  return !!classroom && !isLegacyTicketDriveClassroom(classroom);
+}
+
+function ticketDriveRouteText() {
+  const classroom = ticketDriveClassroomValue();
+  if (!classroom) return '目前路徑：白金資料夾 → 課程名稱';
+  if (ticketDriveUsesClassroomFolder(classroom)) return `目前路徑：${esc(classroom)} → 白金資料夾 → 課程名稱`;
+  return `目前路徑：白金資料夾 → 課程名稱（${esc(classroom)} 沿用原本資料夾）`;
+}
+
+function updateTicketDriveRoute() {
+  const box = document.getElementById('ticket-drive-route');
+  if (box) box.innerHTML = ticketDriveRouteText();
 }
 
 function handleTicketBgUpload(input) {
@@ -7908,6 +8048,7 @@ async function syncTicketMembers() {
     ticketState.members = data.members || [];
     ticketState.stats = data.stats || {};
     mergeCourseToState(data.course);
+    updateTicketDriveRoute();
     clearBoxMsg('ticket-msg');
     document.getElementById('ticket-summary').innerHTML = buildTicketSummaryHtml(ticketState.stats);
     await renderTicketPreview();
@@ -7970,6 +8111,55 @@ function ticketWrapText(ctx, text, x, y, maxW, lh, maxLines) {
   lines.slice(0, maxLines || 2).forEach((l,i) => ctx.fillText(l, x, y+i*lh));
 }
 
+function ticketMeasureLines(ctx, text, maxW, maxLines) {
+  const chars = String(text || '').split('');
+  let line = '';
+  const lines = [];
+  chars.forEach(ch => {
+    const test = line + ch;
+    if (ctx.measureText(test).width > maxW && line) {
+      lines.push(line);
+      line = ch;
+    } else {
+      line = test;
+    }
+  });
+  if (line) lines.push(line);
+  const limited = lines.slice(0, maxLines || 2);
+  if (lines.length > limited.length && limited.length) {
+    let last = limited[limited.length - 1];
+    while (last && ctx.measureText(last + '...').width > maxW) last = last.slice(0, -1);
+    limited[limited.length - 1] = (last || '').trim() + '...';
+  }
+  return limited;
+}
+
+function ticketDrawFitText(ctx, text, opts) {
+  opts = opts || {};
+  const value = String(text || '').trim();
+  if (!value) return { lines: 0, height: 0 };
+  const x = opts.x || 0;
+  const y = opts.y || 0;
+  const maxW = opts.maxW || 400;
+  const maxLines = opts.maxLines || 1;
+  const maxSize = opts.maxSize || 24;
+  const minSize = opts.minSize || 14;
+  const weight = opts.weight || 700;
+  const family = opts.family || '"Noto Sans TC", sans-serif';
+  const align = opts.align || 'center';
+  let size = maxSize;
+  let lines = [];
+  for (; size >= minSize; size -= 2) {
+    ctx.font = `${weight} ${size}px ${family}`;
+    lines = ticketMeasureLines(ctx, value, maxW, maxLines);
+    if (lines.length <= maxLines && lines.every(line => ctx.measureText(line).width <= maxW)) break;
+  }
+  const lh = opts.lineHeight || Math.round(size * 1.22);
+  ctx.textAlign = align;
+  lines.forEach((line, index) => ctx.fillText(line, x, y + index * lh));
+  return { lines: lines.length, height: lines.length ? (lines.length - 1) * lh + size : 0, fontSize: size, lineHeight: lh };
+}
+
 function ticketQrImage(code) {
   return new Promise(resolve => {
     const container = document.createElement('div');
@@ -7996,6 +8186,7 @@ async function drawTicketCanvas(canvas, person, info) {
   const W = 560, H = 1240, topH = 420, px = 40;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
+  const display = Object.assign({}, DEFAULT_TICKET_DISPLAY_OPTIONS, ticketState.displayOptions || {});
 
   ctx.fillStyle = '#0d1f33';
   ctx.fillRect(0, 0, W, topH);
@@ -8013,16 +8204,41 @@ async function drawTicketCanvas(canvas, person, info) {
   ctx.fillStyle = '#1a3a5c';
   ctx.fillRect(px, topH + 24, W - px*2, 3);
 
-  ctx.textAlign = 'center';
-  ctx.font = '900 34px "Noto Sans TC", sans-serif';
-  ctx.fillStyle = '#1a1a2e';
-  ticketWrapText(ctx, info.eventName, px, topH + 72, W - px*2, 42, 2);
+  let cursorY = topH + 68;
+  if (display.eventName) {
+    ctx.fillStyle = '#1a1a2e';
+    const title = ticketDrawFitText(ctx, info.eventName, {
+      x: W / 2,
+      y: cursorY,
+      maxW: W - px * 2,
+      maxLines: 2,
+      maxSize: 34,
+      minSize: 22,
+      weight: 900,
+      lineHeight: 42
+    });
+    cursorY += Math.max(42, title.height) + 24;
+  }
 
-  const sub = [info.displayDate, info.session, info.ticketType].filter(Boolean).join('  ·  ');
+  const sub = [
+    display.dateTime ? info.displayDate : '',
+    display.session ? info.session : '',
+    display.ticketType ? info.ticketType : '',
+    display.classType ? person.classType : ''
+  ].filter(Boolean).join('  ·  ');
   if (sub) {
-    ctx.font = '600 18px "Noto Sans TC", sans-serif';
     ctx.fillStyle = '#4f5964';
-    ctx.fillText(sub, W/2, topH + 140);
+    const subText = ticketDrawFitText(ctx, sub, {
+      x: W / 2,
+      y: cursorY,
+      maxW: W - px * 2,
+      maxLines: 2,
+      maxSize: 18,
+      minSize: 14,
+      weight: 600,
+      lineHeight: 24
+    });
+    cursorY += Math.max(24, subText.height) + 20;
   }
 
   const qrSize = Math.round(W * 0.70);
@@ -8038,39 +8254,60 @@ async function drawTicketCanvas(canvas, person, info) {
   if (qrImg) ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
 
   const codeBaseY = qrY + qrSize + 28;
-  ctx.font = '700 36px "Courier New", monospace';
-  ctx.fillStyle = '#1a1a2e';
-  ctx.textAlign = 'center';
-  ctx.fillText(String(person.code || '').toUpperCase(), W/2, codeBaseY + 32);
+  let lowerY = codeBaseY;
+  if (display.code) {
+    ctx.font = '700 36px "Courier New", monospace';
+    ctx.fillStyle = '#1a1a2e';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(person.code || '').toUpperCase(), W/2, lowerY + 32);
+    lowerY += 50;
+  }
 
   ctx.strokeStyle = '#eeeeee'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(px*2, codeBaseY + 50); ctx.lineTo(W - px*2, codeBaseY + 50); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(px*2, lowerY); ctx.lineTo(W - px*2, lowerY); ctx.stroke();
 
-  const nameY = codeBaseY + 100;
-  ctx.font = '900 46px "Noto Sans TC", sans-serif';
-  ctx.fillStyle = '#1a1a2e';
-  ctx.fillText(person.name || '', W/2, nameY);
-
-  const flockLabel = '小組：' + (person.flock || '—');
-  ctx.font = '700 20px "Noto Sans TC", sans-serif';
-  const fpw = ctx.measureText(flockLabel).width + 48, fph = 42, fpx = (W - fpw) / 2, fpy = nameY + 20;
-  ctx.fillStyle = 'rgba(26,58,92,.09)'; ctx.strokeStyle = 'rgba(26,58,92,.20)'; ctx.lineWidth = 1.5;
-  ticketRoundRect(ctx, fpx, fpy, fpw, fph, 21); ctx.fill(); ticketRoundRect(ctx, fpx, fpy, fpw, fph, 21); ctx.stroke();
-  ctx.fillStyle = '#1a3a5c';
-  ctx.fillText(flockLabel, W/2, fpy + 28);
-
-  if (person.group) {
-    const groupLabel = String(person.group || '').trim();
-    ctx.font = '700 20px "Noto Sans TC", sans-serif';
-    const gpw = ctx.measureText(groupLabel).width + 48, gph = 42, gpx = (W - gpw) / 2, gpy = fpy + fph + 16;
-    ctx.fillStyle = 'rgba(26,58,92,.09)'; ctx.strokeStyle = 'rgba(26,58,92,.20)';
-    ticketRoundRect(ctx, gpx, gpy, gpw, gph, 21); ctx.fill(); ticketRoundRect(ctx, gpx, gpy, gpw, gph, 21); ctx.stroke();
-    ctx.fillStyle = '#1a3a5c';
-    ctx.fillText(groupLabel, W/2, gpy + 28);
+  let detailY = lowerY + 48;
+  if (display.name) {
+    ctx.fillStyle = '#1a1a2e';
+    const nameText = ticketDrawFitText(ctx, person.name || '', {
+      x: W / 2,
+      y: detailY,
+      maxW: W - px * 2,
+      maxLines: 1,
+      maxSize: 46,
+      minSize: 28,
+      weight: 900
+    });
+    detailY += Math.max(48, nameText.height) + 18;
   }
+
+  const pills = [];
+  if (display.flock) pills.push('小組：' + (person.flock || '—'));
+  if (display.classType && person.classType && !sub.includes(person.classType)) pills.push('類別：' + person.classType);
+  if (display.room && person.room) pills.push('教室：' + person.room);
+  if (display.group && person.group) pills.push(String(person.group || '').trim());
+  pills.forEach(label => {
+    ctx.font = '700 20px "Noto Sans TC", sans-serif';
+    const text = String(label || '').trim();
+    if (!text) return;
+    const pillW = Math.min(W - px * 2, ctx.measureText(text).width + 48);
+    const pillH = 42;
+    const pillX = (W - pillW) / 2;
+    ctx.fillStyle = 'rgba(26,58,92,.09)';
+    ctx.strokeStyle = 'rgba(26,58,92,.20)';
+    ctx.lineWidth = 1.5;
+    ticketRoundRect(ctx, pillX, detailY, pillW, pillH, 21);
+    ctx.fill();
+    ticketRoundRect(ctx, pillX, detailY, pillW, pillH, 21);
+    ctx.stroke();
+    ctx.fillStyle = '#1a3a5c';
+    ticketDrawFitText(ctx, text, { x: W / 2, y: detailY + 28, maxW: pillW - 24, maxLines: 1, maxSize: 20, minSize: 14, weight: 700 });
+    detailY += pillH + 14;
+  });
 }
 
 async function renderTicketPreview() {
+  readTicketDisplayOptions();
   if (!ticketState.members.length) {
     return showBoxMsg('ticket-msg', '請先同步報名名單。', 'err');
   }
@@ -8101,6 +8338,7 @@ async function renderTicketPreview() {
 }
 
 async function downloadTicketZip() {
+  readTicketDisplayOptions();
   if (!ticketState.members.length) return showBoxMsg('ticket-msg', '請先同步報名名單。', 'err');
   showActionLock('正在產生票券 ZIP', '請稍候，正在逐張產生票券。');
   let progress = null;
@@ -8172,6 +8410,7 @@ async function ensureTicketMembersForDriveUpload() {
   ticketState.members = data.members || [];
   ticketState.stats = data.stats || {};
   mergeCourseToState(data.course);
+  updateTicketDriveRoute();
   const summary = document.getElementById('ticket-summary');
   if (summary) summary.innerHTML = buildTicketSummaryHtml(ticketState.stats);
   if (!ticketState.members.length) throw new Error('這堂課目前沒有可分配的票券。');
@@ -8201,6 +8440,9 @@ function buildTicketDriveUploadPlan(members) {
       name: member.name || '',
       leader: member.flock || member.leader || '未分組',
       flock: member.flock || '',
+      classType: member.classType || '',
+      group: member.group || '',
+      room: member.room || '',
       code: member.code || '',
       fileName
     };
@@ -8258,11 +8500,14 @@ async function uploadTicketsToDrive(forceOverwrite) {
   clearBoxMsg('ticket-msg');
 
   try {
+    readTicketDisplayOptions();
     const eventCode = await ensureTicketMembersForDriveUpload();
     await ensureTicketScripts();
 
     const members = ticketState.members || [];
     const info = ticketInfo();
+    const driveClassroom = ticketDriveClassroomValue();
+    updateTicketDriveRoute();
     const plan = buildTicketDriveUploadPlan(members);
     const summary = { uploaded: 0, groups: {}, foldersCreated: 0, overwritten: 0, skipped: 0, errors: [] };
     let uploadPlan = plan;
@@ -8274,11 +8519,15 @@ async function uploadTicketsToDrive(forceOverwrite) {
         userId,
         eventCode,
         courseName: info.eventName,
+        driveClassroom,
         files: plan.map(item => ({
           uploadId: item.uploadId,
           name: item.name,
           leader: item.leader,
           flock: item.flock,
+          classType: item.classType,
+          group: item.group,
+          room: item.room,
           fileName: item.fileName
         }))
       }, 90000);
@@ -8311,6 +8560,9 @@ async function uploadTicketsToDrive(forceOverwrite) {
           name: planItem.name,
           leader: planItem.leader,
           flock: planItem.flock,
+          classType: planItem.classType,
+          group: planItem.group,
+          room: planItem.room,
           code: planItem.code,
           fileName: planItem.fileName,
           dataUrl: canvas.toDataURL('image/png')
@@ -8324,6 +8576,7 @@ async function uploadTicketsToDrive(forceOverwrite) {
         userId,
         eventCode,
         courseName: info.eventName,
+        driveClassroom,
         skipExisting: !forceOverwrite,
         files: batch
       }, 90000);
@@ -8709,7 +8962,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.62';
+const SEAT_DIAG_VERSION = 'V7.63';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
