@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.65</title>
+  <title>CYP135 課程報名 V7.66</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -817,7 +817,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.65</small>
+    <small>CYP135 課程系統 V7.66</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -2834,38 +2834,42 @@ async function renderCourseAddRegistrationPage(courseCode, forceRefresh) {
   const token = beginPage('roster', '管理加報', true);
   const code = normalizeCode(courseCode);
   const localCourse = getCourseFromState(code);
-  // 加報一樣要判重複與 A 級資格，不能吃過期的名單。
-  const cachedInit = !forceRefresh && getFreshRegistrationInit(code);
+  const cachedRoster = !forceRefresh && loadRosterCache(code);
 
   rosterState.openAdd = true;
-  if (cachedInit && cachedInit.status === 'ok') {
-    applyRosterAddInitData(cachedInit, { loading: false });
+  if (cachedRoster && cachedRoster.status === 'ok') {
+    applyRosterData(cachedRoster, { fromCache: true, loading: true });
     renderRosterContent();
+    showBoxLoading('roster-msg');
   } else if (localCourse) {
-    applyRosterAddInitData({
+    applyRosterData({
       status: 'loading',
       course: localCourse,
-      canManageRoster: userCanManageRoster(),
+      canManage: userCanManageRoster(),
+      rows: [],
+      groups: [],
+      stats: {},
       classDetails: localCourse.classDetails || [],
-      leaders: [],
-      platinumNames: [],
-      existingRegistrants: []
+      leaders: []
     }, { loading: true });
     renderRosterContent();
+    showBoxLoading('roster-msg');
   } else {
     showLoading('載入加報資料中');
   }
 
   try {
-    const data = await ensureRegistrationData(code, !!forceRefresh);
+    const data = await post('getCourseRoster', { userId, eventCode: code, light: true }, 18000);
     if (!isPageActive(token, 'roster')) return;
     stopLoading();
     if (!data || data.status !== 'ok') {
       showBoxMsg('roster-msg', esc((data && data.message) || '加報資料載入失敗'), 'err');
       return;
     }
-    applyRosterAddInitData(data, { loading: false });
+    applyRosterData(data);
+    saveRosterCache(code, data);
     renderRosterContent();
+    hydrateRosterLeaderOptions(code, token);
   } catch (err) {
     if (!isPageActive(token, 'roster')) return;
     stopLoading();
@@ -9016,7 +9020,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.65';
+const SEAT_DIAG_VERSION = 'V7.66';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
