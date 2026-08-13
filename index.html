@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.67</title>
+  <title>CYP135 課程報名 V7.68</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -817,7 +817,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.67</small>
+    <small>CYP135 課程系統 V7.68</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1020,6 +1020,7 @@ let loadingSeq = 0;
 let loadingTimer = null;
 let actionLockSeq = 0;
 let actionLockTimer = null;
+let actionLockCustomLabel = '';
 let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
@@ -1410,14 +1411,15 @@ function stopLoading() {
   loadingTimer = null;
 }
 
-function setActionLockProgress(percent, title, text) {
+function setActionLockProgress(percent, title, text, labelText) {
   const fill = document.getElementById('action-lock-fill');
   const label = document.getElementById('action-lock-percent');
   const titleEl = document.getElementById('action-lock-title');
   const textEl = document.getElementById('action-lock-text');
   const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+  if (typeof labelText !== 'undefined') actionLockCustomLabel = labelText || '';
   if (fill) fill.style.width = pct + '%';
-  if (label) label.textContent = pct + '%';
+  if (label) label.textContent = actionLockCustomLabel || (pct + '%');
   if (title && titleEl) titleEl.textContent = title;
   if (text && textEl) textEl.textContent = text;
 }
@@ -1449,6 +1451,7 @@ function showActionLock(title, text) {
   const titleEl = document.getElementById('action-lock-title');
   const textEl = document.getElementById('action-lock-text');
   if (!lock) return;
+  actionLockCustomLabel = '';
   if (titleEl) titleEl.textContent = title || '處理中';
   if (textEl) textEl.textContent = text || '請稍候，正在更新資料。';
   startActionLockProgress(8);
@@ -1458,6 +1461,7 @@ function showActionLock(title, text) {
 
 function hideActionLock() {
   stopActionLockProgress();
+  actionLockCustomLabel = '';
   const lock = document.getElementById('action-lock');
   if (lock) lock.classList.remove('on');
   document.body.style.overflow = '';
@@ -8599,7 +8603,7 @@ async function uploadTicketsToDrive(forceOverwrite) {
       summary.skipped = existingIds.size;
       uploadPlan = plan.filter(item => !existingIds.has(item.uploadId));
       if (!uploadPlan.length) {
-        setActionLockProgress(100, '雲端票券已完整', '這堂課目前沒有缺少的票券。');
+        setActionLockProgress(100, '雲端票券已完整', '這堂課目前沒有缺少的票券。', `0 / ${plan.length} 張需上傳`);
         showBoxMsg('ticket-msg', ticketDriveSummaryHtml(summary, rootUrl), 'ok');
         return;
       }
@@ -8615,7 +8619,7 @@ async function uploadTicketsToDrive(forceOverwrite) {
         const planItem = uploadPlan[i];
         const member = planItem.member;
         const drawPct = 24 + Math.round((i / Math.max(1, uploadPlan.length)) * 48);
-        setActionLockProgress(drawPct, forceOverwrite ? '正在重新產生票券' : '正在產生缺少票券', `已產生 ${i + 1} / ${uploadPlan.length} 張票券。`);
+        setActionLockProgress(drawPct, forceOverwrite ? '正在重新產生票券' : '正在產生缺少票券', `正在處理第 ${i + 1} / ${uploadPlan.length} 張票券。`, `${i + 1} / ${uploadPlan.length} 張`);
         await drawTicketCanvas(canvas, member, info);
         batch.push({
           uploadId: planItem.uploadId,
@@ -8633,7 +8637,7 @@ async function uploadTicketsToDrive(forceOverwrite) {
       }
 
       const uploadPct = 74 + Math.round((end / Math.max(1, uploadPlan.length)) * 20);
-      setActionLockProgress(uploadPct, '正在上傳到 Google Drive', `正在上傳第 ${start + 1} - ${end} 張票券。`);
+      setActionLockProgress(uploadPct, '正在等待 Google Drive 回應', `正在上傳第 ${start + 1} - ${end} / ${uploadPlan.length} 張票券。已上傳 ${summary.uploaded} 張，略過 ${summary.skipped} 張。`, `${end} / ${uploadPlan.length} 張`);
       const res = await post('uploadTicketDriveFiles', {
         userId,
         eventCode,
@@ -8649,7 +8653,7 @@ async function uploadTicketsToDrive(forceOverwrite) {
       mergeTicketDriveSummary(summary, (res && res.summary) || {});
     }
 
-    setActionLockProgress(100, '雲端分配完成', '所有票券已處理完成。');
+    setActionLockProgress(100, '雲端分配完成', `已完成 ${uploadPlan.length} / ${uploadPlan.length} 張。已上傳 ${summary.uploaded} 張，略過 ${summary.skipped} 張。`, `${uploadPlan.length} / ${uploadPlan.length} 張`);
     showBoxMsg('ticket-msg', ticketDriveSummaryHtml(summary, rootUrl), summary.errors.length ? 'warn' : 'ok');
   } catch (e) {
     showBoxMsg('ticket-msg', esc(e.message || e), 'err');
@@ -9024,7 +9028,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.67';
+const SEAT_DIAG_VERSION = 'V7.68';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
