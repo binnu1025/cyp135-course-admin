@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.71</title>
+  <title>CYP135 課程報名 V7.72</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -480,6 +480,23 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .home-section{margin-bottom:16px}
 .home-section-title{font-size:13px;font-weight:900;color:#2d5a3d;margin:0 0 9px;display:flex;align-items:center;gap:7px}
 .home-section-title::before{content:"";width:5px;height:5px;border-radius:50%;background:#2d5a3d;flex-shrink:0}
+.promo-card{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(31,48,38,.08)}
+.promo-card img{width:100%;display:block;max-height:460px;object-fit:cover;background:#f1efe8}
+.promo-body{padding:14px 15px 15px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+.promo-copy{min-width:0}
+.promo-kicker{display:inline-block;font-size:11.5px;font-weight:900;color:#6e5b11;background:#fff45f;border-radius:9px;padding:4px 10px;margin-bottom:7px}
+.promo-title{font-size:18px;font-weight:900;color:#244932;line-height:1.35;word-break:break-word}
+.promo-period{font-size:13px;color:#5f6d64;font-weight:700;line-height:1.55;margin-top:3px}
+.promo-actions{display:flex;gap:7px;flex:0 0 auto}
+.promo-actions .btn{width:auto;min-width:78px;margin:0;padding:0 13px;height:42px;font-size:13px}
+.promo-admin-preview{border:1px solid rgba(45,90,61,.14);border-radius:14px;overflow:hidden;background:#fff;margin-top:10px}
+.promo-admin-preview img{width:100%;display:block;max-height:300px;object-fit:cover;background:#f0ede8}
+.promo-admin-preview .edm-info{border-top:1px solid rgba(45,90,61,.10)}
+@media(max-width:520px){
+  .promo-body{align-items:flex-start;flex-direction:column}
+  .promo-actions{width:100%}
+  .promo-actions .btn{flex:1}
+}
 
 /* ═══ 月曆課表 ═══ */
 .cal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}
@@ -817,7 +834,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.71</small>
+    <small>CYP135 課程系統 V7.72</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1024,6 +1041,9 @@ let actionLockCustomLabel = '';
 let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
+let selectedPromoFile = null;
+let uploadedPromoUrl = '';
+let uploadedPromoFileName = '';
 let externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
 let excelParserLoading = null;
 let coursePrefillFromImport = null;
@@ -1047,13 +1067,14 @@ const DEFAULT_TICKET_DISPLAY_OPTIONS = {
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '', displayOptions: Object.assign({}, DEFAULT_TICKET_DISPLAY_OPTIONS), driveRouteMode: 'auto', driveCustomClassroom: '' };
 let ticketScriptsLoading = null;
 
-const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v99';
+const PUBLIC_CACHE_KEY = 'cyp135_public_courses_v100';
 const ADMIN_CACHE_KEY = 'cyp135_admin_init_v69';
 const ROSTER_CACHE_PREFIX = 'cyp135_course_roster_v93_';
 let currentView = '';
 let appState = {
   courses: [],
   courseMap: {},
+  promoSchedule: null,
   publicLoaded: false,
   publicLoading: null,
   registrationInitByCode: {},
@@ -1177,6 +1198,8 @@ function setPublicData(data, fromCache) {
   publicData = data;
   appState.courses = (data.courses || []).map(c => reconcileCourseStatus(Object.assign({}, c)));
   publicData.courses = appState.courses;
+  appState.promoSchedule = data.promoSchedule || null;
+  publicData.promoSchedule = appState.promoSchedule;
   appState.publicLoaded = true;
   appState.lastPublicRefresh = Date.now();
   rebuildCourseMap();
@@ -1200,6 +1223,7 @@ function setPublicData(data, fromCache) {
         rosterScopeFlocks: data.rosterScopeFlocks || [],
         permissionAudit: data.permissionAudit || null,
         role: data.role || '',
+        promoSchedule: data.promoSchedule || null,
         courses: data.courses || []
       }));
     } catch (e) {}
@@ -1229,6 +1253,7 @@ function loadPublicCache() {
       rosterScopeFlocks: cached.rosterScopeFlocks || [],
       permissionAudit: cached.permissionAudit || null,
       role: cached.role || '',
+      promoSchedule: cached.promoSchedule || null,
       courses: cached.courses || []
     }, true);
     return true;
@@ -1758,6 +1783,7 @@ function clearCourseClientCache(courseCode) {
   //    換了 EDM 之後列表更新了、詳情頁卻還是舊海報，就是這樣來的。
   appState.courses = [];
   appState.courseMap = {};
+  appState.promoSchedule = null;
   appState.publicLoaded = false;
   appState.publicLoading = null;
   appState.lastPublicRefresh = 0;
@@ -1777,6 +1803,7 @@ function clearAllCourseClientCaches() {
   } catch (e) {}
   appState.courses = [];
   appState.courseMap = {};
+  appState.promoSchedule = null;
   appState.publicLoaded = false;
   appState.publicLoading = null;
   appState.registrationInitByCode = {};
@@ -8815,6 +8842,11 @@ async function runRosterRebuild() {
 async function renderPortalPage() {
   const token = beginPage('portal', '系統入口', true);
   renderPortalShell();
+  try {
+    await ensurePublicData(false);
+    if (!isPageActive(token, 'portal')) return;
+    renderPortalShell();
+  } catch (e) {}
 
   // 會長需要 links。同樣不依賴 initData，直接用回傳值；沒拿到就強制重抓一次。
   if (isAdminUser && !portalLinks.schedule) {
@@ -8911,6 +8943,238 @@ async function renderPersonalPage(title) {
     ${blocks}`;
 }
 
+function promoPeriodText(promo) {
+  promo = promo || {};
+  const s = fmtDateOnly(promo.startDate || '');
+  const e = fmtDateOnly(promo.endDate || '');
+  if (s && e) return s + ' ~ ' + e;
+  if (s) return s + ' 起';
+  if (e) return '至 ' + e;
+  return '期間不限';
+}
+
+function fmtDateOnly(v) {
+  const raw = String(v || '').trim();
+  if (!raw) return '';
+  const m = raw.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (m) return m[1] + '/' + ('0' + m[2]).slice(-2) + '/' + ('0' + m[3]).slice(-2);
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  const p = n => ('0' + n).slice(-2);
+  return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate());
+}
+
+function renderPromoScheduleCard(promo) {
+  promo = promo || appState.promoSchedule || {};
+  if (!promo || !promo.active || !promo.imageUrl) return '';
+  const title = promo.title || '特惠日程';
+  const manage = isAdminUser
+    ? '<button class="btn btn-ghost" onclick="renderPromoScheduleManagerPage()">管理</button>'
+    : '';
+  return `
+    <div class="home-section">
+      <p class="home-section-title">特惠日程</p>
+      <div class="promo-card">
+        <img src="${esc(promo.imageUrl)}" alt="${esc(title)}" loading="lazy" onerror="this.style.display='none'">
+        <div class="promo-body">
+          <div class="promo-copy">
+            <span class="promo-kicker">特惠</span>
+            <div class="promo-title">${esc(title)}</div>
+            <div class="promo-period">${esc(promoPeriodText(promo))}</div>
+          </div>
+          <div class="promo-actions">
+            <button class="btn btn-sub" onclick="sharePromoSchedule()">分享</button>
+            ${manage}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildPromoShareText(promo) {
+  promo = promo || appState.promoSchedule || {};
+  const lines = [];
+  lines.push(promo.title || 'CYP135 特惠日程');
+  const period = promoPeriodText(promo);
+  if (period) lines.push('期間：' + period);
+  return lines.join('\n');
+}
+
+async function sharePromoSchedule(promo) {
+  promo = promo || appState.promoSchedule || {};
+  if (!promo || (!promo.imageUrl && !promo.title)) {
+    showMsg('目前沒有可分享的特惠日程。', 'err');
+    return;
+  }
+  const text = buildPromoShareText(promo);
+  try {
+    if (typeof liff !== 'undefined' && liff.isApiAvailable && liff.isApiAvailable('shareTargetPicker')) {
+      const msgs = [];
+      if (promo.imageUrl) msgs.push({ type: 'image', originalContentUrl: promo.imageUrl, previewImageUrl: promo.imageUrl });
+      if (text) msgs.push({ type: 'text', text: text });
+      try {
+        const res = await liff.shareTargetPicker(msgs);
+        if (res) showMsg('已分享特惠日程。', 'ok');
+        return;
+      } catch (imgErr) {
+        const fallbackText = text + (promo.imageUrl ? '\n' + promo.imageUrl : '');
+        const res2 = await liff.shareTargetPicker([{ type: 'text', text: fallbackText }]);
+        if (res2) showMsg('已分享特惠日程。', 'ok');
+        return;
+      }
+    }
+  } catch (e) {}
+
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: promo.title || 'CYP135 特惠日程', text: text + (promo.imageUrl ? '\n' + promo.imageUrl : '') });
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+  }
+  fallbackCopy(text + (promo.imageUrl ? '\n' + promo.imageUrl : ''), () => showMsg('已複製特惠日程分享內容。', 'ok'));
+}
+
+function promoImagePreviewHtml(url, name) {
+  if (!url) return '<div class="edm-info">尚未選擇圖片。</div>';
+  return `
+    <img src="${esc(url)}" alt="特惠日程預覽">
+    <div class="edm-info">${name ? '已選擇：' + esc(name) : '目前圖片。'}</div>`;
+}
+
+async function renderPromoScheduleManagerPage() {
+  const token = beginPage('promoSchedule', '特惠日程', true);
+  const app = document.getElementById('app');
+  showLoading('載入特惠日程');
+  const allowed = await ensureAdminAccess(token, 'promoSchedule');
+  if (!isPageActive(token, 'promoSchedule')) return;
+  if (!allowed) return;
+
+  let data = null;
+  try {
+    data = await post('getPromoSchedule', { userId, includeDraft: true }, 20000);
+  } catch (err) {
+    stopLoading();
+    app.innerHTML = '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button><div class="card compact-card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+    return;
+  }
+  if (!isPageActive(token, 'promoSchedule')) return;
+  stopLoading();
+  const promo = (data && data.promoSchedule) || {};
+  selectedPromoFile = null;
+  uploadedPromoUrl = '';
+  uploadedPromoFileName = '';
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+    <div class="card compact-card" style="margin-top:12px">
+      <h2>特惠日程</h2>
+      <p class="meta">會顯示在系統入口首頁，開放報名前面。</p>
+      <div id="promo-form-msg" class="msg"></div>
+      <div class="form-grid">
+        <div class="field"><label>特惠名稱</label><input id="promo-title" value="${esc(promo.title || '')}" placeholder="例如 年會早鳥特惠"></div>
+        <div class="field"><label>狀態</label>
+          <select id="promo-status">
+            <option value="上架" ${promo.publishStatus !== '下架' ? 'selected' : ''}>上架</option>
+            <option value="下架" ${promo.publishStatus === '下架' ? 'selected' : ''}>下架</option>
+          </select>
+        </div>
+        <div class="field"><label>開始日期</label><input id="promo-start" type="date" value="${esc(promo.startDate || '')}"></div>
+        <div class="field"><label>結束日期</label><input id="promo-end" type="date" value="${esc(promo.endDate || '')}"></div>
+      </div>
+      <div class="field">
+        <label>日程圖片</label>
+        <div class="edm-upload">
+          <input id="promo-image-file" class="file-input" type="file" accept="image/*" onchange="handlePromoImageFileChange(event)">
+          <input id="promo-image-url" type="hidden" value="${esc(promo.imageUrl || '')}">
+          <input id="promo-view-url" type="hidden" value="${esc(promo.viewUrl || '')}">
+          <div id="promo-image-preview" class="promo-admin-preview">${promoImagePreviewHtml(promo.imageUrl || '', '')}</div>
+        </div>
+      </div>
+      <div class="compact-actions">
+        <button class="btn btn-main" onclick="savePromoSchedule()">儲存特惠日程</button>
+        <button class="btn btn-sub" onclick="previewPromoScheduleFromForm()">分享預覽</button>
+      </div>
+    </div>`;
+}
+
+function handlePromoImageFileChange(event) {
+  const file = event.target.files && event.target.files[0];
+  selectedPromoFile = null;
+  uploadedPromoUrl = '';
+  uploadedPromoFileName = '';
+  if (!file) return;
+  if (!file.type || file.type.indexOf('image/') !== 0) {
+    showBoxMsg('promo-form-msg', '請選擇圖片檔。', 'err');
+    event.target.value = '';
+    return;
+  }
+  selectedPromoFile = file;
+  const previewUrl = URL.createObjectURL(file);
+  const box = document.getElementById('promo-image-preview');
+  if (box) box.innerHTML = promoImagePreviewHtml(previewUrl, file.name);
+}
+
+async function uploadPromoImageIfNeeded() {
+  if (!selectedPromoFile) return val('promo-image-url');
+  if (uploadedPromoUrl) return uploadedPromoUrl;
+  const dataUrl = await compressImageToDataUrl(selectedPromoFile, 1600, 0.86);
+  const res = await post('uploadPromoScheduleImage', {
+    userId,
+    title: val('promo-title') || '特惠日程',
+    startDate: val('promo-start'),
+    fileName: selectedPromoFile.name,
+    dataUrl
+  }, 65000);
+  if (!res || res.status !== 'ok') throw new Error((res && res.message) || '圖片上傳失敗');
+  uploadedPromoUrl = res.url || '';
+  uploadedPromoFileName = res.fileName || '';
+  const urlInput = document.getElementById('promo-image-url');
+  const viewInput = document.getElementById('promo-view-url');
+  if (urlInput) urlInput.value = uploadedPromoUrl;
+  if (viewInput) viewInput.value = res.viewUrl || '';
+  return uploadedPromoUrl;
+}
+
+function promoScheduleFromForm() {
+  return {
+    title: val('promo-title') || '特惠日程',
+    startDate: val('promo-start'),
+    endDate: val('promo-end'),
+    publishStatus: val('promo-status') || '上架',
+    imageUrl: val('promo-image-url'),
+    viewUrl: val('promo-view-url')
+  };
+}
+
+function previewPromoScheduleFromForm() {
+  sharePromoSchedule(promoScheduleFromForm());
+}
+
+async function savePromoSchedule() {
+  clearBoxMsg('promo-form-msg');
+  showActionLock('正在儲存特惠日程', '請稍候，正在處理圖片與資料。');
+  try {
+    const imageUrl = await uploadPromoImageIfNeeded();
+    const payload = promoScheduleFromForm();
+    payload.userId = userId;
+    payload.imageUrl = imageUrl;
+    const res = await post('savePromoSchedule', payload, 30000);
+    if (!res || res.status !== 'ok') throw new Error((res && res.message) || '儲存失敗');
+    appState.promoSchedule = res.promoSchedule || null;
+    if (publicData) publicData.promoSchedule = appState.promoSchedule;
+    try { localStorage.removeItem(PUBLIC_CACHE_KEY); } catch (e) {}
+    selectedPromoFile = null;
+    uploadedPromoUrl = '';
+    uploadedPromoFileName = '';
+    showBoxMsg('promo-form-msg', '特惠日程已儲存。', 'ok');
+  } catch (err) {
+    showBoxMsg('promo-form-msg', esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
+}
+
 function renderPortalShell() {
   const app = document.getElementById('app');
   const links = (portalLinks && portalLinks.schedule) ? portalLinks : ((initData && initData.links) || {});
@@ -8995,6 +9259,7 @@ function renderPortalShell() {
       portalTile({ ico: TILE_ICO.create, title: '建立課程', desc: '新增一堂課程', admin: true, onclick: 'renderCreateCoursePage()' }),
       portalTile({ ico: TILE_ICO.past, title: '以往課程', desc: '查看歷史課程紀錄', admin: true, onclick: 'renderPastCoursesPage()' }),
       portalTile({ ico: TILE_ICO.ticket, title: '票券產生', desc: '產生報名者 QR 票券', admin: true, onclick: 'renderTicketGeneratorPage()' }),
+      portalTile({ ico: TILE_ICO.trophy, title: '特惠日程', desc: '首頁特惠圖與期間設定', admin: true, onclick: 'renderPromoScheduleManagerPage()' }),
       portalTile({ ico: TILE_ICO.import, title: '外部名單匯入', desc: '匯入外部報名資料', admin: true, onclick: 'renderExternalImportPage()' }),
 
       portalTile({ ico: TILE_ICO.refresh, title: '清除前台快取', desc: '改完試算表後讓前台立即生效', admin: true, onclick: 'clearFrontendCourseCache()' })
@@ -9017,6 +9282,7 @@ function renderPortalShell() {
 
   app.innerHTML = `
     ${heroHtml()}
+    ${renderPromoScheduleCard(appState.promoSchedule)}
     <div class="home-section">
       <p class="home-section-title">開放報名</p>
       <div id="portal-upcoming"><div class="cal-empty">載入課表中…</div></div>
@@ -9041,7 +9307,7 @@ function renderPortalShell() {
    顏色欄留空即可讓某人暫時不參與分配。
 ═══════════════════════════════════════════════════════════════ */
 
-const SEAT_DIAG_VERSION = 'V7.71';
+const SEAT_DIAG_VERSION = 'V7.72';
 let sMembers = [];
 let sBigGroups = {};
 let sSeatBlocks = [{ zone: '', row: '', start: '', end: '' }];
