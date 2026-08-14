@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.75</title>
+  <title>CYP135 課程報名 V7.76</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -498,6 +498,13 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .promo-image-item-body{padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .promo-image-item-body .btn{height:34px;font-size:12px;padding:0 8px;margin:0}
 .promo-image-item.main{border-color:rgba(198,154,43,.55);box-shadow:0 0 0 2px rgba(255,244,95,.45) inset}
+.promo-image-item{position:relative}
+.promo-image-del{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;border:none;background:rgba(20,20,20,.62);color:#fff;font-size:15px;line-height:28px;padding:0;cursor:pointer;z-index:2}
+.promo-image-del:hover{background:rgba(190,60,60,.9)}
+.promo-detail-img{border:1px solid rgba(45,90,61,.14);border-radius:14px;overflow:hidden;background:#fff;margin-bottom:12px}
+.promo-detail-img img{width:100%;display:block;background:#f0ede8}
+.promo-detail-img .btn{margin:8px;width:calc(100% - 16px)}
+.promo-detail-text{white-space:pre-wrap;line-height:1.7;font-size:15px;color:#2b3f33}
 .promo-manager-list{display:grid;gap:10px;margin:12px 0}
 .promo-manager-item{border:1px solid rgba(45,90,61,.14);border-radius:14px;background:#fbfaf6;padding:12px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
 .promo-manager-item-title{font-size:16px;font-weight:900;color:#244932;line-height:1.4}
@@ -859,7 +866,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.75</small>
+    <small>CYP135 課程系統 V7.76</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -9051,6 +9058,9 @@ async function sharePromoSchedule(promo) {
       shareImgs.slice(0, 5).forEach(u => {
         msgs.push({ type: 'image', originalContentUrl: u, previewImageUrl: u });
       });
+      if (shareImgs.length > 5) {
+        showMsg('LINE 一次最多 5 張，這次只分享前 5 張。其餘請到「查看全部」下載後自己傳。', 'warn');
+      }
       if (!msgs.length && text) msgs.push({ type: 'text', text: text });
       try {
         const res = await liff.shareTargetPicker(msgs);
@@ -9131,11 +9141,71 @@ function renderPromoSchedulePublicCard(promo, idx) {
           ${imgs.length > 1 ? '<div class="promo-period">共 ' + imgs.length + ' 張圖片</div>' : ''}
         </div>
         <div class="promo-actions">
+          <button class="btn btn-main" onclick="renderPromoDetailPage(${Number(idx) || 0})">查看全部</button>
           <button class="btn btn-sub" onclick="sharePromoScheduleByIndex(${Number(idx) || 0})">分享圖片</button>
           ${promo.promoText ? '<button class="btn btn-sub" onclick="copyPromoText(' + (Number(idx) || 0) + ')">複製宣傳文</button>' : ''}
+          ${isAdminUser ? '<button class="btn btn-ghost" onclick="promoEditFromPublic(' + (Number(idx) || 0) + ')">編輯</button>' : ''}
         </div>
       </div>
     </div>`;
+}
+
+// 特惠詳情：看得到全部圖片與宣傳文，也可以單張下載。
+// LINE 分享一次最多 5 張，超過的就是靠這裡下載後自己傳。
+function renderPromoDetailPage(idx) {
+  const list = promoScheduleCurrentList || [];
+  const promo = list[idx];
+  if (!promo) { showMsg('找不到這個特惠。', 'err'); return; }
+  beginPage('promoDetail', promo.title || '特惠', false);
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  const imgs = (promo.images && promo.images.length)
+    ? promo.images
+    : (promo.imageUrl ? [{ imageUrl: promo.imageUrl }] : []);
+
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderPromoSchedulePage()">← 返回特惠日程</button>
+    <div class="card compact-card" style="margin-top:12px">
+      <h2>${esc(promo.title || '特惠')}</h2>
+      <p class="meta">${esc(promoPeriodText(promo))}　·　共 ${imgs.length} 張圖片</p>
+      <div class="compact-actions">
+        <button class="btn btn-main" onclick="sharePromoScheduleByIndex(${idx})">分享圖片</button>
+        ${promo.promoText ? '<button class="btn btn-sub" onclick="copyPromoText(' + idx + ')">複製宣傳文</button>' : ''}
+        ${isAdminUser ? '<button class="btn btn-ghost" onclick="promoEditFromPublic(' + idx + ')">編輯</button>' : ''}
+      </div>
+      ${imgs.length > 5 ? '<div class="msg on warn">LINE 一次最多只能分享 5 張圖片，這個特惠有 ' + imgs.length + ' 張。其餘請用下面的「下載這張」存下來自己傳。</div>' : ''}
+    </div>
+    ${promo.promoText ? `<div class="card compact-card" style="margin-top:12px"><h3>宣傳文</h3><div class="promo-detail-text">${esc(promo.promoText)}</div><button class="btn btn-sub" style="margin-top:10px" onclick="copyPromoText(${idx})">複製宣傳文</button></div>` : ''}
+    <div class="card compact-card" style="margin-top:12px">
+      <h3>圖片</h3>
+      ${imgs.map((im, i) => `
+        <div class="promo-detail-img">
+          <img src="${esc(im.imageUrl)}" alt="圖片 ${i + 1}" onerror="this.style.display='none'">
+          <button class="btn btn-sub" onclick="downloadPromoImage(${idx},${i})">下載這張（第 ${i + 1} 張）</button>
+        </div>`).join('')}
+    </div>`;
+}
+
+// 直接開新分頁讓瀏覽器/系統處理下載——圖片在 Google Drive 上，
+// 用 fetch 抓會踩到跨網域限制。
+function downloadPromoImage(idx, imgIdx) {
+  const list = promoScheduleCurrentList || [];
+  const promo = list[idx] || {};
+  const imgs = (promo.images && promo.images.length) ? promo.images : (promo.imageUrl ? [{ imageUrl: promo.imageUrl }] : []);
+  const im = imgs[imgIdx];
+  if (!im || !im.imageUrl) { showMsg('找不到這張圖片。', 'err'); return; }
+  window.open(im.viewUrl || im.imageUrl, '_blank');
+}
+
+// 從公開頁跳去管理頁編輯同一筆
+async function promoEditFromPublic(idx) {
+  const list = promoScheduleCurrentList || [];
+  const promo = list[idx];
+  if (!promo) return;
+  await renderPromoScheduleManagerPage();
+  const hit = (promoManagerItems || []).find(p => String(p.id) === String(promo.id));
+  if (hit) promoManagerEdit(hit.id);
 }
 
 // 複製宣傳文：只給原文，不加任何樣板——使用者要的就是他自己打的那段。
@@ -9351,7 +9421,7 @@ function renderPromoEditForm(promo) {
       </div>
       <div class="field">
         <label>圖片（第一張是主圖，也是分享時的封面）</label>
-        <input id="promo-image-file" class="file-input" type="file" accept="image/*" onchange="handlePromoImageFileChange(event)">
+        <input id="promo-image-file" class="file-input" type="file" accept="image/*" multiple onchange="handlePromoImageFileChange(event)">
         <div id="promo-image-list">${renderPromoImageList()}</div>
       </div>
       <div class="compact-actions">
@@ -9367,12 +9437,12 @@ function renderPromoImageList() {
   if (!imgs.length) return '<p class="meta" style="margin-top:8px">還沒有圖片。選擇檔案後會自動上傳並加入清單。</p>';
   return '<div class="promo-image-list">' + imgs.map((img, i) => `
     <div class="promo-image-item${i === 0 ? ' main' : ''}">
+      <button class="promo-image-del" title="刪除這張" onclick="promoRemoveImage(${i})">✕</button>
       <img src="${esc(img.imageUrl)}" alt="特惠圖片 ${i + 1}" onerror="this.style.display='none'">
       <div class="promo-image-item-body">
         <button class="btn btn-sub" ${i === 0 ? 'disabled' : ''} onclick="promoMoveImage(${i},-1)">↑ 上移</button>
         <button class="btn btn-sub" ${i === imgs.length - 1 ? 'disabled' : ''} onclick="promoMoveImage(${i},1)">↓ 下移</button>
-        <button class="btn btn-warn" onclick="promoRemoveImage(${i})">移除</button>
-        <span class="meta" style="align-self:center">${i === 0 ? '主圖' : '第 ' + (i + 1) + ' 張'}</span>
+        <span class="meta" style="grid-column:1/-1;text-align:center">${i === 0 ? '主圖（分享封面）' : '第 ' + (i + 1) + ' 張'}</span>
       </div>
     </div>`).join('') + '</div>';
 }
@@ -9398,38 +9468,57 @@ function promoRemoveImage(i) {
 
 // 選了檔案就立刻上傳並加進清單——不要等到儲存才上傳，
 // 否則使用者選了三張只會存到最後一張。
+// 一次可以選多張。逐張上傳，其中一張失敗不影響已經成功的那幾張。
 async function handlePromoImageFileChange(event) {
-  const file = event.target.files && event.target.files[0];
+  const files = Array.prototype.slice.call(event.target.files || []);
   event.target.value = '';
-  if (!file) return;
-  if (!file.type || file.type.indexOf('image/') !== 0) {
+  if (!files.length) return;
+
+  const imgs = files.filter(f => f.type && f.type.indexOf('image/') === 0);
+  if (!imgs.length) {
     showBoxMsg('promo-form-msg', '請選擇圖片檔。', 'err');
     return;
   }
 
-  showActionLock('正在上傳圖片', '請稍候，正在處理並上傳圖片。');
+  let okCount = 0;
+  const failed = [];
+  showActionLock('正在上傳圖片', '請稍候，共 ' + imgs.length + ' 張。');
   try {
-    const dataUrl = await compressImageToDataUrl(file, 1600, 0.86);
-    const res = await post('uploadPromoScheduleImage', {
-      userId,
-      title: val('promo-title') || '特惠日程',
-      startDate: val('promo-start'),
-      fileName: file.name,
-      dataUrl
-    }, 65000);
-    if (!res) throw new Error('連線未回應，圖片可能沒有上傳成功，請重試。');
-    if (res.status !== 'ok') throw new Error(res.message || '圖片上傳失敗');
-    promoEditImages.push({
-      imageUrl: res.url || '',
-      viewUrl: res.viewUrl || '',
-      fileName: res.fileName || file.name
-    });
-    refreshPromoImageList();
-    showBoxMsg('promo-form-msg', '圖片已加入，記得按儲存。', 'ok');
-  } catch (err) {
-    showBoxMsg('promo-form-msg', esc(err.message || err), 'err');
+    for (let i = 0; i < imgs.length; i++) {
+      const file = imgs[i];
+      setActionLockProgress(Math.round((i / imgs.length) * 100), '正在上傳圖片', (i + 1) + ' / ' + imgs.length + '　' + file.name);
+      try {
+        const dataUrl = await compressImageToDataUrl(file, 1600, 0.86);
+        const res = await post('uploadPromoScheduleImage', {
+          userId,
+          title: val('promo-title') || '特惠日程',
+          startDate: val('promo-start'),
+          fileName: file.name,
+          dataUrl
+        }, 65000);
+        if (!res) throw new Error('連線未回應');
+        if (res.status !== 'ok') throw new Error(res.message || '上傳失敗');
+        promoEditImages.push({
+          imageUrl: res.url || '',
+          viewUrl: res.viewUrl || '',
+          fileName: res.fileName || file.name
+        });
+        okCount++;
+        refreshPromoImageList();
+      } catch (one) {
+        failed.push(file.name + '（' + (one.message || one) + '）');
+      }
+    }
   } finally {
     hideActionLock();
+  }
+
+  if (okCount && !failed.length) {
+    showBoxMsg('promo-form-msg', '已加入 ' + okCount + ' 張圖片，記得按儲存。', 'ok');
+  } else if (okCount) {
+    showBoxMsg('promo-form-msg', '已加入 ' + okCount + ' 張，以下失敗：' + failed.join('、'), 'warn');
+  } else {
+    showBoxMsg('promo-form-msg', '全部上傳失敗：' + failed.join('、'), 'err');
   }
 }
 
