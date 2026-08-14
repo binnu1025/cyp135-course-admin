@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.80</title>
+  <title>CYP135 課程報名 V7.81</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -871,7 +871,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.80</small>
+    <small>CYP135 課程系統 V7.81</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8370,8 +8370,7 @@ async function drawTicketCanvas(canvas, person, info) {
     display.classType && person.classType && !sub.includes(person.classType),
     display.room && person.room,
     display.meal && person.meal,
-    display.group && person.group,
-    display.seq && person.seq
+    display.group && person.group
   ].filter(Boolean).length;
   const qrRatio = visibleMetaCount >= 3 ? 0.62 : 0.66;
   const qrSize = Math.round(W * qrRatio);
@@ -8420,8 +8419,41 @@ async function drawTicketCanvas(canvas, person, info) {
   if (display.room && person.room) pills.push('教室：' + person.room);
   if (display.meal && person.meal) pills.push('餐食：' + person.meal);
   if (display.group && person.group) pills.push(String(person.group || '').trim());
-  // 序號放最後，現場抽獎時最容易找
-  if (display.seq && person.seq) pills.push('序號 ' + person.seq);
+  // 序號徽章：深色圓角膠囊 ＋ 小字「序號」＋ 大字號碼。
+  // 刻意不跟下面那排灰色標籤同款——抽獎是靠這個號碼找人，
+  // 混在一起會找不到。
+  if (display.seq && person.seq) {
+    const badgeH = 46;
+    const numText = String(person.seq);
+    ctx.font = '900 30px "Noto Sans TC", sans-serif';
+    const numW = ctx.measureText(numText).width;
+    ctx.font = '700 15px "Noto Sans TC", sans-serif';
+    const capW = ctx.measureText('序號').width;
+    const badgeW = Math.min(W - px * 2, capW + numW + 46);
+    const badgeX = (W - badgeW) / 2;
+    const badgeY = detailY;
+
+    ctx.fillStyle = '#12283F';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(badgeX, badgeY, badgeW, badgeH, badgeH / 2);
+    else ctx.rect(badgeX, badgeY, badgeW, badgeH);
+    ctx.fill();
+
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,255,255,.62)';
+    ctx.font = '700 15px "Noto Sans TC", sans-serif';
+    const capX = badgeX + 20;
+    ctx.fillText('序號', capX, badgeY + badgeH / 2 + 1);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '900 30px "Noto Sans TC", sans-serif';
+    ctx.fillText(numText, capX + capW + 10, badgeY + badgeH / 2 + 1);
+
+    ctx.textAlign = 'center';
+    detailY += badgeH + 14;
+  }
+
   const bottomSafeY = H - 36;
   const availablePillH = Math.max(0, bottomSafeY - detailY);
   const useTwoCols = pills.length >= 3 && availablePillH < pills.length * 50;
