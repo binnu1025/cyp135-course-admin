@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.76</title>
+  <title>CYP135 課程報名 V7.77</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -498,6 +498,11 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .promo-image-item-body{padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .promo-image-item-body .btn{height:34px;font-size:12px;padding:0 8px;margin:0}
 .promo-image-item.main{border-color:rgba(198,154,43,.55);box-shadow:0 0 0 2px rgba(255,244,95,.45) inset}
+.promo-card .promo-body{display:block}
+.promo-card .promo-copy{min-width:0}
+.promo-card .promo-title{word-break:break-word}
+.promo-card .promo-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.promo-card .promo-actions .btn{width:auto;margin:0;flex:0 1 auto;padding:0 14px;height:40px}
 .promo-image-item{position:relative}
 .promo-image-del{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;border:none;background:rgba(20,20,20,.62);color:#fff;font-size:15px;line-height:28px;padding:0;cursor:pointer;z-index:2}
 .promo-image-del:hover{background:rgba(190,60,60,.9)}
@@ -866,7 +871,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.76</small>
+    <small>CYP135 課程系統 V7.77</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -9090,7 +9095,9 @@ async function sharePromoSchedule(promo) {
 // 讓還沒重新載入公開資料的舊快取也還能顯示一張。
 function promoListFromState() {
   const many = appState.promoSchedules || (publicData && publicData.promoSchedules) || [];
-  if (Array.isArray(many) && many.length) return many.filter(p => p && p.active);
+  // 後端已經濾掉下架的，這裡不再依 active 過濾——「日程」本來就該看得到
+  // 即將開始的特惠，卡片上會標示是進行中還是還沒開始。
+  if (Array.isArray(many) && many.length) return many.filter(Boolean);
   const promo = appState.promoSchedule || (publicData && publicData.promoSchedule) || null;
   return (promo && promo.active) ? [promo] : [];
 }
@@ -9139,6 +9146,7 @@ function renderPromoSchedulePublicCard(promo, idx) {
           <div class="promo-title">${esc(title)}</div>
           <div class="promo-period">${esc(promoPeriodText(promo))}</div>
           ${imgs.length > 1 ? '<div class="promo-period">共 ' + imgs.length + ' 張圖片</div>' : ''}
+          ${promo.active === false ? '<div class="promo-period">尚未開始</div>' : ''}
         </div>
         <div class="promo-actions">
           <button class="btn btn-main" onclick="renderPromoDetailPage(${Number(idx) || 0})">查看全部</button>
@@ -9266,9 +9274,10 @@ async function renderPromoSchedulePage(month) {
     <div id="promo-schedule-view" style="margin-top:12px">
       <div class="promo-empty">載入特惠日程中…</div>
     </div>`;
+  let loadFailed = false;
   try {
     await ensurePublicData(false);
-  } catch (e) {}
+  } catch (e) { loadFailed = true; }
   if (!isPageActive(token, 'promoScheduleView')) return;
   const list = promoListFromState();
   // 記起來給卡片的分享按鈕用（onclick 只能帶索引）
@@ -9276,11 +9285,16 @@ async function renderPromoSchedulePage(month) {
   const box = document.getElementById('promo-schedule-view');
   if (!box) return;
   if (!list.length) {
-    box.innerHTML = `
-      <div class="promo-empty">
-        目前沒有上架中的特惠日程。
-        ${isAdminUser ? '<br><button class="btn btn-main" style="margin-top:12px" onclick="renderPromoScheduleManagerPage()">新增特惠日程</button>' : ''}
-      </div>`;
+    // 三態：載入失敗不是「沒有特惠」。講錯會讓人以為特惠被下架了。
+    box.innerHTML = loadFailed
+      ? `<div class="promo-empty">
+          載入失敗，請重試。這不代表目前沒有特惠。
+          <br><button class="btn btn-sub" style="margin-top:12px" onclick="renderPromoSchedulePage()">重新載入</button>
+        </div>`
+      : `<div class="promo-empty">
+          目前沒有上架中的特惠日程。
+          ${isAdminUser ? '<br><button class="btn btn-main" style="margin-top:12px" onclick="renderPromoScheduleManagerPage()">新增特惠日程</button>' : ''}
+        </div>`;
     return;
   }
   const targetMonth = month || promoScheduleViewMonth || promoMonthFromList(list);
