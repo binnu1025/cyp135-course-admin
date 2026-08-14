@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.82</title>
+  <title>CYP135 課程報名 V7.83</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -871,7 +871,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.82</small>
+    <small>CYP135 課程系統 V7.83</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -8673,6 +8673,35 @@ function ticketDriveSummaryHtml(summary, rootUrl) {
   `;
 }
 
+// 票券上傳的三個設定。改這裡就好，不要散在迴圈裡。
+//   JPEG 0.92：PNG 壓不動照片底圖，單張 1–3MB；JPEG 小十倍而且
+//              這種內容（大面積純色＋文字＋QR）失真極低。
+//   4MB 上限：批次依「累積大小」切，不是依張數——底圖一換張數就不準，
+//              大小才是真正會撞到 GAS 上限的東西。
+const TICKET_JPEG_QUALITY = 0.92;
+const TICKET_BATCH_MAX_BYTES = 4 * 1024 * 1024;
+const TICKET_BATCH_MAX_COUNT = 20;
+
+// 送一批。失敗就對半拆開重試，最小退到一張。
+// 調快之後絕對不能有票默默沒傳到——寧可那一批慢。
+async function postTicketBatch(batch, payloadBase, summary, depth) {
+  if (!batch.length) return null;
+  try {
+    const res = await post('uploadTicketDriveFiles', Object.assign({}, payloadBase, { files: batch }), 90000);
+    if (!res || (res.status !== 'ok' && !(res.summary && res.summary.uploaded))) {
+      throw new Error((res && res.message) || '雲端分配失敗');
+    }
+    mergeTicketDriveSummary(summary, (res && res.summary) || {});
+    return res;
+  } catch (err) {
+    if (batch.length === 1 || (depth || 0) >= 4) throw err;
+    const mid = Math.ceil(batch.length / 2);
+    const a = await postTicketBatch(batch.slice(0, mid), payloadBase, summary, (depth || 0) + 1);
+    const b = await postTicketBatch(batch.slice(mid), payloadBase, summary, (depth || 0) + 1);
+    return b || a;
+  }
+}
+
 async function uploadTicketsToDrive(forceOverwrite) {
   forceOverwrite = !!forceOverwrite;
   if (forceOverwrite) {
@@ -8733,12 +8762,30 @@ async function uploadTicketsToDrive(forceOverwrite) {
     }
 
     const canvas = document.createElement('canvas');
-    const batchSize = 3;
+    const payloadBase = {
+      userId,
+      eventCode,
+      courseName: info.eventName,
+      driveClassroom,
+      skipExisting: !forceOverwrite
+    };
+    let batch = [];
+    let batchBytes = 0;
 
-    for (let start = 0; start < uploadPlan.length; start += batchSize) {
-      const batch = [];
-      const end = Math.min(start + batchSize, uploadPlan.length);
-      for (let i = start; i < end; i++) {
+    const flushBatch = async (doneCount) => {
+      if (!batch.length) return;
+      const uploadPct = 74 + Math.round((doneCount / Math.max(1, uploadPlan.length)) * 20);
+      setActionLockProgress(uploadPct, '正在等待 Google Drive 回應',
+        ' 正在上傳 ' + batch.length + ' 張，共 ' + doneCount + ' / ' + uploadPlan.length + '。已上傳 ' + summary.uploaded + ' 張，略過 ' + summary.skipped + ' 張。',
+        doneCount + ' / ' + uploadPlan.length + ' 張');
+      const res = await postTicketBatch(batch, payloadBase, summary, 0);
+      if (res && res.rootFolderUrl) rootUrl = res.rootFolderUrl;
+      batch = [];
+      batchBytes = 0;
+    };
+
+    {
+      for (let i = 0; i < uploadPlan.length; i++) {
         const planItem = uploadPlan[i];
         const member = planItem.member;
         const drawPct = 24 + Math.round((i / Math.max(1, uploadPlan.length)) * 48);
@@ -8754,26 +8801,18 @@ async function uploadTicketsToDrive(forceOverwrite) {
           room: planItem.room,
           code: planItem.code,
           fileName: planItem.fileName,
-          dataUrl: canvas.toDataURL('image/png')
+          dataUrl: canvas.toDataURL('image/jpeg', TICKET_JPEG_QUALITY)
         });
+        // base64 每 4 個字元代表 3 個位元組，估這樣就夠決定要不要送出
+        batchBytes += Math.round(((batch[batch.length - 1].dataUrl || '').length * 3) / 4);
         await sleep(8);
-      }
 
-      const uploadPct = 74 + Math.round((end / Math.max(1, uploadPlan.length)) * 20);
-      setActionLockProgress(uploadPct, '正在等待 Google Drive 回應', `正在上傳第 ${start + 1} - ${end} / ${uploadPlan.length} 張票券。已上傳 ${summary.uploaded} 張，略過 ${summary.skipped} 張。`, `${end} / ${uploadPlan.length} 張`);
-      const res = await post('uploadTicketDriveFiles', {
-        userId,
-        eventCode,
-        courseName: info.eventName,
-        driveClassroom,
-        skipExisting: !forceOverwrite,
-        files: batch
-      }, 90000);
-      if (!res || (res.status !== 'ok' && !(res.summary && res.summary.uploaded))) {
-        throw new Error((res && res.message) || '雲端分配失敗');
+        if (batchBytes >= TICKET_BATCH_MAX_BYTES || batch.length >= TICKET_BATCH_MAX_COUNT) {
+          await flushBatch(i + 1);
+        }
       }
-      rootUrl = res.rootFolderUrl || rootUrl;
-      mergeTicketDriveSummary(summary, (res && res.summary) || {});
+      await flushBatch(uploadPlan.length);
+
     }
 
     setActionLockProgress(100, '雲端分配完成', `已完成 ${uploadPlan.length} / ${uploadPlan.length} 張。已上傳 ${summary.uploaded} 張，略過 ${summary.skipped} 張。`, `${uploadPlan.length} / ${uploadPlan.length} 張`);
