@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.74</title>
+  <title>CYP135 課程報名 V7.75</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -859,7 +859,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.74</small>
+    <small>CYP135 課程系統 V7.75</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -9043,14 +9043,15 @@ async function sharePromoSchedule(promo) {
   try {
     if (typeof liff !== 'undefined' && liff.isApiAvailable && liff.isApiAvailable('shareTargetPicker')) {
       const msgs = [];
-      // 多張圖片一起分享。LINE 單次最多 5 則訊息，留一則給文字。
+      // 只送圖片。宣傳文由管理者自己打、大家自己複製——系統自動組的句子
+      // 沒有人要用，還會佔掉 LINE 單次 5 則的額度。
       const shareImgs = (promo.images && promo.images.length)
         ? promo.images.map(x => x.imageUrl).filter(Boolean)
         : (promo.imageUrl ? [promo.imageUrl] : []);
-      shareImgs.slice(0, 4).forEach(u => {
+      shareImgs.slice(0, 5).forEach(u => {
         msgs.push({ type: 'image', originalContentUrl: u, previewImageUrl: u });
       });
-      if (text) msgs.push({ type: 'text', text: text });
+      if (!msgs.length && text) msgs.push({ type: 'text', text: text });
       try {
         const res = await liff.shareTargetPicker(msgs);
         if (res) showMsg('已分享特惠日程。', 'ok');
@@ -9130,10 +9131,24 @@ function renderPromoSchedulePublicCard(promo, idx) {
           ${imgs.length > 1 ? '<div class="promo-period">共 ' + imgs.length + ' 張圖片</div>' : ''}
         </div>
         <div class="promo-actions">
-          <button class="btn btn-sub" onclick="sharePromoScheduleByIndex(${Number(idx) || 0})">分享</button>
+          <button class="btn btn-sub" onclick="sharePromoScheduleByIndex(${Number(idx) || 0})">分享圖片</button>
+          ${promo.promoText ? '<button class="btn btn-sub" onclick="copyPromoText(' + (Number(idx) || 0) + ')">複製宣傳文</button>' : ''}
         </div>
       </div>
     </div>`;
+}
+
+// 複製宣傳文：只給原文，不加任何樣板——使用者要的就是他自己打的那段。
+function copyPromoText(idx) {
+  const list = promoScheduleCurrentList || [];
+  const text = ((list[idx] || {}).promoText || '').trim();
+  if (!text) { showMsg('這個特惠還沒有宣傳文。', 'err'); return; }
+  const ok = () => showMsg('宣傳文已複製。', 'ok');
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(ok).catch(() => fallbackCopy(text, ok));
+    } else fallbackCopy(text, ok);
+  } catch (e) { fallbackCopy(text, ok); }
 }
 
 // 卡片是用字串拼出來的，沒辦法把整個物件塞進 onclick，所以用索引取回。
@@ -9331,6 +9346,10 @@ function renderPromoEditForm(promo) {
         <div class="field"><label>結束日期</label><input id="promo-end" type="date" value="${esc(promo.endDate || '')}"></div>
       </div>
       <div class="field">
+        <label>宣傳文（大家會複製這段去貼）</label>
+        <textarea id="promo-text" rows="5" placeholder="打上要給大家複製的宣傳文字">${esc(promo.promoText || '')}</textarea>
+      </div>
+      <div class="field">
         <label>圖片（第一張是主圖，也是分享時的封面）</label>
         <input id="promo-image-file" class="file-input" type="file" accept="image/*" onchange="handlePromoImageFileChange(event)">
         <div id="promo-image-list">${renderPromoImageList()}</div>
@@ -9426,6 +9445,7 @@ function promoScheduleFromForm() {
     startDate: val('promo-start'),
     endDate: val('promo-end'),
     publishStatus: val('promo-status') || '上架',
+    promoText: val('promo-text') || '',
     images: imgs,
     imageUrl: imgs.length ? imgs[0].imageUrl : '',
     viewUrl: imgs.length ? (imgs[0].viewUrl || '') : ''
