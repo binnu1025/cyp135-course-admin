@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.73</title>
+  <title>CYP135 課程報名 V7.74</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -492,6 +492,16 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .promo-admin-preview{border:1px solid rgba(45,90,61,.14);border-radius:14px;overflow:hidden;background:#fff;margin-top:10px}
 .promo-admin-preview img{width:100%;display:block;max-height:300px;object-fit:cover;background:#f0ede8}
 .promo-admin-preview .edm-info{border-top:1px solid rgba(45,90,61,.10)}
+.promo-image-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px}
+.promo-image-item{border:1px solid rgba(45,90,61,.14);border-radius:14px;overflow:hidden;background:#fff}
+.promo-image-item img{width:100%;height:108px;display:block;object-fit:cover;background:#f0ede8}
+.promo-image-item-body{padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.promo-image-item-body .btn{height:34px;font-size:12px;padding:0 8px;margin:0}
+.promo-image-item.main{border-color:rgba(198,154,43,.55);box-shadow:0 0 0 2px rgba(255,244,95,.45) inset}
+.promo-manager-list{display:grid;gap:10px;margin:12px 0}
+.promo-manager-item{border:1px solid rgba(45,90,61,.14);border-radius:14px;background:#fbfaf6;padding:12px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.promo-manager-item-title{font-size:16px;font-weight:900;color:#244932;line-height:1.4}
+.promo-manager-item-meta{font-size:12px;color:#66736a;font-weight:700;margin-top:3px;line-height:1.5}
 .promo-strip{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 12px;margin:0 -2px 12px;-webkit-overflow-scrolling:touch}
 .promo-strip .promo-card{flex:0 0 min(86vw,420px);scroll-snap-align:start}
 .promo-calendar-card{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(31,48,38,.06)}
@@ -849,7 +859,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.73</small>
+    <small>CYP135 課程系統 V7.74</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1056,10 +1066,10 @@ let actionLockCustomLabel = '';
 let selectedEdmFile = null;
 let uploadedEdmUrl = '';
 let uploadedEdmFileName = '';
-let selectedPromoFile = null;
-let uploadedPromoUrl = '';
-let uploadedPromoFileName = '';
 let promoScheduleViewMonth = '';
+let promoScheduleCurrentList = [];
+let promoManagerItems = [];
+let promoManagerEditingKey = '';
 let externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
 let excelParserLoading = null;
 let coursePrefillFromImport = null;
@@ -1090,6 +1100,7 @@ let currentView = '';
 let appState = {
   courses: [],
   courseMap: {},
+  promoSchedules: [],
   promoSchedule: null,
   publicLoaded: false,
   publicLoading: null,
@@ -1214,7 +1225,11 @@ function setPublicData(data, fromCache) {
   publicData = data;
   appState.courses = (data.courses || []).map(c => reconcileCourseStatus(Object.assign({}, c)));
   publicData.courses = appState.courses;
-  appState.promoSchedule = data.promoSchedule || null;
+  appState.promoSchedules = Array.isArray(data.promoSchedules)
+    ? data.promoSchedules
+    : (data.promoSchedule ? [data.promoSchedule] : []);
+  appState.promoSchedule = data.promoSchedule || appState.promoSchedules[0] || null;
+  publicData.promoSchedules = appState.promoSchedules;
   publicData.promoSchedule = appState.promoSchedule;
   appState.publicLoaded = true;
   appState.lastPublicRefresh = Date.now();
@@ -1239,6 +1254,7 @@ function setPublicData(data, fromCache) {
         rosterScopeFlocks: data.rosterScopeFlocks || [],
         permissionAudit: data.permissionAudit || null,
         role: data.role || '',
+        promoSchedules: data.promoSchedules || appState.promoSchedules || [],
         promoSchedule: data.promoSchedule || null,
         courses: data.courses || []
       }));
@@ -1269,6 +1285,7 @@ function loadPublicCache() {
       rosterScopeFlocks: cached.rosterScopeFlocks || [],
       permissionAudit: cached.permissionAudit || null,
       role: cached.role || '',
+      promoSchedules: cached.promoSchedules || [],
       promoSchedule: cached.promoSchedule || null,
       courses: cached.courses || []
     }, true);
@@ -9026,7 +9043,13 @@ async function sharePromoSchedule(promo) {
   try {
     if (typeof liff !== 'undefined' && liff.isApiAvailable && liff.isApiAvailable('shareTargetPicker')) {
       const msgs = [];
-      if (promo.imageUrl) msgs.push({ type: 'image', originalContentUrl: promo.imageUrl, previewImageUrl: promo.imageUrl });
+      // 多張圖片一起分享。LINE 單次最多 5 則訊息，留一則給文字。
+      const shareImgs = (promo.images && promo.images.length)
+        ? promo.images.map(x => x.imageUrl).filter(Boolean)
+        : (promo.imageUrl ? [promo.imageUrl] : []);
+      shareImgs.slice(0, 4).forEach(u => {
+        msgs.push({ type: 'image', originalContentUrl: u, previewImageUrl: u });
+      });
       if (text) msgs.push({ type: 'text', text: text });
       try {
         const res = await liff.shareTargetPicker(msgs);
@@ -9052,7 +9075,11 @@ async function sharePromoSchedule(promo) {
   fallbackCopy(text + (promo.imageUrl ? '\n' + promo.imageUrl : ''), () => showMsg('已複製特惠日程分享內容。', 'ok'));
 }
 
+// 多個特惠：回傳全部上架且在期間內的。舊的單筆欄位只當退路，
+// 讓還沒重新載入公開資料的舊快取也還能顯示一張。
 function promoListFromState() {
+  const many = appState.promoSchedules || (publicData && publicData.promoSchedules) || [];
+  if (Array.isArray(many) && many.length) return many.filter(p => p && p.active);
   const promo = appState.promoSchedule || (publicData && publicData.promoSchedule) || null;
   return (promo && promo.active) ? [promo] : [];
 }
@@ -9086,22 +9113,33 @@ function promoTouchesDate(promo, key) {
   return key >= s && key <= e;
 }
 
-function renderPromoSchedulePublicCard(promo) {
+// idx 是 promoScheduleCurrentList 的索引——每張卡片分享的是「它自己」，
+// 不能再固定分享 appState.promoSchedule，否則多個特惠時全部分享到同一張。
+function renderPromoSchedulePublicCard(promo, idx) {
   const title = promo.title || '特惠日程';
+  const imgs = (promo.images && promo.images.length) ? promo.images : (promo.imageUrl ? [{ imageUrl: promo.imageUrl }] : []);
+  const cover = imgs.length ? imgs[0].imageUrl : '';
   return `
     <div class="promo-card">
-      ${promo.imageUrl ? `<img src="${esc(promo.imageUrl)}" alt="${esc(title)}" loading="lazy" onerror="this.style.display='none'">` : ''}
+      ${cover ? `<img src="${esc(cover)}" alt="${esc(title)}" loading="lazy" onerror="this.style.display='none'">` : ''}
       <div class="promo-body">
         <div class="promo-copy">
           <span class="promo-kicker">特惠</span>
           <div class="promo-title">${esc(title)}</div>
           <div class="promo-period">${esc(promoPeriodText(promo))}</div>
+          ${imgs.length > 1 ? '<div class="promo-period">共 ' + imgs.length + ' 張圖片</div>' : ''}
         </div>
         <div class="promo-actions">
-          <button class="btn btn-sub" onclick="sharePromoSchedule(appState.promoSchedule)">分享</button>
+          <button class="btn btn-sub" onclick="sharePromoScheduleByIndex(${Number(idx) || 0})">分享</button>
         </div>
       </div>
     </div>`;
+}
+
+// 卡片是用字串拼出來的，沒辦法把整個物件塞進 onclick，所以用索引取回。
+function sharePromoScheduleByIndex(idx) {
+  const list = promoScheduleCurrentList || [];
+  sharePromoSchedule(list[idx] || appState.promoSchedule);
 }
 
 function renderPromoScheduleCalendar(list, month) {
@@ -9148,6 +9186,8 @@ async function renderPromoSchedulePage(month) {
   } catch (e) {}
   if (!isPageActive(token, 'promoScheduleView')) return;
   const list = promoListFromState();
+  // 記起來給卡片的分享按鈕用（onclick 只能帶索引）
+  promoScheduleCurrentList = list;
   const box = document.getElementById('promo-schedule-view');
   if (!box) return;
   if (!list.length) {
@@ -9160,16 +9200,20 @@ async function renderPromoSchedulePage(month) {
   }
   const targetMonth = month || promoScheduleViewMonth || promoMonthFromList(list);
   box.innerHTML = `
-    <div class="promo-strip">${list.map(renderPromoSchedulePublicCard).join('')}</div>
+    <div class="promo-strip">${list.map((p, i) => renderPromoSchedulePublicCard(p, i)).join('')}</div>
     ${renderPromoScheduleCalendar(list, targetMonth)}
     ${isAdminUser ? '<button class="btn btn-sub" style="margin-top:12px" onclick="renderPromoScheduleManagerPage()">管理特惠日程</button>' : ''}`;
 }
 
-function promoImagePreviewHtml(url, name) {
-  if (!url) return '<div class="edm-info">尚未選擇圖片。</div>';
-  return `
-    <img src="${esc(url)}" alt="特惠日程預覽">
-    <div class="edm-info">${name ? '已選擇：' + esc(name) : '目前圖片。'}</div>`;
+// ── 特惠日程管理（多筆，每筆多圖）─────────────────────────
+//
+// promoManagerItems      後端回來的完整清單（含下架的）
+// promoManagerEditingKey 目前在編輯哪一筆；空字串＝沒在編輯
+// promoEditImages        編輯中那一筆的圖片工作區，第一張是主圖／分享圖
+let promoEditImages = [];
+
+function promoManagerFindItem(key) {
+  return (promoManagerItems || []).find(p => String(p.id) === String(key)) || null;
 }
 
 async function renderPromoScheduleManagerPage() {
@@ -9185,21 +9229,96 @@ async function renderPromoScheduleManagerPage() {
     data = await post('getPromoSchedule', { userId, includeDraft: true }, 20000);
   } catch (err) {
     stopLoading();
-    app.innerHTML = '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button><div class="card compact-card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
+    app.innerHTML = '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>' +
+      '<div class="card compact-card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p>' +
+      '<button class="btn btn-sub" style="margin-top:10px" onclick="renderPromoScheduleManagerPage()">重新載入</button></div>';
     return;
   }
   if (!isPageActive(token, 'promoSchedule')) return;
   stopLoading();
-  const promo = (data && data.promoSchedule) || {};
-  selectedPromoFile = null;
-  uploadedPromoUrl = '';
-  uploadedPromoFileName = '';
+
+  // 三態：查不到 ≠ 沒有資料。後端沒回 ok 就不要顯示成「目前沒有特惠」。
+  if (!data || data.status !== 'ok') {
+    app.innerHTML = '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>' +
+      '<div class="card compact-card"><h2>特惠日程</h2>' +
+      '<div class="msg on err">讀取失敗，請重試。這不代表目前沒有特惠。</div>' +
+      '<button class="btn btn-sub" style="margin-top:10px" onclick="renderPromoScheduleManagerPage()">重新載入</button></div>';
+    return;
+  }
+
+  promoManagerItems = Array.isArray(data.promoSchedules) ? data.promoSchedules : [];
+  promoManagerEditingKey = '';
+  promoEditImages = [];
+  renderPromoManagerShell();
+}
+
+function renderPromoManagerShell() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  const editing = promoManagerEditingKey
+    ? (promoManagerEditingKey === '__new__' ? {} : promoManagerFindItem(promoManagerEditingKey))
+    : null;
+
   app.innerHTML = `
     <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
     <div class="card compact-card" style="margin-top:12px">
       <h2>特惠日程</h2>
-      <p class="meta">會顯示在系統入口首頁，開放報名前面。</p>
+      <p class="meta">會顯示在系統入口的「特惠日程」頁。可以放多個特惠，每個特惠可以有多張圖片。</p>
       <div id="promo-form-msg" class="msg"></div>
+      <button class="btn btn-main" onclick="promoManagerNew()">＋ 新增特惠</button>
+      ${renderPromoManagerList()}
+    </div>
+    ${editing ? renderPromoEditForm(editing) : ''}`;
+}
+
+function renderPromoManagerList() {
+  const items = promoManagerItems || [];
+  if (!items.length) return '<p class="meta" style="margin-top:12px">目前還沒有任何特惠，按上面的「新增特惠」開始。</p>';
+  return '<div class="promo-manager-list">' + items.map(p => {
+    const imgs = (p.images && p.images.length) ? p.images : (p.imageUrl ? [{ imageUrl: p.imageUrl }] : []);
+    const state = p.publishStatus === '下架' ? '下架' : (p.active ? '上架中' : '上架（不在期間內）');
+    return `
+      <div class="promo-manager-item">
+        <div>
+          <div class="promo-manager-item-title">${esc(p.title || '（未命名）')}</div>
+          <div class="promo-manager-item-meta">${esc(promoPeriodText(p))}　·　${esc(state)}　·　${imgs.length} 張圖片</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sub" style="margin:0;height:38px" onclick="promoManagerEdit(\'${esc(p.id)}\')">編輯</button>
+        </div>
+      </div>`;
+  }).join('') + '</div>';
+}
+
+function promoManagerNew() {
+  promoManagerEditingKey = '__new__';
+  promoEditImages = [];
+  renderPromoManagerShell();
+}
+
+function promoManagerEdit(key) {
+  const item = promoManagerFindItem(key);
+  if (!item) return;
+  promoManagerEditingKey = String(key);
+  // 複製一份當工作區，取消時原資料不受影響
+  promoEditImages = (item.images && item.images.length)
+    ? item.images.map(x => ({ imageUrl: x.imageUrl, viewUrl: x.viewUrl || '', fileName: x.fileName || '' }))
+    : (item.imageUrl ? [{ imageUrl: item.imageUrl, viewUrl: item.viewUrl || '', fileName: '' }] : []);
+  renderPromoManagerShell();
+}
+
+function promoManagerCancel() {
+  promoManagerEditingKey = '';
+  promoEditImages = [];
+  renderPromoManagerShell();
+}
+
+function renderPromoEditForm(promo) {
+  promo = promo || {};
+  const isNew = promoManagerEditingKey === '__new__';
+  return `
+    <div class="card compact-card" style="margin-top:12px">
+      <h2>${isNew ? '新增特惠' : '編輯特惠'}</h2>
       <div class="form-grid">
         <div class="field"><label>特惠名稱</label><input id="promo-title" value="${esc(promo.title || '')}" placeholder="例如 年會早鳥特惠"></div>
         <div class="field"><label>狀態</label>
@@ -9212,67 +9331,104 @@ async function renderPromoScheduleManagerPage() {
         <div class="field"><label>結束日期</label><input id="promo-end" type="date" value="${esc(promo.endDate || '')}"></div>
       </div>
       <div class="field">
-        <label>日程圖片</label>
-        <div class="edm-upload">
-          <input id="promo-image-file" class="file-input" type="file" accept="image/*" onchange="handlePromoImageFileChange(event)">
-          <input id="promo-image-url" type="hidden" value="${esc(promo.imageUrl || '')}">
-          <input id="promo-view-url" type="hidden" value="${esc(promo.viewUrl || '')}">
-          <div id="promo-image-preview" class="promo-admin-preview">${promoImagePreviewHtml(promo.imageUrl || '', '')}</div>
-        </div>
+        <label>圖片（第一張是主圖，也是分享時的封面）</label>
+        <input id="promo-image-file" class="file-input" type="file" accept="image/*" onchange="handlePromoImageFileChange(event)">
+        <div id="promo-image-list">${renderPromoImageList()}</div>
       </div>
       <div class="compact-actions">
-        <button class="btn btn-main" onclick="savePromoSchedule()">儲存特惠日程</button>
+        <button class="btn btn-main" onclick="savePromoSchedule()">儲存</button>
         <button class="btn btn-sub" onclick="previewPromoScheduleFromForm()">分享預覽</button>
+        <button class="btn btn-ghost" onclick="promoManagerCancel()">取消</button>
       </div>
     </div>`;
 }
 
-function handlePromoImageFileChange(event) {
+function renderPromoImageList() {
+  const imgs = promoEditImages || [];
+  if (!imgs.length) return '<p class="meta" style="margin-top:8px">還沒有圖片。選擇檔案後會自動上傳並加入清單。</p>';
+  return '<div class="promo-image-list">' + imgs.map((img, i) => `
+    <div class="promo-image-item${i === 0 ? ' main' : ''}">
+      <img src="${esc(img.imageUrl)}" alt="特惠圖片 ${i + 1}" onerror="this.style.display='none'">
+      <div class="promo-image-item-body">
+        <button class="btn btn-sub" ${i === 0 ? 'disabled' : ''} onclick="promoMoveImage(${i},-1)">↑ 上移</button>
+        <button class="btn btn-sub" ${i === imgs.length - 1 ? 'disabled' : ''} onclick="promoMoveImage(${i},1)">↓ 下移</button>
+        <button class="btn btn-warn" onclick="promoRemoveImage(${i})">移除</button>
+        <span class="meta" style="align-self:center">${i === 0 ? '主圖' : '第 ' + (i + 1) + ' 張'}</span>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+function refreshPromoImageList() {
+  const box = document.getElementById('promo-image-list');
+  if (box) box.innerHTML = renderPromoImageList();
+}
+
+function promoMoveImage(i, dir) {
+  const a = promoEditImages;
+  const j = i + dir;
+  if (!a || i < 0 || j < 0 || i >= a.length || j >= a.length) return;
+  const t = a[i]; a[i] = a[j]; a[j] = t;
+  refreshPromoImageList();
+}
+
+function promoRemoveImage(i) {
+  if (!promoEditImages || i < 0 || i >= promoEditImages.length) return;
+  promoEditImages.splice(i, 1);
+  refreshPromoImageList();
+}
+
+// 選了檔案就立刻上傳並加進清單——不要等到儲存才上傳，
+// 否則使用者選了三張只會存到最後一張。
+async function handlePromoImageFileChange(event) {
   const file = event.target.files && event.target.files[0];
-  selectedPromoFile = null;
-  uploadedPromoUrl = '';
-  uploadedPromoFileName = '';
+  event.target.value = '';
   if (!file) return;
   if (!file.type || file.type.indexOf('image/') !== 0) {
     showBoxMsg('promo-form-msg', '請選擇圖片檔。', 'err');
-    event.target.value = '';
     return;
   }
-  selectedPromoFile = file;
-  const previewUrl = URL.createObjectURL(file);
-  const box = document.getElementById('promo-image-preview');
-  if (box) box.innerHTML = promoImagePreviewHtml(previewUrl, file.name);
-}
 
-async function uploadPromoImageIfNeeded() {
-  if (!selectedPromoFile) return val('promo-image-url');
-  if (uploadedPromoUrl) return uploadedPromoUrl;
-  const dataUrl = await compressImageToDataUrl(selectedPromoFile, 1600, 0.86);
-  const res = await post('uploadPromoScheduleImage', {
-    userId,
-    title: val('promo-title') || '特惠日程',
-    startDate: val('promo-start'),
-    fileName: selectedPromoFile.name,
-    dataUrl
-  }, 65000);
-  if (!res || res.status !== 'ok') throw new Error((res && res.message) || '圖片上傳失敗');
-  uploadedPromoUrl = res.url || '';
-  uploadedPromoFileName = res.fileName || '';
-  const urlInput = document.getElementById('promo-image-url');
-  const viewInput = document.getElementById('promo-view-url');
-  if (urlInput) urlInput.value = uploadedPromoUrl;
-  if (viewInput) viewInput.value = res.viewUrl || '';
-  return uploadedPromoUrl;
+  showActionLock('正在上傳圖片', '請稍候，正在處理並上傳圖片。');
+  try {
+    const dataUrl = await compressImageToDataUrl(file, 1600, 0.86);
+    const res = await post('uploadPromoScheduleImage', {
+      userId,
+      title: val('promo-title') || '特惠日程',
+      startDate: val('promo-start'),
+      fileName: file.name,
+      dataUrl
+    }, 65000);
+    if (!res) throw new Error('連線未回應，圖片可能沒有上傳成功，請重試。');
+    if (res.status !== 'ok') throw new Error(res.message || '圖片上傳失敗');
+    promoEditImages.push({
+      imageUrl: res.url || '',
+      viewUrl: res.viewUrl || '',
+      fileName: res.fileName || file.name
+    });
+    refreshPromoImageList();
+    showBoxMsg('promo-form-msg', '圖片已加入，記得按儲存。', 'ok');
+  } catch (err) {
+    showBoxMsg('promo-form-msg', esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
 }
 
 function promoScheduleFromForm() {
+  const imgs = promoEditImages || [];
+  const editing = promoManagerEditingKey && promoManagerEditingKey !== '__new__'
+    ? promoManagerFindItem(promoManagerEditingKey)
+    : null;
   return {
+    id: editing ? editing.id : '',
+    rowNumber: editing ? (editing.rowNumber || 0) : 0,
     title: val('promo-title') || '特惠日程',
     startDate: val('promo-start'),
     endDate: val('promo-end'),
     publishStatus: val('promo-status') || '上架',
-    imageUrl: val('promo-image-url'),
-    viewUrl: val('promo-view-url')
+    images: imgs,
+    imageUrl: imgs.length ? imgs[0].imageUrl : '',
+    viewUrl: imgs.length ? (imgs[0].viewUrl || '') : ''
   };
 }
 
@@ -9282,21 +9438,27 @@ function previewPromoScheduleFromForm() {
 
 async function savePromoSchedule() {
   clearBoxMsg('promo-form-msg');
-  showActionLock('正在儲存特惠日程', '請稍候，正在處理圖片與資料。');
+  showActionLock('正在儲存特惠', '請稍候，正在寫入資料。');
   try {
-    const imageUrl = await uploadPromoImageIfNeeded();
     const payload = promoScheduleFromForm();
     payload.userId = userId;
-    payload.imageUrl = imageUrl;
     const res = await post('savePromoSchedule', payload, 30000);
-    if (!res || res.status !== 'ok') throw new Error((res && res.message) || '儲存失敗');
-    appState.promoSchedule = res.promoSchedule || null;
-    if (publicData) publicData.promoSchedule = appState.promoSchedule;
+    if (!res) throw new Error('連線未回應，請重試。這不代表沒有存成功，重新載入可以確認。');
+    if (res.status !== 'ok') throw new Error(res.message || '儲存失敗');
+
+    // 存完把清單整份重抓，才看得到新增的那一筆與後端補上的 id
     try { localStorage.removeItem(PUBLIC_CACHE_KEY); } catch (e) {}
-    selectedPromoFile = null;
-    uploadedPromoUrl = '';
-    uploadedPromoFileName = '';
-    showBoxMsg('promo-form-msg', '特惠日程已儲存。', 'ok');
+    appState.promoSchedules = [];
+    appState.promoSchedule = null;
+      
+    const fresh = await post('getPromoSchedule', { userId, includeDraft: true }, 20000);
+    if (fresh && fresh.status === 'ok') {
+      promoManagerItems = Array.isArray(fresh.promoSchedules) ? fresh.promoSchedules : [];
+    }
+    promoManagerEditingKey = '';
+    promoEditImages = [];
+    renderPromoManagerShell();
+    showBoxMsg('promo-form-msg', '已儲存。', 'ok');
   } catch (err) {
     showBoxMsg('promo-form-msg', esc(err.message || err), 'err');
   } finally {
@@ -10468,7 +10630,11 @@ function sBuildSeatImage(targetValue) {
   const scale = 2;   // 高解析度，LINE 上放大也不糊
   cv.width = width * scale;
   cv.height = height * scale;
-  const g = cv.getContext('2d');
+  // 拿不到繪圖環境就放棄產圖，不要往下炸。
+  // sRenderSeatImagePreview 掛在 sRenderAll 上，這裡一拋例外會把整條
+  // 重繪鏈打斷，連座位圖與文字版結果都不見。
+  const g = cv.getContext && cv.getContext('2d');
+  if (!g) return null;
   g.scale(scale, scale);
 
   g.fillStyle = '#FFFFFF';
