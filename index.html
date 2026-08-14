@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.78</title>
+  <title>CYP135 課程報名 V7.79</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -871,7 +871,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.78</small>
+    <small>CYP135 課程系統 V7.79</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1100,7 +1100,9 @@ const DEFAULT_TICKET_DISPLAY_OPTIONS = {
   classType: false,
   group: true,
   room: false,
-  meal: false
+  meal: false,
+  // 序號是拿來抽獎的，預設就開——不印在票上這個功能等於沒有
+  seq: true
 };
 let ticketState = { course: null, members: [], stats: null, bgImage: null, bgName: '', displayOptions: Object.assign({}, DEFAULT_TICKET_DISPLAY_OPTIONS), driveRouteMode: 'auto', driveCustomClassroom: '' };
 let ticketScriptsLoading = null;
@@ -7979,7 +7981,8 @@ function renderTicketDisplayOptions() {
     ['classType', '類別/資格'],
     ['group', '組別'],
     ['room', '票面教室'],
-    ['meal', '餐食']
+    ['meal', '餐食'],
+    ['seq', '序號（抽獎用）']
   ];
   const opts = ticketState.displayOptions || DEFAULT_TICKET_DISPLAY_OPTIONS;
   return `
@@ -8367,7 +8370,8 @@ async function drawTicketCanvas(canvas, person, info) {
     display.classType && person.classType && !sub.includes(person.classType),
     display.room && person.room,
     display.meal && person.meal,
-    display.group && person.group
+    display.group && person.group,
+    display.seq && person.seq
   ].filter(Boolean).length;
   const qrRatio = visibleMetaCount >= 3 ? 0.62 : 0.66;
   const qrSize = Math.round(W * qrRatio);
@@ -8416,6 +8420,8 @@ async function drawTicketCanvas(canvas, person, info) {
   if (display.room && person.room) pills.push('教室：' + person.room);
   if (display.meal && person.meal) pills.push('餐食：' + person.meal);
   if (display.group && person.group) pills.push(String(person.group || '').trim());
+  // 序號放最後，現場抽獎時最容易找
+  if (display.seq && person.seq) pills.push('序號 ' + person.seq);
   const bottomSafeY = H - 36;
   const availablePillH = Math.max(0, bottomSafeY - detailY);
   const useTwoCols = pills.length >= 3 && availablePillH < pills.length * 50;
