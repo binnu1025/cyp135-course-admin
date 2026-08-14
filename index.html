@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.77</title>
+  <title>CYP135 課程報名 V7.78</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -871,7 +871,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.77</small>
+    <small>CYP135 課程系統 V7.78</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -9102,6 +9102,29 @@ function promoListFromState() {
   return (promo && promo.active) ? [promo] : [];
 }
 
+// 每個特惠一個顏色。用「在清單中的位置」決定，不是用名稱雜湊——
+// 同一頁上相鄰的兩個特惠才一定不同色，雜湊有機會撞在一起。
+const PROMO_COLORS = [
+  { chip: '#FFF45F', bg: '#F8F5D7', line: 'rgba(198,154,43,.34)', text: '#6E5B11' },
+  { chip: '#B8E6C4', bg: '#E3F5E8', line: 'rgba(45,140,85,.30)', text: '#1F5B36' },
+  { chip: '#BFDEFF', bg: '#E4F0FC', line: 'rgba(48,110,180,.30)', text: '#1B4571' },
+  { chip: '#E7CCFF', bg: '#F1E6FC', line: 'rgba(126,72,180,.28)', text: '#4B2478' },
+  { chip: '#FFCFC2', bg: '#FCE7E0', line: 'rgba(190,90,60,.28)', text: '#7A2E1A' },
+  { chip: '#FFE0AC', bg: '#FCF1DD', line: 'rgba(190,140,45,.30)', text: '#71501A' }
+];
+
+function promoColorAt(idx) {
+  return PROMO_COLORS[(Number(idx) || 0) % PROMO_COLORS.length];
+}
+
+// 依 id 回推它在目前清單中的位置，日曆才能跟卡片用同一個顏色
+function promoColorFor(promo) {
+  const list = promoScheduleCurrentList || [];
+  let i = list.findIndex(p => p && promo && String(p.id) === String(promo.id));
+  if (i < 0) i = list.indexOf(promo);
+  return promoColorAt(i < 0 ? 0 : i);
+}
+
 function promoDateKey(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -9142,7 +9165,7 @@ function renderPromoSchedulePublicCard(promo, idx) {
       ${cover ? `<img src="${esc(cover)}" alt="${esc(title)}" loading="lazy" onerror="this.style.display='none'">` : ''}
       <div class="promo-body">
         <div class="promo-copy">
-          <span class="promo-kicker">特惠</span>
+          <span class="promo-kicker" style="background:${promoColorAt(idx).chip};color:${promoColorAt(idx).text}">特惠</span>
           <div class="promo-title">${esc(title)}</div>
           <div class="promo-period">${esc(promoPeriodText(promo))}</div>
           ${imgs.length > 1 ? '<div class="promo-period">共 ' + imgs.length + ' 張圖片</div>' : ''}
@@ -9249,10 +9272,15 @@ function renderPromoScheduleCalendar(list, month) {
   for (let d = 1; d <= daysInMonth; d++) {
     const key = month + '-' + ('0' + d).slice(-2);
     const hits = list.filter(p => promoTouchesDate(p, key));
+    // 當天有多個特惠時，背景用第一個的顏色，每個標籤各自用自己的
+    const dayC = hits.length ? promoColorFor(hits[0]) : null;
     cells += `
-      <div class="promo-cal-day ${hits.length ? 'has' : ''}">
-        <div class="promo-cal-date">${d}</div>
-        ${hits.slice(0, 2).map(p => `<span class="promo-cal-chip">${esc(p.title || '特惠')}</span>`).join('')}
+      <div class="promo-cal-day ${hits.length ? 'has' : ''}"
+        ${dayC ? 'style="background:' + dayC.bg + ';border-color:' + dayC.line + '"' : ''}>
+        <div class="promo-cal-date" ${dayC ? 'style="color:' + dayC.text + '"' : ''}>${d}</div>
+        ${hits.slice(0, 3).map(p => { const c = promoColorFor(p); return `
+          <span class="promo-cal-chip" style="background:${c.chip};color:${c.text}">${esc(p.title || '特惠')}</span>`; }).join('')}
+        ${hits.length > 3 ? '<span class="promo-cal-chip" style="background:#EEE;color:#666">+' + (hits.length - 3) + '</span>' : ''}
       </div>`;
   }
   return `
