@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.72</title>
+  <title>CYP135 課程報名 V7.73</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -492,6 +492,20 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .promo-admin-preview{border:1px solid rgba(45,90,61,.14);border-radius:14px;overflow:hidden;background:#fff;margin-top:10px}
 .promo-admin-preview img{width:100%;display:block;max-height:300px;object-fit:cover;background:#f0ede8}
 .promo-admin-preview .edm-info{border-top:1px solid rgba(45,90,61,.10)}
+.promo-strip{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 12px;margin:0 -2px 12px;-webkit-overflow-scrolling:touch}
+.promo-strip .promo-card{flex:0 0 min(86vw,420px);scroll-snap-align:start}
+.promo-calendar-card{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(31,48,38,.06)}
+.promo-cal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.promo-cal-title{font-size:16px;font-weight:900;color:#244932}
+.promo-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.promo-cal-dow{text-align:center;font-size:11px;font-weight:900;color:#8a8a8a;padding:4px 0}
+.promo-cal-day{min-height:54px;border-radius:11px;background:#faf9f6;border:1px solid rgba(45,90,61,.08);padding:6px 5px;position:relative;overflow:hidden}
+.promo-cal-day.blank{background:transparent;border-color:transparent}
+.promo-cal-date{font-size:12px;font-weight:900;color:#69756d}
+.promo-cal-day.has{background:#f8f5d7;border-color:rgba(198,154,43,.34)}
+.promo-cal-day.has .promo-cal-date{color:#6e5b11}
+.promo-cal-chip{display:block;margin-top:4px;font-size:10.5px;line-height:1.25;font-weight:900;color:#244932;background:#fff45f;border-radius:6px;padding:2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.promo-empty{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:18px;padding:24px 16px;text-align:center;color:#7b847e;line-height:1.8}
 @media(max-width:520px){
   .promo-body{align-items:flex-start;flex-direction:column}
   .promo-actions{width:100%}
@@ -547,6 +561,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .quick-btn .qi{width:23px;height:23px;filter:drop-shadow(0 1px 4px rgba(0,0,0,.35))}
 .quick-btn .ql{font-size:12.5px;font-weight:700;color:#fff;letter-spacing:.1em;text-shadow:0 1px 8px rgba(0,0,0,.55);white-space:nowrap}
 @media(max-width:359px){.quick-row{gap:7px;padding:0 8px}.quick-btn{padding:12px 4px 10px;gap:7px}.quick-btn .qi{width:20px;height:20px}.quick-btn .ql{font-size:11.5px;letter-spacing:.06em}}
+@media(max-width:520px){.quick-row{gap:6px;padding:0 8px}.quick-btn{padding:11px 3px 9px;border-radius:14px;gap:6px}.quick-btn .qi{width:19px;height:19px}.quick-btn .ql{font-size:10.8px;letter-spacing:.02em}}
 
 /* ── 月曆：手機看圓點，桌機直接看課名 ── */
 .cal-t{display:none}
@@ -834,7 +849,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.72</small>
+    <small>CYP135 課程系統 V7.73</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1044,6 +1059,7 @@ let uploadedEdmFileName = '';
 let selectedPromoFile = null;
 let uploadedPromoUrl = '';
 let uploadedPromoFileName = '';
+let promoScheduleViewMonth = '';
 let externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
 let excelParserLoading = null;
 let coursePrefillFromImport = null;
@@ -9036,6 +9052,119 @@ async function sharePromoSchedule(promo) {
   fallbackCopy(text + (promo.imageUrl ? '\n' + promo.imageUrl : ''), () => showMsg('已複製特惠日程分享內容。', 'ok'));
 }
 
+function promoListFromState() {
+  const promo = appState.promoSchedule || (publicData && publicData.promoSchedule) || null;
+  return (promo && promo.active) ? [promo] : [];
+}
+
+function promoDateKey(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const m = raw.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return '';
+  const p = n => ('0' + n).slice(-2);
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+function promoMonthFromList(list) {
+  const today = todayKey();
+  const currentMonth = today.slice(0, 7);
+  const hit = (list || []).find(p => {
+    const s = promoDateKey(p.startDate) || currentMonth + '-01';
+    const e = promoDateKey(p.endDate) || s;
+    return today >= s && today <= e;
+  });
+  const base = hit || (list || [])[0] || {};
+  return (promoDateKey(base.startDate) || promoDateKey(base.endDate) || today).slice(0, 7);
+}
+
+function promoTouchesDate(promo, key) {
+  const s = promoDateKey(promo.startDate) || key;
+  const e = promoDateKey(promo.endDate) || s;
+  return key >= s && key <= e;
+}
+
+function renderPromoSchedulePublicCard(promo) {
+  const title = promo.title || '特惠日程';
+  return `
+    <div class="promo-card">
+      ${promo.imageUrl ? `<img src="${esc(promo.imageUrl)}" alt="${esc(title)}" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <div class="promo-body">
+        <div class="promo-copy">
+          <span class="promo-kicker">特惠</span>
+          <div class="promo-title">${esc(title)}</div>
+          <div class="promo-period">${esc(promoPeriodText(promo))}</div>
+        </div>
+        <div class="promo-actions">
+          <button class="btn btn-sub" onclick="sharePromoSchedule(appState.promoSchedule)">分享</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderPromoScheduleCalendar(list, month) {
+  list = list || [];
+  month = month || promoMonthFromList(list);
+  promoScheduleViewMonth = month;
+  const [y, m] = month.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const lead = first.getDay();
+  const dows = ['日', '一', '二', '三', '四', '五', '六'];
+  let cells = dows.map(d => `<div class="promo-cal-dow">${d}</div>`).join('');
+  for (let i = 0; i < lead; i++) cells += '<div class="promo-cal-day blank"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = month + '-' + ('0' + d).slice(-2);
+    const hits = list.filter(p => promoTouchesDate(p, key));
+    cells += `
+      <div class="promo-cal-day ${hits.length ? 'has' : ''}">
+        <div class="promo-cal-date">${d}</div>
+        ${hits.slice(0, 2).map(p => `<span class="promo-cal-chip">${esc(p.title || '特惠')}</span>`).join('')}
+      </div>`;
+  }
+  return `
+    <div class="promo-calendar-card">
+      <div class="promo-cal-head">
+        <button class="btn btn-ghost" style="width:auto;margin:0;min-width:44px;height:42px" onclick="renderPromoSchedulePage('${shiftMonth(month, -1)}')">‹</button>
+        <div class="promo-cal-title">${y} 年 ${m} 月</div>
+        <button class="btn btn-ghost" style="width:auto;margin:0;min-width:44px;height:42px" onclick="renderPromoSchedulePage('${shiftMonth(month, 1)}')">›</button>
+      </div>
+      <div class="promo-cal-grid">${cells}</div>
+    </div>`;
+}
+
+async function renderPromoSchedulePage(month) {
+  const token = beginPage('promoScheduleView', '特惠日程', true);
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+    <div id="promo-schedule-view" style="margin-top:12px">
+      <div class="promo-empty">載入特惠日程中…</div>
+    </div>`;
+  try {
+    await ensurePublicData(false);
+  } catch (e) {}
+  if (!isPageActive(token, 'promoScheduleView')) return;
+  const list = promoListFromState();
+  const box = document.getElementById('promo-schedule-view');
+  if (!box) return;
+  if (!list.length) {
+    box.innerHTML = `
+      <div class="promo-empty">
+        目前沒有上架中的特惠日程。
+        ${isAdminUser ? '<br><button class="btn btn-main" style="margin-top:12px" onclick="renderPromoScheduleManagerPage()">新增特惠日程</button>' : ''}
+      </div>`;
+    return;
+  }
+  const targetMonth = month || promoScheduleViewMonth || promoMonthFromList(list);
+  box.innerHTML = `
+    <div class="promo-strip">${list.map(renderPromoSchedulePublicCard).join('')}</div>
+    ${renderPromoScheduleCalendar(list, targetMonth)}
+    ${isAdminUser ? '<button class="btn btn-sub" style="margin-top:12px" onclick="renderPromoScheduleManagerPage()">管理特惠日程</button>' : ''}`;
+}
+
 function promoImagePreviewHtml(url, name) {
   if (!url) return '<div class="edm-info">尚未選擇圖片。</div>';
   return `
@@ -9282,7 +9411,6 @@ function renderPortalShell() {
 
   app.innerHTML = `
     ${heroHtml()}
-    ${renderPromoScheduleCard(appState.promoSchedule)}
     <div class="home-section">
       <p class="home-section-title">開放報名</p>
       <div id="portal-upcoming"><div class="cal-empty">載入課表中…</div></div>
@@ -10632,6 +10760,10 @@ function heroHtml() {
       <button type="button" class="quick-btn" onclick="renderMonthlyPage(false)">
         <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgD)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgD" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#C9A0F0"/><stop offset="100%" stop-color="#7FD2F0"/></linearGradient></defs><rect x="3" y="5.5" width="18" height="13" rx="3.4"/><path d="M3 10h18"/><path d="M7 14.5h3"/></svg></span>
         <span class="ql">小組包月</span>
+      </button>
+      <button type="button" class="quick-btn" onclick="renderPromoSchedulePage()">
+        <span class="qc"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="url(#qgE)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="qgE" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFF45F"/><stop offset="100%" stop-color="#8FE3B0"/></linearGradient></defs><rect x="3.6" y="5" width="16.8" height="15.2" rx="4"/><path d="M7.4 3.4v3.1M16.6 3.4v3.1M3.6 9.2h16.8"/><path d="M8 14.3h8M8 17h5.2"/></svg></span>
+        <span class="ql">特惠日程</span>
       </button>
     </div>`;
 }
