@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.83</title>
+  <title>CYP135 課程報名 V7.86</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -871,7 +871,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.83</small>
+    <small>CYP135 課程系統 V7.86</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -9489,9 +9489,44 @@ function renderPromoManagerList() {
         </div>
         <div style="display:flex;gap:6px">
           <button class="btn btn-sub" style="margin:0;height:38px" onclick="promoManagerEdit(\'${esc(p.id)}\')">編輯</button>
+          <button class="btn btn-ghost" style="margin:0;height:38px;color:#B3261E;border-color:rgba(179,38,30,.3)" onclick="promoManagerDelete(\'${esc(p.id)}\')">刪除</button>
         </div>
       </div>`;
   }).join('') + '</div>';
+}
+
+// 刪除是拿不回來的，所以先問清楚，而且把名字講出來——
+// 只問「確定刪除嗎」很容易刪到隔壁那筆。
+async function promoManagerDelete(key) {
+  const item = promoManagerFindItem(key);
+  if (!item) return;
+  const imgs = (item.images && item.images.length) ? item.images.length : (item.imageUrl ? 1 : 0);
+  const ok = await openConfirmDialog({
+    title: 'CYP135 票務系統',
+    message: '確定刪除「' + (item.title || '未命名') + '」？這筆特惠會從清單和日程上消失，無法復原。'
+      + (imgs ? '（' + imgs + ' 張圖片仍會留在雲端硬碟，不會被刪掉）' : ''),
+    okText: '確定刪除',
+    cancelText: '取消'
+  });
+  if (!ok) return;
+
+  showActionLock('正在刪除特惠', '請稍候。');
+  try {
+    const res = await post('deletePromoSchedule', { userId, id: item.id }, 60000);
+    if (!res || res.status !== 'ok') throw new Error((res && res.message) || '刪除失敗');
+    appState.promoSchedules = res.promoSchedules || [];
+    appState.promoSchedule = res.promoSchedule || null;
+    promoManagerItems = Array.isArray(res.promoSchedules) ? res.promoSchedules : [];
+    promoManagerEditingKey = '';
+    renderPromoManagerShell();
+    showBoxMsg('promo-form-msg', esc(res.message || '已刪除。'), 'ok');
+  } catch (e) {
+    // 失敗不等於沒刪掉——連線可能斷在寫入之後，所以請他重新載入確認，
+    // 不要講成「沒有刪掉」。
+    showBoxMsg('promo-form-msg', esc((e.message || e) + '　請重新載入確認目前狀態。'), 'err');
+  } finally {
+    hideActionLock();
+  }
 }
 
 function promoManagerNew() {
