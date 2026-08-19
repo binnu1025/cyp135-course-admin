@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.86</title>
+  <title>CYP135 課程報名 V7.87</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -515,6 +515,17 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .promo-manager-item-title{font-size:16px;font-weight:900;color:#244932;line-height:1.4}
 .promo-manager-item-meta{font-size:12px;color:#66736a;font-weight:700;margin-top:3px;line-height:1.5}
 .promo-strip{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 12px;margin:0 -2px 12px;-webkit-overflow-scrolling:touch}
+/* 卡片一張就佔滿一個螢幕，捲軸在手機上又是隱形的，
+   不講的話沒有人知道旁邊還有。頁碼、箭頭、圓點三個一起給。*/
+.promo-strip-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 8px}
+.promo-strip-nav .psn-label{font-size:13px;font-weight:900;color:#2d5a3d}
+.promo-strip-nav .psn-count{font-size:12px;font-weight:700;color:#66736a}
+.promo-strip-nav .psn-btns{display:flex;gap:6px}
+.promo-strip-nav button{width:38px;height:38px;border-radius:11px;border:1px solid rgba(45,90,61,.2);background:#fff;color:#2d5a3d;font-size:17px;font-weight:900;line-height:1;cursor:pointer;padding:0}
+.promo-strip-nav button:disabled{opacity:.32;cursor:default}
+.promo-dots{display:flex;justify-content:center;gap:6px;margin:-4px 0 14px}
+.promo-dots i{width:7px;height:7px;border-radius:50%;background:rgba(45,90,61,.22);transition:all .2s}
+.promo-dots i.on{background:#2d5a3d;width:20px;border-radius:99px}
 .promo-strip .promo-card{flex:0 0 min(86vw,420px);scroll-snap-align:start}
 .promo-calendar-card{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(31,48,38,.06)}
 .promo-cal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
@@ -527,6 +538,23 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .promo-cal-day.has{background:#f8f5d7;border-color:rgba(198,154,43,.34)}
 .promo-cal-day.has .promo-cal-date{color:#6e5b11}
 .promo-cal-chip{display:block;margin-top:4px;font-size:10.5px;line-height:1.25;font-weight:900;color:#244932;background:#fff45f;border-radius:6px;padding:2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 圖例：顏色本來就每個特惠一種，這裡才讓它有意義。
+   窄版靠它認人，寬版當作對照，兩邊都留著。*/
+/* 「還有 N 個」要看得出不是某一個特惠的顏色，所以用斜紋。
+   窄版縮成色條時尤其重要——一條純灰色會被當成某個灰色的特惠。*/
+.promo-cal-chip.more{background:repeating-linear-gradient(45deg,#e4e4e4 0 3px,#f6f6f6 3px 6px)}
+.promo-cal-legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin:0 0 10px;padding:0 2px}
+.promo-cal-key{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#3f4a43;line-height:1.4;max-width:100%}
+.promo-cal-key i{flex:0 0 auto;width:14px;height:14px;border-radius:5px;border:1px solid rgba(0,0,0,.08)}
+.promo-cal-key span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 窄版：七欄月曆每格只有 ~44px，名字一定塞不下。
+   與其截成「淨…」，不如收成色條——哪幾天有、有幾個，一眼就看得出來，
+   是哪一個去看上面的圖例。文字留在 DOM 裡，讀螢幕軟體還是唸得到。*/
+@media (max-width:560px){
+  .promo-cal-day{min-height:46px;padding:5px 4px}
+  .promo-cal-chip{font-size:0;line-height:0;height:7px;padding:0;margin-top:4px;border-radius:99px}
+  .promo-cal-grid{gap:4px}
+}
 .promo-empty{background:#fff;border:1px solid rgba(45,90,61,.14);border-radius:18px;padding:24px 16px;text-align:center;color:#7b847e;line-height:1.8}
 @media(max-width:520px){
   .promo-body{align-items:flex-start;flex-direction:column}
@@ -871,7 +899,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.86</small>
+    <small>CYP135 課程系統 V7.87</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -9070,7 +9098,8 @@ function promoPeriodText(promo) {
   const s = fmtDateOnly(promo.startDate || '');
   const e = fmtDateOnly(promo.endDate || '');
   if (s && e) return s + ' ~ ' + e;
-  if (s) return s + ' 起';
+  // 沒填結束日期就是沒有截止日。寫「起」太含糊，直接講送完為止。
+  if (s) return s + ' 起，送完為止';
   if (e) return '至 ' + e;
   return '期間不限';
 }
@@ -9213,21 +9242,23 @@ function promoDateKey(value) {
   return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
 }
 
+// 進到特惠頁一律先看本月。
+// 原本會跳到「第一筆特惠的月份」，結果排了一個明年的特惠，
+// 打開就直接跳到明年，看不到這個月有什麼——那不是人要的。
+// 要看別的月份有上下月按鈕。
 function promoMonthFromList(list) {
-  const today = todayKey();
-  const currentMonth = today.slice(0, 7);
-  const hit = (list || []).find(p => {
-    const s = promoDateKey(p.startDate) || currentMonth + '-01';
-    const e = promoDateKey(p.endDate) || s;
-    return today >= s && today <= e;
-  });
-  const base = hit || (list || [])[0] || {};
-  return (promoDateKey(base.startDate) || promoDateKey(base.endDate) || today).slice(0, 7);
+  return todayKey().slice(0, 7);
 }
 
+// 沒有結束日期＝送完為止，不是「只有那一天」。
+// 後端 isPromoScheduleActive_ 本來就是這樣認定（沒有 endDate 就不會過期），
+// 只有日曆這裡把它畫成單日，兩邊對不起來。
 function promoTouchesDate(promo, key) {
-  const s = promoDateKey(promo.startDate) || key;
-  const e = promoDateKey(promo.endDate) || s;
+  const s = promoDateKey(promo.startDate);
+  const e = promoDateKey(promo.endDate);
+  if (!s && !e) return true;          // 兩邊都沒填＝期間不限
+  if (!s) return key <= e;            // 只有結束日＝到那天為止
+  if (!e) return key >= s;            // 只有開始日＝送完為止
   return key >= s && key <= e;
 }
 
@@ -9335,6 +9366,69 @@ function sharePromoScheduleByIndex(idx) {
   sharePromoSchedule(list[idx] || appState.promoSchedule);
 }
 
+// 只有一個特惠時不要出現「1 / 1」和箭頭——那只是噪音。
+function renderPromoStripNav(list) {
+  const n = (list || []).length;
+  if (n < 2) return '';
+  return `
+    <div class="promo-strip-nav">
+      <div>
+        <div class="psn-label">本月特惠</div>
+        <div class="psn-count">共 ${n} 個，可左右滑動　<span id="promo-strip-idx">1</span> / ${n}</div>
+      </div>
+      <div class="psn-btns">
+        <button id="promo-strip-prev" onclick="promoStripMove(-1)" aria-label="上一個特惠">‹</button>
+        <button id="promo-strip-next" onclick="promoStripMove(1)" aria-label="下一個特惠">›</button>
+      </div>
+    </div>`;
+}
+
+function renderPromoDots(list) {
+  const n = (list || []).length;
+  if (n < 2) return '';
+  let h = '';
+  for (let i = 0; i < n; i++) h += `<i class="${i === 0 ? 'on' : ''}"></i>`;
+  return `<div class="promo-dots" id="promo-dots">${h}</div>`;
+}
+
+// 用「第一張卡片的實際寬度」算一步要捲多少，不要寫死——
+// 卡片寬度是 min(86vw,420px)，寫死在窄螢幕上會捲過頭或捲不夠。
+function promoStripStep(strip) {
+  const card = strip.querySelector('.promo-card');
+  if (!card) return strip.clientWidth;
+  const gap = parseFloat(getComputedStyle(strip).columnGap || '12') || 12;
+  return card.getBoundingClientRect().width + gap;
+}
+
+function promoStripIndex(strip) {
+  return Math.round(strip.scrollLeft / promoStripStep(strip));
+}
+
+function promoStripMove(dir) {
+  const strip = document.getElementById('promo-strip');
+  if (!strip) return;
+  const step = promoStripStep(strip);
+  strip.scrollTo({ left: (promoStripIndex(strip) + dir) * step, behavior: 'smooth' });
+}
+
+// 捲動時同步頁碼和圓點。手指滑的和按鈕按的都會走到這裡。
+function promoStripSync() {
+  const strip = document.getElementById('promo-strip');
+  if (!strip) return;
+  const total = strip.querySelectorAll('.promo-card').length;
+  const i = Math.max(0, Math.min(total - 1, promoStripIndex(strip)));
+  const idx = document.getElementById('promo-strip-idx');
+  if (idx) idx.textContent = String(i + 1);
+  const dots = document.getElementById('promo-dots');
+  if (dots) {
+    dots.querySelectorAll('i').forEach((d, j) => d.classList.toggle('on', j === i));
+  }
+  const prev = document.getElementById('promo-strip-prev');
+  const next = document.getElementById('promo-strip-next');
+  if (prev) prev.disabled = i <= 0;
+  if (next) next.disabled = i >= total - 1;
+}
+
 function renderPromoScheduleCalendar(list, month) {
   list = list || [];
   month = month || promoMonthFromList(list);
@@ -9344,6 +9438,19 @@ function renderPromoScheduleCalendar(list, month) {
   const daysInMonth = new Date(y, m, 0).getDate();
   const lead = first.getDay();
   const dows = ['日', '一', '二', '三', '四', '五', '六'];
+  // 圖例只列這個月真的出現過的特惠，不然一堆用不到的顏色反而更難認。
+  const inMonth = list.filter(p => {
+    for (let d = 1; d <= daysInMonth; d++) {
+      if (promoTouchesDate(p, month + '-' + ('0' + d).slice(-2))) return true;
+    }
+    return false;
+  });
+  const legend = inMonth.length
+    ? `<div class="promo-cal-legend">${inMonth.map(p => {
+        const c = promoColorFor(p);
+        return `<span class="promo-cal-key"><i style="background:${c.chip}"></i><span>${esc(p.title || '特惠')}</span></span>`;
+      }).join('')}</div>`
+    : '';
   let cells = dows.map(d => `<div class="promo-cal-dow">${d}</div>`).join('');
   for (let i = 0; i < lead; i++) cells += '<div class="promo-cal-day blank"></div>';
   for (let d = 1; d <= daysInMonth; d++) {
@@ -9355,9 +9462,9 @@ function renderPromoScheduleCalendar(list, month) {
       <div class="promo-cal-day ${hits.length ? 'has' : ''}"
         ${dayC ? 'style="background:' + dayC.bg + ';border-color:' + dayC.line + '"' : ''}>
         <div class="promo-cal-date" ${dayC ? 'style="color:' + dayC.text + '"' : ''}>${d}</div>
-        ${hits.slice(0, 3).map(p => { const c = promoColorFor(p); return `
-          <span class="promo-cal-chip" style="background:${c.chip};color:${c.text}">${esc(p.title || '特惠')}</span>`; }).join('')}
-        ${hits.length > 3 ? '<span class="promo-cal-chip" style="background:#EEE;color:#666">+' + (hits.length - 3) + '</span>' : ''}
+        ${hits.slice(0, 4).map(p => { const c = promoColorFor(p); return `
+          <span class="promo-cal-chip" title="${esc(p.title || '特惠')}" style="background:${c.chip};color:${c.text}">${esc(p.title || '特惠')}</span>`; }).join('')}
+        ${hits.length > 4 ? '<span class="promo-cal-chip more" style="color:#666">+' + (hits.length - 4) + '</span>' : ''}
       </div>`;
   }
   return `
@@ -9367,6 +9474,7 @@ function renderPromoScheduleCalendar(list, month) {
         <div class="promo-cal-title">${y} 年 ${m} 月</div>
         <button class="btn btn-ghost" style="width:auto;margin:0;min-width:44px;height:42px" onclick="renderPromoSchedulePage('${shiftMonth(month, 1)}')">›</button>
       </div>
+      ${legend}
       <div class="promo-cal-grid">${cells}</div>
     </div>`;
 }
@@ -9404,9 +9512,13 @@ async function renderPromoSchedulePage(month) {
   }
   const targetMonth = month || promoScheduleViewMonth || promoMonthFromList(list);
   box.innerHTML = `
-    <div class="promo-strip">${list.map((p, i) => renderPromoSchedulePublicCard(p, i)).join('')}</div>
+    ${renderPromoStripNav(list)}
+    <div class="promo-strip" id="promo-strip" onscroll="promoStripSync()">${list.map((p, i) => renderPromoSchedulePublicCard(p, i)).join('')}</div>
+    ${renderPromoDots(list)}
     ${renderPromoScheduleCalendar(list, targetMonth)}
     ${isAdminUser ? '<button class="btn btn-sub" style="margin-top:12px" onclick="renderPromoScheduleManagerPage()">管理特惠日程</button>' : ''}`;
+  // 畫完立刻同步一次，不然一開始「‹」看起來是可以按的。
+  promoStripSync();
 }
 
 // ── 特惠日程管理（多筆，每筆多圖）─────────────────────────
@@ -9567,7 +9679,7 @@ function renderPromoEditForm(promo) {
           </select>
         </div>
         <div class="field"><label>開始日期</label><input id="promo-start" type="date" value="${esc(promo.startDate || '')}"></div>
-        <div class="field"><label>結束日期</label><input id="promo-end" type="date" value="${esc(promo.endDate || '')}"></div>
+        <div class="field"><label>結束日期</label><input id="promo-end" type="date" value="${esc(promo.endDate || '')}"><p class="meta" style="margin:4px 0 0">留空＝送完為止，不會自動下架。</p></div>
       </div>
       <div class="field">
         <label>宣傳文（大家會複製這段去貼）</label>
