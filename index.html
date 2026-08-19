@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.87</title>
+  <title>CYP135 課程報名 V7.88</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -192,6 +192,9 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .clock-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .clock-actions .ghost{background:#fff;border:1px solid rgba(45,90,61,.22)}
 
+/* align-items:end 是為了讓標籤長短不一時，輸入框還能對齊在同一條線上。
+   代價：任何一格在輸入框底下多長出東西（說明文字之類），隔壁那格就會
+   被壓到底，變成一高一低。要加說明請用 .full 另起一列，不要塞進 .field。*/
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
 .form-grid .full{grid-column:1 / -1}
 .form-grid .field{margin-bottom:0}
@@ -535,8 +538,9 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .promo-cal-day{min-height:54px;border-radius:11px;background:#faf9f6;border:1px solid rgba(45,90,61,.08);padding:6px 5px;position:relative;overflow:hidden}
 .promo-cal-day.blank{background:transparent;border-color:transparent}
 .promo-cal-date{font-size:12px;font-weight:900;color:#69756d}
-.promo-cal-day.has{background:#f8f5d7;border-color:rgba(198,154,43,.34)}
-.promo-cal-day.has .promo-cal-date{color:#6e5b11}
+/* 中性色，不要用配色表裡任何一個特惠的顏色——那會讓人以為底色有意思。*/
+.promo-cal-day.has{background:#eef4ee;border-color:rgba(45,90,61,.2)}
+.promo-cal-day.has .promo-cal-date{color:#2d5a3d}
 .promo-cal-chip{display:block;margin-top:4px;font-size:10.5px;line-height:1.25;font-weight:900;color:#244932;background:#fff45f;border-radius:6px;padding:2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 圖例：顏色本來就每個特惠一種，這裡才讓它有意義。
    窄版靠它認人，寬版當作對照，兩邊都留著。*/
@@ -899,7 +903,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.87</small>
+    <small>CYP135 課程系統 V7.88</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -9456,12 +9460,12 @@ function renderPromoScheduleCalendar(list, month) {
   for (let d = 1; d <= daysInMonth; d++) {
     const key = month + '-' + ('0' + d).slice(-2);
     const hits = list.filter(p => promoTouchesDate(p, key));
-    // 當天有多個特惠時，背景用第一個的顏色，每個標籤各自用自己的
-    const dayC = hits.length ? promoColorFor(hits[0]) : null;
+    // 格子底色一律同一種，只表示「這天有特惠」。
+    // 之前底色跟著當天第一個特惠跑，會讓人以為底色也在表示某個特惠——
+    // 一天有三個特惠時，憑什麼是第一個說了算？顏色只留在色條上。
     cells += `
-      <div class="promo-cal-day ${hits.length ? 'has' : ''}"
-        ${dayC ? 'style="background:' + dayC.bg + ';border-color:' + dayC.line + '"' : ''}>
-        <div class="promo-cal-date" ${dayC ? 'style="color:' + dayC.text + '"' : ''}>${d}</div>
+      <div class="promo-cal-day ${hits.length ? 'has' : ''}">
+        <div class="promo-cal-date">${d}</div>
         ${hits.slice(0, 4).map(p => { const c = promoColorFor(p); return `
           <span class="promo-cal-chip" title="${esc(p.title || '特惠')}" style="background:${c.chip};color:${c.text}">${esc(p.title || '特惠')}</span>`; }).join('')}
         ${hits.length > 4 ? '<span class="promo-cal-chip more" style="color:#666">+' + (hits.length - 4) + '</span>' : ''}
@@ -9679,7 +9683,8 @@ function renderPromoEditForm(promo) {
           </select>
         </div>
         <div class="field"><label>開始日期</label><input id="promo-start" type="date" value="${esc(promo.startDate || '')}"></div>
-        <div class="field"><label>結束日期</label><input id="promo-end" type="date" value="${esc(promo.endDate || '')}"><p class="meta" style="margin:4px 0 0">留空＝送完為止，不會自動下架。</p></div>
+        <div class="field"><label>結束日期</label><input id="promo-end" type="date" value="${esc(promo.endDate || '')}"></div>
+        <p class="meta full" style="margin:0">結束日期留空＝送完為止，不會自動下架。</p>
       </div>
       <div class="field">
         <label>宣傳文（大家會複製這段去貼）</label>
