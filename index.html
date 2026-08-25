@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.91</title>
+  <title>CYP135 課程報名 V7.92</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -915,7 +915,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.91</small>
+    <small>CYP135 課程系統 V7.92</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -5450,6 +5450,83 @@ function getExternalImportData_() {
     renderMenu();
     return data || {};
   });
+}
+
+// ── 外部課程（會長專區）─────────────────────────────
+//
+// 這裡只列「課程用途＝外部匯入」的課。報名網站的課在課程首頁，
+// 兩邊不混在一起——外部課程不開放報名，混進首頁只會讓人困惑。
+//
+// 資料借用 getExternalImportInit（它本來就回傳全部課程且有快取）。
+// 但不要走 getExternalImportData_，那支會把 adminCourseData 換成
+// 全部課程，污染到別的頁面。
+let externalCoursesCache = null;
+
+async function renderExternalCoursesPage(forceRefresh) {
+  const token = beginPage('externalCourses', '外部課程', true);
+  const app = document.getElementById('app');
+  showLoading('載入外部課程');
+  const allowed = await ensureAdminAccess(token, 'externalCourses');
+  if (!isPageActive(token, 'externalCourses')) return;
+  if (!allowed) return;
+
+  let courses = forceRefresh ? null : externalCoursesCache;
+  let loadFailed = false;
+  if (!courses) {
+    try {
+      const data = await post('getExternalImportInit', { userId }, 20000);
+      if (!data || !data.allowed) { stopLoading(); return renderNoAdminPage(); }
+      courses = (data.courses || []).filter(isExternalPurposeCourse);
+      externalCoursesCache = courses;
+    } catch (err) {
+      loadFailed = true;
+      courses = [];
+    }
+  }
+  if (!isPageActive(token, 'externalCourses')) return;
+  stopLoading();
+
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+    <div class="card compact-card" style="margin-top:12px">
+      <h2>外部課程</h2>
+      <p class="meta">從外部名單匯入建立的課程。這些課不會出現在課程首頁，也不開放報名，
+      但可以在這裡查看名單、取消報名、產生票券。</p>
+      <button class="btn btn-sub" onclick="renderExternalCoursesPage(true)">重新載入</button>
+      ${renderExternalCourseList(courses, loadFailed)}
+    </div>`;
+}
+
+function isExternalPurposeCourse(c) {
+  return String((c && c.coursePurpose) || '').trim() === '外部匯入';
+}
+
+function renderExternalCourseList(courses, loadFailed) {
+  // 三態：載入失敗不是「沒有外部課程」。
+  if (loadFailed) {
+    return `<p class="meta" style="margin-top:12px;color:#B3261E">
+      載入失敗，這不代表沒有外部課程。請按上面的「重新載入」再試一次。</p>`;
+  }
+  if (!courses.length) {
+    return `<p class="meta" style="margin-top:12px">目前沒有外部匯入的課程。
+      到「外部名單匯入」建立之後會出現在這裡。</p>`;
+  }
+  return `<div class="promo-manager-list">${courses.map(c => {
+    const code = esc(c.eventCode || '');
+    return `
+      <div class="promo-manager-item">
+        <div>
+          <div class="promo-manager-item-title">${esc(c.eventName || '未命名活動')}</div>
+          <div class="promo-manager-item-meta">
+            ${esc(c.dateTime || '日期未設定')}　·　${esc(c.session || '場次未設定')}　·　${code}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-main" style="margin:0;height:38px" onclick="renderCourseRosterPage(\'${code}\')">名單</button>
+          <button class="btn btn-sub" style="margin:0;height:38px" onclick="renderEditCoursePageByCode(\'${code}\')">編輯</button>
+        </div>
+      </div>`;
+  }).join('')}</div>`;
 }
 
 function renderExternalImportSteps() {
@@ -10046,6 +10123,7 @@ function renderPortalShell() {
       portalTile({ ico: TILE_ICO.ticket, title: '票券產生', desc: '產生報名者 QR 票券', admin: true, onclick: 'renderTicketGeneratorPage()' }),
       portalTile({ ico: TILE_ICO.trophy, title: '特惠日程', desc: '首頁特惠圖與期間設定', admin: true, onclick: 'renderPromoScheduleManagerPage()' }),
       portalTile({ ico: TILE_ICO.import, title: '外部名單匯入', desc: '匯入外部報名資料', admin: true, onclick: 'renderExternalImportPage()' }),
+      portalTile({ ico: TILE_ICO.classroom, title: '外部課程', desc: '匯入進來的課程名單與取消', admin: true, onclick: 'renderExternalCoursesPage()' }),
 
       portalTile({ ico: TILE_ICO.refresh, title: '清除前台快取', desc: '改完試算表後讓前台立即生效', admin: true, onclick: 'clearFrontendCourseCache()' })
     ];
