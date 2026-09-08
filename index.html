@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.92</title>
+  <title>CYP135 課程報名 V7.97</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -526,6 +526,22 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .promo-detail-img .btn{margin:8px;width:calc(100% - 16px)}
 .promo-detail-text{white-space:pre-wrap;line-height:1.7;font-size:15px;color:#2b3f33}
 .promo-manager-list{display:grid;gap:10px;margin:12px 0}
+/* 權限管理：一個人一張卡，開關直接點。手機上不需要橫向捲動的表格。*/
+.perm-card{border:1px solid rgba(45,90,61,.14);border-radius:14px;background:#fbfaf6;padding:12px;margin-bottom:10px}
+.perm-card.me{border-color:rgba(45,90,61,.42);background:#f2f8f3}
+.perm-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.perm-name{font-size:16px;font-weight:900;color:#244932}
+.perm-uid{font-size:11px;color:#8a8a8a;font-family:ui-monospace,monospace}
+.perm-me-tag{font-size:10px;font-weight:900;color:#2d5a3d;background:#e8f0ea;border-radius:999px;padding:2px 8px}
+.perm-toggles{display:flex;flex-wrap:wrap;gap:6px}
+.perm-toggle{border:1px solid rgba(45,90,61,.22);background:#fff;border-radius:999px;padding:7px 13px;font-family:inherit;font-size:12.5px;font-weight:700;color:#66736a;cursor:pointer}
+.perm-toggle.on{background:#2d5a3d;border-color:#2d5a3d;color:#fff}
+.perm-toggle:disabled{opacity:.45;cursor:not-allowed}
+.perm-scope{margin-top:8px}
+.perm-scope-label{font-size:11.5px;color:#66736a;font-weight:700;margin-bottom:4px}
+.perm-flocks{display:flex;flex-wrap:wrap;gap:5px}
+.perm-flock{border:1px solid rgba(45,90,61,.2);background:#fff;border-radius:8px;padding:5px 10px;font-family:inherit;font-size:12px;font-weight:700;color:#66736a;cursor:pointer}
+.perm-flock.on{background:#e8f0ea;border-color:#2d5a3d;color:#2d5a3d}
 .promo-manager-item{border:1px solid rgba(45,90,61,.14);border-radius:14px;background:#fbfaf6;padding:12px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
 .promo-manager-item-title{font-size:16px;font-weight:900;color:#244932;line-height:1.4}
 .promo-manager-item-meta{font-size:12px;color:#66736a;font-weight:700;margin-top:3px;line-height:1.5}
@@ -915,7 +931,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.92</small>
+    <small>CYP135 課程系統 V7.97</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -5529,6 +5545,237 @@ function renderExternalCourseList(courses, loadFailed) {
   }).join('')}</div>`;
 }
 
+// ── 權限管理（會長專區）─────────────────────────────────
+//
+// 為什麼要有這一頁：權限表非改不可的時候，人往往只有手機，
+// 而試算表在手機上很難開。UID 沒辦法用手打，所以新增對象一律
+// 從「查詢綁定」挑——那張表就是 UID 名冊。
+//
+// 保命規則（後端也擋一次）：不能改自己的角色、系統至少留一位會長。
+let permAdminData = null;
+let permAdminTab = 'line';
+
+async function renderPermissionAdminPage(forceRefresh) {
+  const token = beginPage('permAdmin', '權限管理', true);
+  const app = document.getElementById('app');
+  showLoading('載入權限資料');
+  const allowed = await ensureAdminAccess(token, 'permAdmin');
+  if (!isPageActive(token, 'permAdmin')) return;
+  if (!allowed) return;
+
+  let loadFailed = false;
+  if (forceRefresh || !permAdminData) {
+    try {
+      const res = await post('getPermissionAdminData', { userId }, 20000);
+      if (!res || res.status !== 'ok') throw new Error((res && res.message) || '載入失敗');
+      permAdminData = res;
+    } catch (err) {
+      loadFailed = true;
+    }
+  }
+  if (!isPageActive(token, 'permAdmin')) return;
+  stopLoading();
+
+  if (loadFailed) {
+    app.innerHTML = `
+      <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+      <div class="card compact-card" style="margin-top:12px">
+        <h2>權限管理</h2>
+        <p class="meta" style="color:#B3261E">載入失敗，這不代表權限有問題。請重試。</p>
+        <button class="btn btn-sub" onclick="renderPermissionAdminPage(true)">重新載入</button>
+      </div>`;
+    return;
+  }
+  renderPermissionAdminShell();
+}
+
+function renderPermissionAdminShell() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  const d = permAdminData || {};
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+    <div class="card compact-card" style="margin-top:12px">
+      <h2>權限管理</h2>
+      <div id="perm-msg" class="msg"></div>
+      <div class="seg" style="display:flex;gap:6px;margin-bottom:10px">
+        <button class="seg-btn ${permAdminTab === 'line' ? 'on' : ''}" onclick="switchPermTab('line')">系統權限</button>
+        <button class="seg-btn ${permAdminTab === 'scan' ? 'on' : ''}" onclick="switchPermTab('scan')">掃碼權限</button>
+      </div>
+      ${permAdminTab === 'line' ? renderLinePermList(d) : renderScanPermList(d)}
+      <button class="btn btn-sub" style="margin-top:12px" onclick="renderPermissionAdminPage(true)">重新載入</button>
+    </div>`;
+}
+
+function switchPermTab(tab) {
+  permAdminTab = tab;
+  renderPermissionAdminShell();
+}
+
+function renderLinePermList(d) {
+  const rows = d.linePerms || [];
+  const flocks = d.flocks || [];
+  const regNote = d.hasRegisterColumn ? '' : '<p class="meta" style="color:#B3261E">LINE權限表 缺少「是否有報名權限」欄，報名權限暫時不能在這裡改。</p>';
+  const cards = rows.map(r => {
+    const me = r.uid === d.myUserId;
+    const scope = (r.scopeText || '').split(/[,，、\s]+/).filter(Boolean);
+    return `
+      <div class="perm-card ${me ? 'me' : ''}">
+        <div class="perm-head">
+          <span class="perm-name">${esc(r.name || '（未命名）')}</span>
+          <span class="perm-uid">${esc(r.uidMasked)}</span>
+          ${me ? '<span class="perm-me-tag">你自己</span>' : ''}
+        </div>
+        <div class="perm-toggles">
+          <button class="perm-toggle ${r.isAdmin ? 'on' : ''}" ${me ? 'disabled title="不能改自己的角色"' : ''}
+            onclick="togglePerm('${esc(r.uid)}','role',${r.isAdmin ? 'false' : 'true'})">會長</button>
+          <button class="perm-toggle ${r.canManage ? 'on' : ''}"
+            onclick="togglePerm('${esc(r.uid)}','canManage',${r.canManage ? 'false' : 'true'})">名單管理</button>
+          <button class="perm-toggle ${r.canMonthly ? 'on' : ''}"
+            onclick="togglePerm('${esc(r.uid)}','canMonthly',${r.canMonthly ? 'false' : 'true'})">包月</button>
+          <button class="perm-toggle ${r.canRegister ? 'on' : ''}" ${d.hasRegisterColumn ? '' : 'disabled'}
+            onclick="togglePerm('${esc(r.uid)}','canRegister',${r.canRegister ? 'false' : 'true'})">報名</button>
+        </div>
+        <div class="perm-scope">
+          <div class="perm-scope-label">可查詢雁群${r.isAdmin ? '（會長本來就看得到全部）' : (scope.length ? '' : '：目前沒有，看不到任何名單')}</div>
+          <div class="perm-flocks">
+            ${flocks.map(f => `<button class="perm-flock ${scope.indexOf(f) >= 0 ? 'on' : ''}"
+              onclick="toggleFlockScope('${esc(r.uid)}','${esc(f)}')">${esc(f)}</button>`).join('')}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  return regNote + (cards || '<p class="meta">權限表目前沒有任何人。</p>') + renderPermCandidatePicker(d, 'line');
+}
+
+function renderScanPermList(d) {
+  const rows = d.scanPerms || [];
+  const cards = rows.map(r => `
+    <div class="perm-card">
+      <div class="perm-head">
+        <span class="perm-name">${esc(r.name || '（未命名）')}</span>
+        <span class="perm-uid">${esc(r.uidMasked)}</span>
+      </div>
+      <div class="perm-toggles">
+        <button class="perm-toggle on"
+          onclick="setScanPerm('${esc(r.uid)}','${esc(r.name)}',false)">可掃碼（點一下移除）</button>
+      </div>
+    </div>`).join('');
+  return (cards || '<p class="meta">目前沒有人有掃碼權限。</p>') + renderPermCandidatePicker(d, 'scan');
+}
+
+// UID 打不出來，所以一律從綁定表挑人。
+function renderPermCandidatePicker(d, mode) {
+  const list = d.candidates || [];
+  if (!list.length) {
+    return `<p class="meta" style="margin-top:12px">沒有可新增的對象。要先讓對方進系統完成綁定，這裡才會出現他的名字。</p>`;
+  }
+  return `
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(45,90,61,.12)">
+      <div class="perm-scope-label">新增對象（從已綁定的人挑）</div>
+      <div class="sw" style="margin-bottom:8px">
+        <span style="color:#8a8a8a;font-size:14px">⌕</span>
+        <input class="si" id="perm-search" placeholder="輸入姓名搜尋" oninput="renderPermCandidateResults()">
+      </div>
+      <input type="hidden" id="perm-mode" value="${esc(mode)}">
+      <div id="perm-candidates"></div>
+    </div>`;
+}
+
+function renderPermCandidateResults() {
+  const box = document.getElementById('perm-candidates');
+  if (!box) return;
+  const q = (val('perm-search') || '').trim();
+  const mode = (document.getElementById('perm-mode') || {}).value || 'line';
+  if (!q) { box.innerHTML = ''; return; }
+  const hits = (permAdminData.candidates || []).filter(c => c.name.indexOf(q) >= 0).slice(0, 20);
+  if (!hits.length) {
+    box.innerHTML = '<p class="meta">找不到這個名字。對方要先進系統綁定過。</p>';
+    return;
+  }
+  box.innerHTML = hits.map(c => `
+    <div class="perm-card">
+      <div class="perm-head">
+        <span class="perm-name">${esc(c.name)}</span>
+        <span class="perm-uid">${esc(c.flock || '')} ${esc(c.uidMasked)}</span>
+      </div>
+      <div class="perm-toggles">
+        <button class="perm-toggle" onclick="addPermPerson('${esc(c.uid)}','${esc(c.name)}','${esc(mode)}')">加入</button>
+      </div>
+    </div>`).join('');
+}
+
+async function permSave(action, payload, busyText) {
+  showActionLock(busyText || '正在儲存', '請稍候。');
+  try {
+    const res = await post(action, Object.assign({ userId }, payload), 30000);
+    if (!res || res.status !== 'ok') throw new Error((res && res.message) || '儲存失敗');
+    permAdminData = res;
+    renderPermissionAdminShell();
+    showBoxMsg('perm-msg', esc(res.message || '已更新。'), 'ok');
+  } catch (e) {
+    // 失敗不等於沒改到——連線可能斷在寫入之後。
+    renderPermissionAdminShell();
+    showBoxMsg('perm-msg', esc((e.message || e) + '　請按重新載入確認目前狀態。'), 'err');
+  } finally {
+    hideActionLock();
+  }
+}
+
+function permFindRow(uid) {
+  return ((permAdminData || {}).linePerms || []).find(r => r.uid === uid) || null;
+}
+
+async function togglePerm(uid, field, value) {
+  const row = permFindRow(uid);
+  if (!row) return;
+  const payload = { targetUid: uid, name: row.name };
+  if (field === 'role') payload.role = value ? '會長' : '';
+  else payload[field] = value;
+
+  if (field === 'role' && value) {
+    const ok = await openConfirmDialog({
+      title: 'CYP135 票務系統',
+      message: '把「' + (row.name || '這個人') + '」設為會長？會長看得到所有名單、可以建立與刪除課程、也可以改別人的權限。',
+      okText: '確定設為會長', cancelText: '取消'
+    });
+    if (!ok) return;
+  }
+  await permSave('savePermissionRow', payload, '正在更新權限');
+}
+
+async function toggleFlockScope(uid, flock) {
+  const row = permFindRow(uid);
+  if (!row) return;
+  const scope = (row.scopeText || '').split(/[,，、\s]+/).filter(Boolean);
+  const at = scope.indexOf(flock);
+  if (at >= 0) scope.splice(at, 1);
+  else scope.push(flock);
+  await permSave('savePermissionRow', { targetUid: uid, name: row.name, scopeText: scope.join(',') }, '正在更新可查詢雁群');
+}
+
+async function setScanPerm(uid, name, enabled) {
+  if (!enabled) {
+    const ok = await openConfirmDialog({
+      title: 'CYP135 票務系統',
+      message: '移除「' + (name || '這個人') + '」的掃碼權限？他將無法在活動現場掃描報到。',
+      okText: '確定移除', cancelText: '取消'
+    });
+    if (!ok) return;
+  }
+  await permSave('saveScanPermission', { targetUid: uid, name, enabled }, '正在更新掃碼權限');
+}
+
+async function addPermPerson(uid, name, mode) {
+  if (mode === 'scan') {
+    await permSave('saveScanPermission', { targetUid: uid, name, enabled: true }, '正在開通掃碼權限');
+    return;
+  }
+  // 加進系統權限表時什麼都不給，避免手滑就開了一堆權限。
+  await permSave('savePermissionRow', { targetUid: uid, name, role: '', canManage: false, canMonthly: false }, '正在加入權限表');
+}
+
 function renderExternalImportSteps() {
   const current = Number(externalImportState.step || 1);
   const steps = [
@@ -10124,6 +10371,7 @@ function renderPortalShell() {
       portalTile({ ico: TILE_ICO.trophy, title: '特惠日程', desc: '首頁特惠圖與期間設定', admin: true, onclick: 'renderPromoScheduleManagerPage()' }),
       portalTile({ ico: TILE_ICO.import, title: '外部名單匯入', desc: '匯入外部報名資料', admin: true, onclick: 'renderExternalImportPage()' }),
       portalTile({ ico: TILE_ICO.classroom, title: '外部課程', desc: '匯入進來的課程名單與取消', admin: true, onclick: 'renderExternalCoursesPage()' }),
+      portalTile({ ico: TILE_ICO.roster, title: '權限管理', desc: '系統權限與掃碼權限，不用開試算表', admin: true, onclick: 'renderPermissionAdminPage()' }),
 
       portalTile({ ico: TILE_ICO.refresh, title: '清除前台快取', desc: '改完試算表後讓前台立即生效', admin: true, onclick: 'clearFrontendCourseCache()' })
     ];
