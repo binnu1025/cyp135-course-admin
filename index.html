@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.01</title>
+  <title>CYP135 課程報名 V8.02</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -558,13 +558,18 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .sign-table .col-narrow{width:11%}
 
 @media print{
-  /* 只印簽到表本身。工具列、按鈕、其他卡片一律不印。*/
-  body > *{display:none !important}
-  body > #app{display:block !important}
-  #app > *{display:none !important}
-  #app > .sign-print-area{display:block !important}
+  /* 只印簽到表本身。
+     ⚠️ 不要用 `body > *{display:none}` 這種結構寫法——#app 不是 body 的
+     直接子元素（它在 .wrap 裡），那樣會把整頁藏光，印出空白紙。
+     明確列出要藏的東西，文件流程不變，跨頁才會正常。*/
+  .hd, #bind-dialog, #menu-backdrop, #side-menu, #clock-backdrop,
+  #dialog-backdrop, #action-lock, #floating-yaya, #msg,
   .sign-no-print{display:none !important}
-  .sign-paper{width:auto}
+  body{background:#fff !important}
+  .wrap{max-width:none !important;margin:0 !important;padding:0 !important}
+  /* 邊界改用 padding 做。@page 的 margin 是 0，瀏覽器沒有地方放
+     日期／網址／頁碼，那些瑣碎資訊就不會印出來。*/
+  .sign-paper{width:auto;padding:12mm 10mm}
   /* 同一個雁群盡量不要被切開；真的太長時表頭會跟著換頁重複。*/
   .sign-group{break-inside:avoid;page-break-inside:avoid}
   .sign-table thead{display:table-header-group}
@@ -572,7 +577,9 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   .sign-sheet-wrap > thead{display:table-header-group}
   .sign-table tr{break-inside:avoid;page-break-inside:avoid}
 }
-@page{size:A4 portrait;margin:12mm}
+/* margin 故意設 0：有邊界時瀏覽器會在上下印日期、網址、頁碼。
+   紙面的留白改由 .sign-paper 的 padding 負責。*/
+@page{size:A4 portrait;margin:0}
 /* 權限管理：一個人一張卡，開關直接點。手機上不需要橫向捲動的表格。*/
 .perm-card{border:1px solid rgba(45,90,61,.14);border-radius:14px;background:#fbfaf6;padding:12px;margin-bottom:10px}
 .perm-card.me{border-color:rgba(45,90,61,.42);background:#f2f8f3}
@@ -978,7 +985,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.01</small>
+    <small>CYP135 課程系統 V8.02</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
