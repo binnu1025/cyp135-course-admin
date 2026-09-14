@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.98</title>
+  <title>CYP135 課程報名 V7.99</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -538,10 +538,11 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .sign-group{margin-bottom:10px}
 .sign-group-name{font-size:13px;font-weight:900;background:#eee;border:1px solid #000;border-bottom:0;padding:3px 7px}
 .sign-table{width:100%;border-collapse:collapse;table-layout:fixed}
-.sign-table th,.sign-table td{border:1px solid #000;padding:4px 5px;font-size:12px;line-height:1.4;word-break:break-all}
+.sign-table th,.sign-table td{border:1px solid #000;padding:3px 5px;font-size:12px;line-height:1.35;word-break:break-all}
 .sign-table th{background:#f2f2f2;font-weight:700;text-align:left;font-size:11px}
-/* 簽到欄要留得下筆跡，不能跟其他欄一樣高 */
-.sign-table td.sign-blank{height:9mm}
+/* 空白欄不另外撐高。原本給它 height:9mm 想留簽名空間，
+   但那會把整列都撐高，一頁只印得下一半的人，而且滿版留白。
+   打勾用正常列高就夠，每一列一樣高也比較整齊。*/
 .sign-table .col-no{width:8%}
 .sign-table .col-name{width:16%}
 .sign-table .col-phone{width:18%}
@@ -966,7 +967,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.98</small>
+    <small>CYP135 課程系統 V7.99</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
