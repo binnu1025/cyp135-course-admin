@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.97</title>
+  <title>CYP135 課程報名 V7.98</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -526,6 +526,41 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .promo-detail-img .btn{margin:8px;width:calc(100% - 16px)}
 .promo-detail-text{white-space:pre-wrap;line-height:1.7;font-size:15px;color:#2b3f33}
 .promo-manager-list{display:grid;gap:10px;margin:12px 0}
+
+/* ── 紙本簽到表 ──────────────────────────────────────────
+   螢幕上先給他看實際會印出來的樣子，不要按了列印才發現版面不對。
+   所以這裡的尺寸直接用 mm，螢幕和紙上是同一份 CSS。*/
+.sign-paper{background:#fff;color:#000;width:186mm;max-width:100%;margin:0 auto;padding:0}
+.sign-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;border-bottom:2px solid #000;padding-bottom:5px;margin-bottom:8px}
+.sign-title{font-size:17px;font-weight:900;line-height:1.3}
+.sign-sub{font-size:11px;color:#333;margin-top:2px}
+.sign-count{font-size:11px;color:#333;white-space:nowrap}
+.sign-group{margin-bottom:10px}
+.sign-group-name{font-size:13px;font-weight:900;background:#eee;border:1px solid #000;border-bottom:0;padding:3px 7px}
+.sign-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.sign-table th,.sign-table td{border:1px solid #000;padding:4px 5px;font-size:12px;line-height:1.4;word-break:break-all}
+.sign-table th{background:#f2f2f2;font-weight:700;text-align:left;font-size:11px}
+/* 簽到欄要留得下筆跡，不能跟其他欄一樣高 */
+.sign-table td.sign-blank{height:9mm}
+.sign-table .col-no{width:8%}
+.sign-table .col-name{width:16%}
+.sign-table .col-phone{width:18%}
+.sign-table .col-narrow{width:11%}
+
+@media print{
+  /* 只印簽到表本身。工具列、按鈕、其他卡片一律不印。*/
+  body > *{display:none !important}
+  body > #app{display:block !important}
+  #app > *{display:none !important}
+  #app > .sign-print-area{display:block !important}
+  .sign-no-print{display:none !important}
+  .sign-paper{width:auto}
+  /* 同一個雁群盡量不要被切開；真的太長時表頭會跟著換頁重複。*/
+  .sign-group{break-inside:avoid;page-break-inside:avoid}
+  .sign-table thead{display:table-header-group}
+  .sign-table tr{break-inside:avoid;page-break-inside:avoid}
+}
+@page{size:A4 portrait;margin:12mm}
 /* 權限管理：一個人一張卡，開關直接點。手機上不需要橫向捲動的表格。*/
 .perm-card{border:1px solid rgba(45,90,61,.14);border-radius:14px;background:#fbfaf6;padding:12px;margin-bottom:10px}
 .perm-card.me{border-color:rgba(45,90,61,.42);background:#f2f8f3}
@@ -931,7 +966,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.97</small>
+    <small>CYP135 課程系統 V7.98</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -3159,6 +3194,145 @@ function renderRosterContent() {
   renderRosterList();
 }
 
+// ── 紙本簽到表 ─────────────────────────────────────────
+//
+// 依雁群分組，欄位可選，A4 直式。資料就是名單頁已經載入的 rosterState.rows，
+// 不再打一次後端——現場網路通常不好，能不連線就不連線。
+//
+// 欄位的選擇記在 localStorage：同一個人每次印的表格通常一樣，
+// 不該每次都重新勾。
+const SIGN_COLUMNS = [
+  { key: 'no',       label: '編號',     cls: 'col-no',     get: (r, i) => String(i + 1) },
+  { key: 'name',     label: '姓名',     cls: 'col-name',   get: r => r.name || r.cleanName || '' },
+  { key: 'phone',    label: '電話',     cls: 'col-phone',  get: r => r.phone || '' },
+  { key: 'flock',    label: '雁群',     cls: 'col-narrow', get: r => r.flock || r.leader || '' },
+  { key: 'meal',     label: '葷素',     cls: 'col-narrow', get: r => r.meal || '' },
+  { key: 'gender',   label: '性別',     cls: 'col-narrow', get: r => r.gender || '' },
+  { key: 'classType',label: '上課類別', cls: 'col-narrow', get: r => r.displayClassType || r.classType || '' },
+  { key: 'price',    label: '金額',     cls: 'col-narrow', get: r => {
+      const v = r.displayPrice !== undefined && r.displayPrice !== '' ? r.displayPrice : r.price;
+      return v === '' || v === undefined || v === null ? '' : String(v);
+    } },
+  { key: 'remark',   label: '備註',     cls: '',           get: r => r.remark || '' },
+  { key: 'sign',     label: '簽到',     cls: 'col-narrow', blank: true },
+  { key: 'note',     label: '現場備註', cls: '',           blank: true }
+];
+
+const SIGN_DEFAULT = ['no', 'name', 'phone', 'flock', 'meal', 'sign'];
+const SIGN_STORE_KEY = 'cyp135_sign_columns_v1';
+
+let signSheetColumns = null;
+
+function loadSignColumns() {
+  if (signSheetColumns) return signSheetColumns;
+  try {
+    const raw = localStorage.getItem(SIGN_STORE_KEY);
+    const saved = raw ? JSON.parse(raw) : null;
+    // 存過的欄位可能已經不存在（改版拿掉），過濾掉再用。
+    if (Array.isArray(saved) && saved.length) {
+      signSheetColumns = saved.filter(k => SIGN_COLUMNS.some(c => c.key === k));
+    }
+  } catch (e) {}
+  if (!signSheetColumns || !signSheetColumns.length) signSheetColumns = SIGN_DEFAULT.slice();
+  return signSheetColumns;
+}
+
+function saveSignColumns() {
+  try { localStorage.setItem(SIGN_STORE_KEY, JSON.stringify(signSheetColumns)); } catch (e) {}
+}
+
+function toggleSignColumn(key) {
+  const cols = loadSignColumns();
+  const at = cols.indexOf(key);
+  if (at >= 0) cols.splice(at, 1);
+  // 照 SIGN_COLUMNS 的順序插回去，不是照點選順序——
+  // 表格欄位的左右順序應該是固定的，不該取決於他先勾哪一個。
+  else {
+    cols.push(key);
+    cols.sort((a, b) => SIGN_COLUMNS.findIndex(c => c.key === a) - SIGN_COLUMNS.findIndex(c => c.key === b));
+  }
+  saveSignColumns();
+  renderSignSheetPage();
+}
+
+// 取消的人不印。這是「確定取消」不是「不知道」，所以直接排除，
+// 但要把排除幾個人講出來，不然人數對不上會讓人以為漏了。
+function signSheetGroups() {
+  const rows = (rosterState.rows || []).filter(r => String(r.rawStatus || '').indexOf('取消') < 0);
+  const map = {};
+  rows.forEach(r => {
+    const f = (r.flock || r.leader || '未分組').toString().trim() || '未分組';
+    if (!map[f]) map[f] = [];
+    map[f].push(r);
+  });
+  return Object.keys(map).sort().map(name => ({
+    name,
+    rows: map[name].slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh-Hant'))
+  }));
+}
+
+function renderSignSheetPage() {
+  const c = rosterState.course || {};
+  const app = document.getElementById('app');
+  if (!app) return;
+  const cols = loadSignColumns().map(k => SIGN_COLUMNS.find(x => x.key === k)).filter(Boolean);
+  const groups = signSheetGroups();
+  const total = groups.reduce((n, g) => n + g.rows.length, 0);
+  const cancelled = (rosterState.rows || []).filter(r => String(r.rawStatus || '').indexOf('取消') >= 0).length;
+
+  app.innerHTML = `
+    <div class="sign-no-print">
+      <div class="top-actions">
+        <button class="btn btn-sub" onclick="openCourseRosterList('${esc(c.eventCode)}')">← 回名單</button>
+        <button class="btn btn-main" onclick="window.print()">列印</button>
+      </div>
+      <div class="card compact-card" style="margin-top:12px">
+        <h2>紙本簽到表</h2>
+        <p class="meta">勾選要印出來的欄位，選擇會記住。「簽到」和「現場備註」是空白格，給現場打勾或寫字用。</p>
+        <div class="perm-toggles">
+          ${SIGN_COLUMNS.map(col => `
+            <button class="perm-toggle ${cols.some(x => x.key === col.key) ? 'on' : ''}"
+              onclick="toggleSignColumn('${col.key}')">${esc(col.label)}${col.blank ? '（空格）' : ''}</button>`).join('')}
+        </div>
+        ${cols.length ? '' : '<p class="meta" style="color:#B3261E;margin-top:8px">至少要選一個欄位才印得出東西。</p>'}
+        ${cancelled ? `<p class="meta" style="margin-top:8px">已排除取消報名 ${cancelled} 人，所以這裡的人數會比名單頁少。</p>` : ''}
+      </div>
+    </div>
+    <div class="sign-print-area">
+      <div class="sign-paper">
+        <div class="sign-head">
+          <div>
+            <div class="sign-title">${esc(c.eventName || '簽到表')}</div>
+            <div class="sign-sub">${esc(c.dateTime || '')}${c.session ? '　' + esc(c.session) : ''}</div>
+          </div>
+          <div class="sign-count">應到 ${total} 人</div>
+        </div>
+        ${groups.length && cols.length
+          ? groups.map(g => renderSignGroup(g, cols)).join('')
+          : '<p style="font-size:13px">沒有可以列印的名單。</p>'}
+      </div>
+    </div>`;
+}
+
+function renderSignGroup(group, cols) {
+  return `
+    <div class="sign-group">
+      <div class="sign-group-name">${esc(group.name)}　${group.rows.length} 人</div>
+      <table class="sign-table">
+        <thead><tr>
+          ${cols.map(col => `<th class="${col.cls}">${esc(col.label)}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          ${group.rows.map((r, i) => `<tr>
+            ${cols.map(col => col.blank
+              ? `<td class="${col.cls} sign-blank"></td>`
+              : `<td class="${col.cls}">${esc(col.get(r, i))}</td>`).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
 function renderRosterTopActions(c) {
   return `
     <div class="top-actions">
@@ -3166,6 +3340,7 @@ function renderRosterTopActions(c) {
       <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">活動詳情</button>
       <button class="btn ${rosterState.openAdd ? 'btn-sub' : 'btn-main'}" onclick="openCourseRosterList('${esc(c.eventCode)}')">名單</button>
       ${rosterState.canManage ? `<button class="btn ${rosterState.openAdd ? 'btn-main' : 'btn-sub'}" onclick="openCourseAddRegistration('${esc(c.eventCode)}')">管理加報</button>` : ''}
+      <button class="btn btn-sub" onclick="renderSignSheetPage()">簽到表</button>
       <button class="btn btn-main icon-only" onclick="refreshRoster()" title="重新整理" aria-label="重新整理">↻</button>
     </div>
   `;
