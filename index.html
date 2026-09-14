@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V7.99</title>
+  <title>CYP135 課程報名 V8.01</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -531,12 +531,21 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
    螢幕上先給他看實際會印出來的樣子，不要按了列印才發現版面不對。
    所以這裡的尺寸直接用 mm，螢幕和紙上是同一份 CSS。*/
 .sign-paper{background:#fff;color:#000;width:186mm;max-width:100%;margin:0 auto;padding:0}
-.sign-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;border-bottom:2px solid #000;padding-bottom:5px;margin-bottom:8px}
+/* 標題整塊置中。原本是左標題右人數，列印出來看起來像沒對齊。*/
+.sign-head{text-align:center;border-bottom:2px solid #000;padding-bottom:5px;margin-bottom:8px}
 .sign-title{font-size:17px;font-weight:900;line-height:1.3}
-.sign-sub{font-size:11px;color:#333;margin-top:2px}
-.sign-count{font-size:11px;color:#333;white-space:nowrap}
+.sign-sub{font-size:11px;color:#333;margin-top:3px}
+.sign-count{font-weight:700}
+/* 外層表格只是為了讓標題在每一頁重複（thead 會重畫），
+   本身不該有任何框線或間距。*/
+.sign-sheet-wrap{width:100%;border-collapse:collapse}
+.sign-sheet-wrap > thead > tr > td,
+.sign-sheet-wrap > tbody > tr > td{border:0;padding:0}
 .sign-group{margin-bottom:10px}
-.sign-group-name{font-size:13px;font-weight:900;background:#eee;border:1px solid #000;border-bottom:0;padding:3px 7px}
+/* 組名是表格的第一列表頭，不是表格外面的一塊。
+   放進 thead 之後，一個雁群被切到下一頁時組名會跟著重複——
+   否則第二頁只剩「編號／姓名／電話」，看不出這是誰的組。*/
+.sign-table th.sign-group-head{font-size:13px;font-weight:900;background:#eee;text-align:center;padding:4px 7px}
 .sign-table{width:100%;border-collapse:collapse;table-layout:fixed}
 .sign-table th,.sign-table td{border:1px solid #000;padding:3px 5px;font-size:12px;line-height:1.35;word-break:break-all}
 .sign-table th{background:#f2f2f2;font-weight:700;text-align:left;font-size:11px}
@@ -559,6 +568,8 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   /* 同一個雁群盡量不要被切開；真的太長時表頭會跟著換頁重複。*/
   .sign-group{break-inside:avoid;page-break-inside:avoid}
   .sign-table thead{display:table-header-group}
+  /* 這個才是「每一頁都有活動標題」的關鍵。*/
+  .sign-sheet-wrap > thead{display:table-header-group}
   .sign-table tr{break-inside:avoid;page-break-inside:avoid}
 }
 @page{size:A4 portrait;margin:12mm}
@@ -967,7 +978,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V7.99</small>
+    <small>CYP135 課程系統 V8.01</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -3276,6 +3287,19 @@ function renderSignSheetPage() {
   const c = rosterState.course || {};
   const app = document.getElementById('app');
   if (!app) return;
+
+  // 紙本會被帶離現場、留在桌上，跟看完就關的螢幕不一樣，所以限會長。
+  // 按鈕本來就只給會長看，這裡再擋一次是因為按鈕藏起來不等於擋住。
+  if (!isAdminUser) {
+    app.innerHTML = `
+      <button class="btn btn-ghost" onclick="openCourseRosterList('${esc(c.eventCode)}')">← 回名單</button>
+      <div class="card compact-card" style="margin-top:12px">
+        <h2>簽到表</h2>
+        <p class="meta">列印簽到表限會長使用。紙本會被帶離現場，跟在畫面上看完就關不一樣。<br>
+        你仍然可以在名單頁查看自己雁群的資料。</p>
+      </div>`;
+    return;
+  }
   const cols = loadSignColumns().map(k => SIGN_COLUMNS.find(x => x.key === k)).filter(Boolean);
   const groups = signSheetGroups();
   const total = groups.reduce((n, g) => n + g.rows.length, 0);
@@ -3301,16 +3325,22 @@ function renderSignSheetPage() {
     </div>
     <div class="sign-print-area">
       <div class="sign-paper">
-        <div class="sign-head">
-          <div>
-            <div class="sign-title">${esc(c.eventName || '簽到表')}</div>
-            <div class="sign-sub">${esc(c.dateTime || '')}${c.session ? '　' + esc(c.session) : ''}</div>
-          </div>
-          <div class="sign-count">應到 ${total} 人</div>
-        </div>
-        ${groups.length && cols.length
-          ? groups.map(g => renderSignGroup(g, cols)).join('')
-          : '<p style="font-size:13px">沒有可以列印的名單。</p>'}
+        <table class="sign-sheet-wrap">
+          <thead><tr><td>
+            <div class="sign-head">
+              <div class="sign-title">${esc(c.eventName || '簽到表')}</div>
+              <div class="sign-sub">
+                ${esc(c.dateTime || '')}${c.session ? '　' + esc(c.session) : ''}
+                ${c.dateTime || c.session ? '　｜　' : ''}<span class="sign-count">應到 ${total} 人</span>
+              </div>
+            </div>
+          </td></tr></thead>
+          <tbody><tr><td>
+            ${groups.length && cols.length
+              ? groups.map(g => renderSignGroup(g, cols)).join('')
+              : '<p style="font-size:13px">沒有可以列印的名單。</p>'}
+          </td></tr></tbody>
+        </table>
       </div>
     </div>`;
 }
@@ -3318,11 +3348,13 @@ function renderSignSheetPage() {
 function renderSignGroup(group, cols) {
   return `
     <div class="sign-group">
-      <div class="sign-group-name">${esc(group.name)}　${group.rows.length} 人</div>
       <table class="sign-table">
-        <thead><tr>
-          ${cols.map(col => `<th class="${col.cls}">${esc(col.label)}</th>`).join('')}
-        </tr></thead>
+        <thead>
+          <tr><th class="sign-group-head" colspan="${cols.length}">${esc(group.name)}　${group.rows.length} 人</th></tr>
+          <tr>
+            ${cols.map(col => `<th class="${col.cls}">${esc(col.label)}</th>`).join('')}
+          </tr>
+        </thead>
         <tbody>
           ${group.rows.map((r, i) => `<tr>
             ${cols.map(col => col.blank
@@ -3341,7 +3373,7 @@ function renderRosterTopActions(c) {
       <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">活動詳情</button>
       <button class="btn ${rosterState.openAdd ? 'btn-sub' : 'btn-main'}" onclick="openCourseRosterList('${esc(c.eventCode)}')">名單</button>
       ${rosterState.canManage ? `<button class="btn ${rosterState.openAdd ? 'btn-main' : 'btn-sub'}" onclick="openCourseAddRegistration('${esc(c.eventCode)}')">管理加報</button>` : ''}
-      <button class="btn btn-sub" onclick="renderSignSheetPage()">簽到表</button>
+      ${isAdminUser ? '<button class="btn btn-sub" onclick="renderSignSheetPage()">簽到表</button>' : ''}
       <button class="btn btn-main icon-only" onclick="refreshRoster()" title="重新整理" aria-label="重新整理">↻</button>
     </div>
   `;
