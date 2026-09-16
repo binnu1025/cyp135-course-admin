@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.03</title>
+  <title>CYP135 課程報名 V8.04</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -994,7 +994,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.03</small>
+    <small>CYP135 課程系統 V8.04</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -6654,6 +6654,13 @@ function renderExternalImportPreview(data) {
   if (formCard) formCard.style.display = committed ? 'none' : '';
   const suggest = document.getElementById('external-import-suggest');
   if (committed && suggest) suggest.innerHTML = '';
+  // 套組跟選取課程不同時，在最上面講一次。埋在七十列的訊息欄裡沒有人會看到。
+  const renamed = Number(summary.renamed || 0);
+  const renamedFrom = (data.renamedFromNames || []).map(x => '「' + x + '」').join('、');
+  const renamedNote = renamed
+    ? `<div class="msg warn on">Excel 的套組${renamedFrom ? renamedFrom + ' ' : ''}與你選的課程「${esc((data.course && data.course.eventName) || '')}」不同，共 ${renamed} 筆。<br>已改用<b>你選的課程</b>寫入——用套組的話，LINE Bot 查詢會顯示 0 人，重複檢查也會失效。</div>`
+    : '';
+
   const doneMessage = data.message || (
     canSyncMaster
       ? `已完成匯入。`
@@ -6674,6 +6681,7 @@ function renderExternalImportPreview(data) {
         <div class="import-stat"><strong>${Number(summary.duplicate || 0)}</strong><span>已重複</span></div>
         <div class="import-stat"><strong>${Number(summary.error || 0)}</strong><span>需處理</span></div>
       </div>
+      ${renamedNote}
       <div class="compact-actions">
         ${committed ? '<button class="btn btn-ghost" onclick="renderExternalImportPage()">匯入另一份</button>' : '<button class="btn btn-ghost" onclick="externalImportBack()">上一步修改欄位</button>'}
         ${committed ? `<button class="btn btn-main" ${canSyncMaster ? '' : 'disabled'} onclick="syncImportedRowsFromMaster()">立即同步母版</button>` : `<button class="btn btn-main" ${canCommit ? '' : 'disabled'} onclick="commitExternalImport()">確認匯入可匯入資料</button>`}
