@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.06</title>
+  <title>CYP135 課程報名 V8.07</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -994,7 +994,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.06</small>
+    <small>CYP135 課程系統 V8.07</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1915,25 +1915,10 @@ function isCourseHidden(c) {
   return !isCoursePublished(c);
 }
 
-// 下架＝一般人看不到。但會長要看得到——否則下架之後那張卡片連同上面的
-// 「上架」按鈕一起消失，下架就變成單向的。
-// 卡片本來就有下架的樣子（變淡＋已下架標籤＋上架按鈕），原本是死碼。
-// 後端 getPublicInit 也要一起放行，不然這裡永遠濾不到東西。
+// 課程首頁只列上架的課，會長也一樣。下架的課集中在「下架區」，
+// 不要混進來——使用者原話：「就算只有我才有權限看到我也不想看到」。
 function visibleCoursesOnly(courses) {
-  return (courses || []).filter(c => isCoursePublished(c) || isAdminUser);
-}
-
-// 首頁最上方的「近期課程」是給人報名用的捷徑，下架的課不該出現在那裡，
-// 會長也一樣。要管理下架的課請往下看完整清單。
-function publishedCoursesOnly(courses) {
   return (courses || []).filter(isCoursePublished);
-}
-
-// 下架的沉到最後面，不要跟正在開放的課混在一起。
-// 兩邊各自維持原本的先後順序。
-function sortHiddenCoursesLast(courses) {
-  const list = courses || [];
-  return list.filter(isCoursePublished).concat(list.filter(c => !isCoursePublished(c)));
 }
 
 function reconcileCourseStatus(c) {
@@ -2268,7 +2253,7 @@ function renderMenu() {
   const adminBtns = isAdminUser
     ? `
       <button class="menu-item" onclick="toggleMenu(false);renderCreateCoursePage()">建立課程</button>
-      <button class="menu-item" onclick="toggleMenu(false);renderPastCoursesPage()">以往課程</button>
+      <button class="menu-item" onclick="toggleMenu(false);renderPastCoursesPage()">下架區</button>
       <button class="menu-item" onclick="toggleMenu(false);renderExternalImportPage()">外部名單匯入</button>
       <button class="menu-item" onclick="toggleMenu(false);renderSeatPage()">排座位</button>
       <button class="menu-item" onclick="toggleMenu(false);renderTicketGeneratorPage()">票券產生</button>
@@ -2492,7 +2477,7 @@ function renderHomeShell(courses) {
   const adminTools = isAdminUser
     ? `<div class="top-actions single">
         <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
-        <button class="btn btn-sub" onclick="renderPastCoursesPage()">以往課程</button>
+        <button class="btn btn-sub" onclick="renderPastCoursesPage()">下架區</button>
       </div>`
     : '';
 
@@ -2526,7 +2511,7 @@ function filterPublicCourses() {
 
 function renderPublicCourseList(courses) {
   const el = document.getElementById('course-list');
-  courses = sortHiddenCoursesLast(visibleCoursesOnly(courses || [])).map(c => reconcileCourseStatus(Object.assign({}, c)));
+  courses = visibleCoursesOnly(courses || []).map(c => reconcileCourseStatus(Object.assign({}, c)));
 
   if (!courses.length) {
     el.innerHTML = '<div class="card"><h2>目前沒有活動</h2><p class="meta">有新課程開放時會顯示在這裡。</p></div>';
@@ -2682,7 +2667,7 @@ async function toggleCoursePublishStatus(event, courseCode, publishStatus) {
   if (nextStatus === '下架') {
     const ok = await openConfirmDialog({
       title: 'CYP135課程管理',
-      message: '下架後前台與分享入口不會顯示這堂課，但後台資料與名單都會保留。確認下架？',
+      message: '下架後這堂課會收到「下架區」，前台與分享入口都不會顯示，但後台資料與名單都會保留。確認下架？',
       okText: '確認下架',
       cancelText: '取消'
     });
@@ -2710,9 +2695,14 @@ async function toggleCoursePublishStatus(event, courseCode, publishStatus) {
     setActionLockProgress(100, nextStatus === '下架' ? '課程已下架' : '課程已上架', '正在更新畫面。');
     await sleep(180);
 
-    if (currentView === 'pastCourses') renderPastCoursesShell(adminCourseData);
+    // 上下架會同時改變下架區和外部課程頁的清單，兩邊快取一律作廢重讀，
+    // 否則會看到剛剛才下架的課還留在原地。
+    hiddenCoursesCache = null;
+    externalCoursesCache = null;
+    if (currentView === 'pastCourses') renderPastCoursesPage(true);
+    else if (currentView === 'externalCourses') renderExternalCoursesPage(true);
     else renderHomePage({ skipRefresh: true });
-    showMsg(nextStatus === '下架' ? '課程已下架，已移到以往課程。' : '課程已上架，已回到課程首頁。', 'ok');
+    showMsg(nextStatus === '下架' ? '課程已下架，已收到下架區。' : '課程已上架。', 'ok');
   } catch (err) {
     showMsg(esc(err.message || err), 'err');
   } finally {
@@ -4458,54 +4448,67 @@ async function renderAdminCoursesPage() {
   return renderHomePage({skipRefresh:true});
 }
 
-async function renderPastCoursesPage() {
-  const token = beginPage('pastCourses', '以往課程', true);
+// ── 下架區（會長專區）──────────────────────────────────
+//
+// 下架＝從清單收起來，不是刪除。報名網站的課從課程首頁收起來，
+// 外部匯入的課從外部課程頁收起來，兩邊都落到這裡。
+// 課程首頁不會列下架的課，會長也一樣，所以這裡是唯一看得到的地方。
+//
+// 這一頁原本叫「以往課程」，但它列的一直都是下架清單，不是歷史；
+// 而且資料走 getCourseAdminInit，只拿得到「報名網站」用途的課，
+// 外部匯入的下架課程會整批漏掉，而且要掃報名總表算統計，手機上很慢。
+// 內部的 pastCourses 這個代號沒有一起改，純粹是避免動到路由和歷史紀錄。
+let hiddenCoursesCache = null;
+
+async function renderPastCoursesPage(forceRefresh) {
+  const token = beginPage('pastCourses', '下架區', true);
   const app = document.getElementById('app');
+  showLoading('載入下架區');
+  const allowed = await ensureAdminAccess(token, 'pastCourses');
+  if (!isPageActive(token, 'pastCourses')) return;
+  if (!allowed) { stopLoading(); return; }
 
-  if (initData && initData.allowed && Array.isArray(adminCourseData)) {
-    renderPastCoursesShell(adminCourseData);
-  } else {
-    showLoading('載入以往課程中');
+  let courses = forceRefresh ? null : hiddenCoursesCache;
+  let loadFailed = false;
+  if (!courses) {
+    try {
+      const data = await post('getHiddenCourses', { userId }, 20000);
+      if (!data || !data.allowed) { stopLoading(); return renderNoAdminPage(); }
+      courses = data.courses || [];
+      hiddenCoursesCache = courses;
+    } catch (err) {
+      // 載入失敗不是「沒有下架課程」，這兩件事一定要分開。
+      loadFailed = true;
+      courses = [];
+    }
   }
-
-  let data;
-  try {
-    data = await getCachedAdminData_(true);
-  } catch (err) {
-    if (!isPageActive(token, 'pastCourses')) return;
-    stopLoading();
-    app.innerHTML = '<div class="card"><h2>載入失敗</h2><p class="meta">' + esc(err.message || err) + '</p></div>';
-    return;
-  }
-
   if (!isPageActive(token, 'pastCourses')) return;
   stopLoading();
-  if (!data.allowed) return renderNoAdminPage();
-  renderPastCoursesShell(data.courses || []);
+  renderPastCoursesShell(courses, loadFailed);
 }
 
-function renderPastCoursesShell(courses) {
-  adminCourseData = courses || [];
+function renderPastCoursesShell(courses, loadFailed) {
+  // 這裡不要碰 adminCourseData。它是「全部課程」，別的頁面（外部匯入的
+  // 下拉選單）靠它；塞只有下架的清單進去會污染那些頁面。
+  hiddenCoursesCache = courses || [];
   const app = document.getElementById('app');
   app.innerHTML = `
-    <div class="top-actions">
-      <button class="btn btn-sub" onclick="renderHomePage({skipRefresh:true})">課程首頁</button>
-      <button class="btn btn-main" onclick="renderPastCoursesPage()">以往課程</button>
-      <button class="btn btn-sub" onclick="renderCreateCoursePage()">建立課程</button>
-    </div>
-
-    <div class="card">
-      <h2>以往課程</h2>
+    <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+    <div class="card" style="margin-top:12px">
+      <h2>下架區</h2>
+      <p class="meta">已下架的課程都收在這裡，前台和分享入口都不會顯示，
+      但後台資料與名單都還在。按「上架」就會回到原本的清單。</p>
+      <button class="btn btn-sub" onclick="renderPastCoursesPage(true)">重新載入</button>
       <div class="searchbar"><input id="past-course-search" placeholder="搜尋課程名稱 / 代碼 / 場次 / 票種" oninput="filterPastCourses()"></div>
       <div id="past-course-list"></div>
     </div>
   `;
-  renderPastCourseList(adminCourseData);
+  renderPastCourseList(hiddenCoursesCache, loadFailed);
 }
 
 function filterPastCourses() {
   const q = val('past-course-search').toLowerCase();
-  const courses = adminCourseData || [];
+  const courses = hiddenCoursesCache || [];
   if (!q) return renderPastCourseList(courses);
   renderPastCourseList(courses.filter(c => {
     return [c.eventName, c.eventCode, c.dateTime, c.session, c.ticketType, c.applyStart, c.applyEnd]
@@ -4513,23 +4516,29 @@ function filterPastCourses() {
   }));
 }
 
-function renderPastCourseList(courses) {
+function renderPastCourseList(courses, loadFailed) {
   const el = document.getElementById('past-course-list');
   if (!el) return;
-  const hiddenCourses = (courses || []).filter(isCourseHidden);
-  if (!hiddenCourses.length) {
-    el.innerHTML = '<p class="muted">目前沒有下架課程。</p>';
+
+  // 三態：載入失敗不是「沒有下架課程」。
+  if (loadFailed) {
+    el.innerHTML = `<p class="meta" style="color:#B3261E">載入失敗，這不代表沒有下架課程。
+      請按上面的「重新載入」再試一次。</p>`;
+    return;
+  }
+  if (!(courses || []).length) {
+    el.innerHTML = '<p class="muted">目前沒有下架的課程。</p>';
     return;
   }
 
   el.innerHTML = `
     <div class="past-course-list">
-      ${hiddenCourses.map(c => `
+      ${courses.map(c => `
         <div class="${courseHiddenClass(c, 'past-course-row')}">
           <div class="past-course-main">
             <div class="past-course-title">${esc(c.eventName || '未命名活動')}</div>
             <div class="past-course-meta">${esc(buildPastCourseMeta(c))}</div>
-            <div class="past-course-status">下架</div>
+            <div class="past-course-status">下架｜${isExternalPurposeCourse(c) ? '外部匯入' : '報名網站'}</div>
           </div>
           <div class="past-course-actions">
             <button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button>
@@ -4541,6 +4550,10 @@ function renderPastCourseList(courses) {
     </div>
   `;
 }
+
+
+
+
 
 function buildPastCourseMeta(c) {
   return [
@@ -5733,7 +5746,8 @@ async function renderExternalCoursesPage(forceRefresh) {
     try {
       const data = await post('getExternalImportInit', { userId }, 20000);
       if (!data || !data.allowed) { stopLoading(); return renderNoAdminPage(); }
-      courses = (data.courses || []).filter(isExternalPurposeCourse);
+      // 下架的外部課程收到「下架區」，這裡只列還在用的。
+      courses = (data.courses || []).filter(c => isExternalPurposeCourse(c) && !isCourseHidden(c));
       externalCoursesCache = courses;
     } catch (err) {
       loadFailed = true;
@@ -5749,6 +5763,7 @@ async function renderExternalCoursesPage(forceRefresh) {
       <h2>外部課程</h2>
       <p class="meta">從外部名單匯入建立的課程。這些課不會出現在課程首頁，也不開放報名，
       但可以在這裡查看名單、取消報名、產生票券。</p>
+      <p class="meta">用不到的課按「下架」收進下架區，之後還是可以上架回來。</p>
       <button class="btn btn-sub" onclick="renderExternalCoursesPage(true)">重新載入</button>
       ${renderExternalCourseList(courses, loadFailed)}
     </div>`;
@@ -5781,6 +5796,7 @@ function renderExternalCourseList(courses, loadFailed) {
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-main" style="margin:0;height:38px" onclick="renderCourseRosterPage(\'${code}\')">名單</button>
           <button class="btn btn-sub" style="margin:0;height:38px" onclick="renderEditCoursePageByCode(\'${code}\')">編輯</button>
+          <button class="btn btn-warn" style="margin:0;height:38px" onclick="toggleCoursePublishStatus(event, \'${code}\', \'下架\')">下架</button>
         </div>
       </div>`;
   }).join('')}</div>`;
@@ -9466,10 +9482,10 @@ async function uploadTicketsToDrive(forceOverwrite) {
 
 // 入口磚圖示：跟上方圓形快捷鍵同一套細線風格。
 // 每個圖案直接畫出該磚標題在講的東西，不用通用符號——
-// 「排座位」就畫座位表、「以往課程」就畫一疊課本、「票券產生」就畫票根加 QR。
+// 「排座位」就畫座位表、「下架區」就畫一疊收起來的課本、「票券產生」就畫票根加 QR。
 // .acc 的筆畫用淺一階的綠，讓主體和配件有層次，不會糊成一團。
 // 入口磚圖示：細線風格，跟上方圓形快捷鍵同一套語彙。
-// 每個圖案直接畫出該磚標題在講的東西（排座位＝座位表、以往課程＝一疊課本、
+// 每個圖案直接畫出該磚標題在講的東西（排座位＝座位表、下架區＝一疊課本、
 // 票券產生＝票根加 QR），並各自有色彩身分，方便一眼掃到要找的功能。
 // 色票刻意壓低彩度：配奶油底和白磚才不會跳出來像廣告。
 // .acc 是配件筆畫，用同一條漸層降透明度，保留色相又拉出層次。
@@ -10615,7 +10631,7 @@ function renderPortalShell() {
 
     const manageTiles = [
       portalTile({ ico: TILE_ICO.create, title: '建立課程', desc: '新增一堂課程', admin: true, onclick: 'renderCreateCoursePage()' }),
-      portalTile({ ico: TILE_ICO.past, title: '以往課程', desc: '查看歷史課程紀錄', admin: true, onclick: 'renderPastCoursesPage()' }),
+      portalTile({ ico: TILE_ICO.past, title: '下架區', desc: '已下架的課程，可在這裡上架回來', admin: true, onclick: 'renderPastCoursesPage()' }),
       portalTile({ ico: TILE_ICO.ticket, title: '票券產生', desc: '產生報名者 QR 票券', admin: true, onclick: 'renderTicketGeneratorPage()' }),
       portalTile({ ico: TILE_ICO.trophy, title: '特惠日程', desc: '首頁特惠圖與期間設定', admin: true, onclick: 'renderPromoScheduleManagerPage()' }),
       portalTile({ ico: TILE_ICO.import, title: '外部名單匯入', desc: '匯入外部報名資料', admin: true, onclick: 'renderExternalImportPage()' }),
@@ -12556,7 +12572,7 @@ function renderPortalUpcoming() {
   if (!box) return;
   const more = '<button class="btn btn-sub" style="margin-top:4px" onclick="renderHomePage({skipRefresh:true})">看全部課程</button>';
 
-  const all = publishedCoursesOnly((publicData && publicData.courses) || appState.courses || []);
+  const all = visibleCoursesOnly((publicData && publicData.courses) || appState.courses || []);
   const open = all.filter(c => canCourseRegister(c));
   const list = (open.length ? open : all).slice(0, 3);
 
