@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.07</title>
+  <title>CYP135 課程報名 V8.08</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -994,7 +994,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.07</small>
+    <small>CYP135 課程系統 V8.08</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -10025,6 +10025,7 @@ function renderPromoDetailPage(idx) {
     ${promo.promoText ? `<div class="card compact-card" style="margin-top:12px"><h3>宣傳文</h3><div class="promo-detail-text">${esc(promo.promoText)}</div><button class="btn btn-sub" style="margin-top:10px" onclick="copyPromoText(${idx})">複製宣傳文</button></div>` : ''}
     <div class="card compact-card" style="margin-top:12px">
       <h3>圖片</h3>
+      <p class="meta">按「下載這張」會直接存檔（原尺寸）。如果手機只開出預覽沒有存檔，長按圖片選「儲存影像」也可以。</p>
       ${imgs.map((im, i) => `
         <div class="promo-detail-img">
           <img src="${esc(im.imageUrl)}" alt="圖片 ${i + 1}" onerror="this.style.display='none'">
@@ -10033,15 +10034,42 @@ function renderPromoDetailPage(idx) {
     </div>`;
 }
 
-// 直接開新分頁讓瀏覽器/系統處理下載——圖片在 Google Drive 上，
-// 用 fetch 抓會踩到跨網域限制。
+// Drive 的檔案 ID 沒有單獨存，但兩個網址裡都有，挖出來就好：
+//   縮圖 https://drive.google.com/thumbnail?id=FILE_ID&sz=w1600
+//   檢視 https://drive.google.com/file/d/FILE_ID/view
+function promoImageFileId(im) {
+  const urls = [(im && im.imageUrl) || '', (im && im.viewUrl) || ''];
+  for (let i = 0; i < urls.length; i++) {
+    const u = String(urls[i]);
+    const m = u.match(/[?&]id=([^&]+)/) || u.match(/\/file\/d\/([^/]+)/);
+    if (m) return m[1];
+  }
+  return '';
+}
+
+// 原本開的是 viewUrl，那是 Drive 的「檢視頁」，所以使用者看到的是
+// 先跑到 Google 硬碟。改開 uc?export=download —— Drive 會帶
+// Content-Disposition: attachment，瀏覽器就直接存檔。
+//
+// 附帶好處：imageUrl 是縮圖（上限寬 1600），uc 拿到的是原檔。
+//
+// 為什麼不用 fetch 轉 blob 再 a.download（那樣最乾淨）：圖片在
+// drive.google.com，跨網域沒有 CORS 標頭，fetch 會被擋，畫進
+// canvas 也會讓 canvas 被污染而無法匯出。要繞過只能讓後端代抓，
+// 目前不值得為這顆按鈕多開一個代理。
 function downloadPromoImage(idx, imgIdx) {
   const list = promoScheduleCurrentList || [];
   const promo = list[idx] || {};
   const imgs = (promo.images && promo.images.length) ? promo.images : (promo.imageUrl ? [{ imageUrl: promo.imageUrl }] : []);
   const im = imgs[imgIdx];
   if (!im || !im.imageUrl) { showMsg('找不到這張圖片。', 'err'); return; }
-  window.open(im.viewUrl || im.imageUrl, '_blank');
+
+  const fileId = promoImageFileId(im);
+  // 挖不到 ID 就退回原本的行為，至少不會比現在差。
+  const url = fileId
+    ? 'https://drive.google.com/uc?export=download&id=' + encodeURIComponent(fileId)
+    : (im.viewUrl || im.imageUrl);
+  window.open(url, '_blank');
 }
 
 // 從公開頁跳去管理頁編輯同一筆
