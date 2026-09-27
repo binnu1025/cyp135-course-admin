@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.09</title>
+  <title>CYP135 課程報名 V8.10</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -995,7 +995,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.09</small>
+    <small>CYP135 課程系統 V8.10</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -10831,7 +10831,7 @@ function sSeatPageHtml() {
 
       <section class="panel s-layout-panel">
         <h2>座位區域設定</h2>
-        <p class="hint">依實際拿到的座位逐排輸入。「區域」可以自己打（例如 紫、紅、藍），也可以從建議清單挑，留白就是不分區。起止號可由小到大或由大到小（例如左區第3排 8 號到 3 號＝共 6 個座位）。可新增多排，總座位數自動加總；同一排的設定可以按 ⧉ 複製。</p>
+        <p class="hint">依實際拿到的座位逐排輸入。「區域」可以自己打（例如 紫、紅、藍），也可以從建議清單挑，留白就是不分區。起止號可由小到大或由大到小（例如左區第3排 8 號到 3 號＝共 6 個座位），<b>座位圖會照這個方向由左往右畫</b>。可新增多排，總座位數自動加總；同一排的設定可以按 ⧉ 複製。</p>
         <div id="s-blockList"></div>
         <button class="s-btn s-btn-secondary s-btn-small" id="s-addBlockBtn" type="button">＋ 新增一排</button>
         <button class="s-btn s-btn-secondary s-btn-small" type="button" onclick="sSyncLayout()">⟳ 套用設定到座位圖</button>
@@ -11059,13 +11059,22 @@ function sSyncLayout() {
 // 到底變成什麼樣。
 function sLayoutShapeText(blocksWithRange) {
   const zones = sGetZoneOrder(blocksWithRange.map(x => x.block));
+  const allBlocks = blocksWithRange.map(x => x.block);
+  const warn = [];
   const parts = zones.map(z => {
     const rows = blocksWithRange.filter(x => (x.block.zone || '').trim() === z);
     const seats = rows.reduce((n, x) => n + x.count, 0);
-    return (z ? z + '區' : '不分區') + ' ' + rows.length + ' 排 / ' + seats + ' 位';
+    // 方向要講出來，不然使用者看不出圖到底聽了他的設定沒有。
+    const dirText = sZoneDirection(allBlocks, z) < 0 ? '號碼由大到小' : '號碼由小到大';
+    const bad = sZoneDirectionConflicts(allBlocks, z);
+    if (bad.length) warn.push((z ? z + '區' : '不分區') + '的 ' + bad.join('、') + ' 方向跟這一區相反');
+    return (z ? z + '區' : '不分區') + ' ' + rows.length + ' 排 / ' + seats + ' 位（' + dirText + '）';
   });
   const total = blocksWithRange.reduce((n, x) => n + x.count, 0);
-  return '由左到右是：' + parts.join('、') + '，共 ' + total + ' 個座位。';
+  let text = '由左到右是：' + parts.join('、') + '，共 ' + total + ' 個座位。';
+  // 方向不一致不擋，但一定要說——這幾乎都是起止號打反了。
+  if (warn.length) text += '<br>⚠️ ' + warn.join('；') + '，請確認起止號是不是打反了。';
+  return text;
 }
 
 function sUpdateTotalSeatsDisplay() {
@@ -11617,6 +11626,43 @@ function sGetZoneOrder(blocks) {
   return zones;
 }
 
+// 一個區域在畫面上的左右方向，看這一區第一排「看得出方向」的設定：
+//   起號 < 止號（5 到 7）→  1，號碼由小到大，最小的在左邊
+//   起號 > 止號（7 到 5）→ -1，號碼由大到小，最大的在左邊
+//
+// 原本兩個繪製函式都寫死 sort((a,b) => a-b)，所以不管怎麼輸入，畫面
+// 永遠是小號在左。設定頁那句「起止號可由小到大或由大到小」對分配是
+// 真的，對畫面是假的——使用者輸入 7 到 5，圖還是畫成 5,6,7。
+//
+// 單一座位（起號＝止號）看不出方向，要跳過，不能當成遞增。
+// 整區都看不出方向就回 1，跟原本的行為一樣。
+function sZoneDirection(blocks, zone) {
+  const list = blocks || [];
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] || {};
+    if ((b.zone || '').trim() !== zone) continue;
+    const st = parseInt(b.start), en = parseInt(b.end);
+    if (isNaN(st) || isNaN(en) || st === en) continue;
+    return en > st ? 1 : -1;
+  }
+  return 1;
+}
+
+// 同一區裡有幾排的方向跟這一區不一樣。通常是打錯了，所以要講出來，
+// 不要安靜地照第一排的方向畫完了事。
+function sZoneDirectionConflicts(blocks, zone) {
+  const dir = sZoneDirection(blocks, zone);
+  const bad = [];
+  (blocks || []).forEach(b => {
+    b = b || {};
+    if ((b.zone || '').trim() !== zone) return;
+    const st = parseInt(b.start), en = parseInt(b.end);
+    if (isNaN(st) || isNaN(en) || st === en) return;
+    if ((en > st ? 1 : -1) !== dir) bad.push(sBlockLabel(b));
+  });
+  return bad;
+}
+
 function sSeatColumnsByZone(blocksWithRange) {
   const columns = {};
   blocksWithRange.forEach(({ block, count }) => {
@@ -11631,7 +11677,12 @@ function sSeatColumnsByZone(blocksWithRange) {
       n += step;
     }
   });
-  Object.keys(columns).forEach(zone => columns[zone].sort((a, b) => a - b));
+  // 照輸入的方向排，不要寫死由小到大。
+  const allBlocks = blocksWithRange.map(x => x.block);
+  Object.keys(columns).forEach(zone => {
+    const dir = sZoneDirection(allBlocks, zone);
+    columns[zone].sort((a, b) => (a - b) * dir);
+  });
   return columns;
 }
 
@@ -11803,7 +11854,12 @@ function sBuildSeatImage(targetValue) {
       if (columnsByZone[r.zone].indexOf(c.num) < 0) columnsByZone[r.zone].push(c.num);
     });
   });
-  Object.keys(columnsByZone).forEach(zone => columnsByZone[zone].sort((a, b) => a - b));
+  // 跟螢幕上的座位圖用同一套方向判斷，兩張圖一定要長一樣。
+  const imgBlocks = blocksWithRange.map(x => x.block);
+  Object.keys(columnsByZone).forEach(zone => {
+    const dir = sZoneDirection(imgBlocks, zone);
+    columnsByZone[zone].sort((a, b) => (a - b) * dir);
+  });
   const maxCols = Object.keys(columnsByZone).reduce((m, zone) => Math.max(m, columnsByZone[zone].length), 0);
   const width = PADX * 2 + LABELW + (maxCols * CW) + (Math.max(0, maxCols - 1) * GAP);
   const headH = 96;
