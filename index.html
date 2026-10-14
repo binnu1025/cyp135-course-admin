@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.11</title>
+  <title>CYP135 課程報名 V8.12</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -304,6 +304,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .import-table th,.import-table td{padding:9px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}
 .import-table th{background:#faf8f3;color:#555;font-weight:700}
 .import-status-ok{color:#2d7d46;font-weight:700}
+.import-flock-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.import-flock-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  background:#faf8f2;border:1px solid #e4ddc9;border-radius:10px;padding:10px 12px;font-size:14px}
+.import-flock-row select{min-width:160px;height:38px;border-radius:8px;border:1px solid #cfc7b2;padding:0 8px;background:#fff}
 .import-status-duplicate,.import-status-error{color:#b23b3b;font-weight:700}
 .external-import-progress{margin-top:10px}
 .external-import-progress-bar{height:9px;border-radius:999px;background:#e8f0ea;overflow:hidden;margin-top:8px}
@@ -995,7 +999,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.11</small>
+    <small>CYP135 課程系統 V8.12</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1206,7 +1210,9 @@ let promoScheduleViewMonth = '';
 let promoScheduleCurrentList = [];
 let promoManagerItems = [];
 let promoManagerEditingKey = '';
-let externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null };
+// flockAssignments：{ 姓名: 雁群 }。名冊查無雁群的人要逐一指定，
+// 指定前那幾列會被後端擋成「需處理」，匯不進去。
+let externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: '', meta: null, grid: null, columns: null, flockAssignments: {} };
 let excelParserLoading = null;
 let coursePrefillFromImport = null;
 let rosterState = { course: null, rows: [], groups: [], stats: null, view: 'grouped', query: '', classDetails: [], leaders: [], canManage: false, scopeText: '', scopeFlocks: [], add: null, loading: false, openAdd: false };
@@ -5603,7 +5609,7 @@ async function renderExternalImportPage(courseCode) {
   const app = document.getElementById('app');
 
   const selectedCode = normalizeCode(courseCode || '');
-  externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: selectedCode, meta: null, grid: null, columns: null };
+  externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: selectedCode, meta: null, grid: null, columns: null, flockAssignments: {} };
   if (initData && initData.allowed) {
     renderExternalImportShell(selectedCode, true);
   } else {
@@ -6081,7 +6087,7 @@ function externalImportBack() {
 }
 
 function resetExternalImportPreview() {
-  externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: normalizeCode(val('external-course-select')), meta: null, grid: null, columns: null };
+  externalImportState = { step: 1, rows: [], preview: null, fileName: '', eventCode: normalizeCode(val('external-course-select')), meta: null, grid: null, columns: null, flockAssignments: {} };
   const preview = document.getElementById('external-import-preview');
   if (preview) preview.innerHTML = '';
   const suggest = document.getElementById('external-import-suggest');
@@ -6298,7 +6304,8 @@ async function previewExternalImportRows() {
       userId,
       eventCode,
       fileName: state.fileName,
-      rows: state.rows
+      rows: state.rows,
+      flockAssignments: state.flockAssignments || {}
     }, 60000);
     if (!data || data.status !== 'ok') {
       return showBoxMsg('external-import-msg', esc((data && data.message) || '預覽失敗'), 'err');
@@ -6675,6 +6682,69 @@ function cellText(value) {
   return value === undefined || value === null ? '' : String(value).trim();
 }
 
+// 名冊查無雁群的人，逐一指定要歸在哪一群。
+//
+// 為什麼要擋：不指定的話，後端只剩 Excel 那一格可用，而那一格可能是
+// 新竹的白金、台中的、或打錯字。寫進報名總表之後，所有照雁群分組的
+// 查詢都會多出一個台北不存在的白金分類，而且事後很難找回來是哪幾筆。
+//
+// 不自動猜，也不預選 Excel 的值——預選等於幫使用者按了確定。
+function renderImportFlockPicker(data) {
+  const list = (data && data.needFlockList) || [];
+  if (!list.length) return '';
+  if (data && data.committed) return '';
+
+  const options = (data.flockOptions || []);
+  const picked = (externalImportState.flockAssignments) || {};
+
+  const rows = list.map(p => {
+    const key = p.cleanName || p.name || '';
+    const cur = picked[key] || '';
+    const opts = ['<option value="">請選擇雁群</option>'].concat(
+      options.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o)}</option>`)
+    ).join('');
+    const why = p.inMaster ? '名冊上沒填雁群' : '名冊查無此人';
+    const fromExcel = p.excelFlock
+      ? `<span class="muted">Excel 寫的是「${esc(p.excelFlock)}」</span>`
+      : '<span class="muted">Excel 也沒寫</span>';
+    return `
+      <div class="import-flock-row">
+        <div>
+          <b>${esc(p.name || key)}</b>　<span class="muted">${esc(why)}</span><br>${fromExcel}
+        </div>
+        <select data-flock-key="${esc(key)}" onchange="setImportFlock(this.dataset.flockKey, this.value)">${opts}</select>
+      </div>`;
+  }).join('');
+
+  const left = list.filter(p => !(picked[p.cleanName || p.name || ''] || '').trim()).length;
+  const status = left
+    ? `<div class="msg warn on">還有 ${left} 位沒有指定雁群，這幾筆不會被匯入。</div>`
+    : '<div class="msg ok on">都指定好了，按下面的「套用雁群並重新檢查」。</div>';
+
+  return `
+    <div class="card" style="margin-top:12px">
+      <h3>需要指定雁群（${list.length} 位）</h3>
+      <p class="meta">這些人在「雁群總名冊」查不到雁群。不指定的話只能用 Excel 那一格，
+      而那可能是台北沒有的白金，會在報名總表裡變成一個假的雁群分類，所以先擋下來。<br>
+      指定之後按「套用雁群並重新檢查」，匯入時會<b>順便把他們建進雁群總名冊</b>，下次就不用再選。</p>
+      ${status}
+      <div class="import-flock-list">${rows}</div>
+      <button class="btn btn-main" style="margin-top:10px" onclick="applyImportFlocks()">套用雁群並重新檢查</button>
+    </div>`;
+}
+
+function setImportFlock(name, value) {
+  if (!externalImportState.flockAssignments) externalImportState.flockAssignments = {};
+  const v = (value || '').trim();
+  if (v) externalImportState.flockAssignments[name] = v;
+  else delete externalImportState.flockAssignments[name];
+}
+
+// 重新跑一次預覽，指定過的人就會從「需處理」變成可匯入。
+function applyImportFlocks() {
+  return previewExternalImportRows();
+}
+
 function renderExternalImportPreview(data) {
   const box = document.getElementById('external-import-preview');
   const summary = data.summary || {};
@@ -6714,8 +6784,10 @@ function renderExternalImportPreview(data) {
         <div class="import-stat"><strong>${okCount}</strong><span>可匯入</span></div>
         <div class="import-stat"><strong>${Number(summary.duplicate || 0)}</strong><span>已重複</span></div>
         <div class="import-stat"><strong>${Number(summary.error || 0)}</strong><span>需處理</span></div>
+        ${Number(summary.needFlock || 0) ? '<div class="import-stat"><strong>' + Number(summary.needFlock) + '</strong><span>待指定雁群</span></div>' : ''}
       </div>
       ${renamedNote}
+      ${renderImportFlockPicker(data)}
       <div class="compact-actions">
         ${committed ? '<button class="btn btn-ghost" onclick="renderExternalImportPage()">匯入另一份</button>' : '<button class="btn btn-ghost" onclick="externalImportBack()">上一步修改欄位</button>'}
         ${committed ? `<button class="btn btn-main" ${canSyncMaster ? '' : 'disabled'} onclick="syncImportedRowsFromMaster()">立即同步母版</button>` : `<button class="btn btn-main" ${canCommit ? '' : 'disabled'} onclick="commitExternalImport()">確認匯入可匯入資料</button>`}
@@ -6815,6 +6887,7 @@ async function commitExternalImport() {
       );
 
       const data = await post('commitExternalImport', {
+        flockAssignments: externalImportState.flockAssignments || {},
         userId,
         eventCode: state.eventCode,
         fileName: state.fileName,
