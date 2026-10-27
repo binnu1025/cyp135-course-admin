@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.21</title>
+  <title>CYP135 課程報名 V8.22</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -313,22 +313,26 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .import-flock-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
 .bus-group{margin-top:10px}
 .stop-list{display:flex;flex-direction:column;gap:6px}
+.bus-flock{margin-top:14px}
+.bus-flock-head{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:10px;
+  background:#2d5a3d;color:#fff}
+.bus-flock-name{font-weight:900;font-size:15px;letter-spacing:.02em}
+.bus-flock-count{margin-left:auto;font-size:12px;font-weight:800;opacity:.9}
 .bus-card-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .bus-card{border:1px solid #e4ddc9;border-radius:12px;background:#fffdf7;padding:10px 12px}
 .bus-card-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .bus-card-no{min-width:26px;height:26px;border-radius:50%;background:#e9e1cc;color:#6b6350;
   font-weight:900;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
 .bus-card-name{font-weight:900;font-size:16px}
-.bus-card-flock{font-size:13px;color:#7d7461}
 .bus-card-type{margin-left:auto;font-size:12px;font-weight:800;background:#3f7d5a;color:#fff;
   border-radius:999px;padding:3px 10px}
 .bus-card-price{font-weight:900;font-size:15px;color:#2f4b3a}
 .bus-card-phone{font-size:13px;color:#7d7461;margin-top:3px;letter-spacing:.02em}
 .bus-legs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-.bus-leg{border:1px solid #e8e1d0;border-radius:9px;background:#fff;padding:7px 9px}
+.bus-leg{border:1px solid #e8e1d0;border-radius:9px;background:#fff;padding:7px 8px;min-width:0}
 .bus-leg.off{background:#f6f4ee;border-style:dashed}
 .bus-leg-title{font-size:11px;font-weight:800;color:#8a7f66;letter-spacing:.08em}
-.bus-leg-stop{font-size:14px;font-weight:700;margin-top:2px;word-break:break-all}
+.bus-leg-stop{font-size:13px;font-weight:700;margin-top:3px;line-height:1.45;overflow-wrap:anywhere}
 .bus-leg.off .bus-leg-stop{color:#a39a86;font-weight:600}
 .stop-add{display:block;width:100%;margin-top:8px;padding:11px 10px;border:1px dashed #cbc2a8;
   border-radius:10px;background:#fffdf7;color:#6b6350;font-weight:700;font-size:14px;cursor:pointer}
@@ -1036,7 +1040,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.21</small>
+    <small>CYP135 課程系統 V8.22</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -12954,7 +12958,7 @@ function pickDefaultScheduleDay() {
    報名時只選「站點」，沒有車次 —— 車次是會長事後編的。
    名額去程與回程分開算，單程只佔他真的要搭的那一段。
 ═══════════════════════════════════════════════════════════════ */
-let busState = { trips: [], tripCode: '', isAdmin: false, canRegister: true, leaders: [], profile: null };
+let busState = { trips: [], tripCode: '', isAdmin: false, canRegister: true, leaders: [], profile: null, duplicate: false };
 
 const BUS_ROUND = '來回';
 const BUS_GO = '去程單程';
@@ -13043,6 +13047,8 @@ function busSeatText(left, limit) {
 function renderBusTripBody() {
   const box = document.getElementById('bus-trip-body');
   if (!box) return;
+  // 重畫表單＝重新開始，前一個人的重複封鎖不要留著。
+  busState.duplicate = false;
   const trip = busCurrentTrip();
   if (!trip) { box.innerHTML = '<p class="meta">找不到這個行程。</p>'; return; }
 
@@ -13072,7 +13078,7 @@ function renderBusTripBody() {
       <div class="form-grid">
         <div class="field">
           <label>姓名（必填）</label>
-          <input id="bus-name" placeholder="請輸入姓名" onblur="loadBusProfile()">
+          <input id="bus-name" placeholder="請輸入姓名" oninput="busClearDuplicate()" onblur="loadBusProfile()">
         </div>
         <div class="field">
           <label>上手白金／雁群（必填）</label>
@@ -13136,7 +13142,7 @@ function renderBusTripBody() {
     </div>
 
     <div id="bus-msg" class="msg"></div>
-    <button class="btn btn-main" ${busState.canRegister ? '' : 'disabled'} onclick="submitBusRegistrationForm()">送出登記</button>
+    <button id="bus-submit" class="btn btn-main" ${busState.canRegister ? '' : 'disabled'} onclick="submitBusRegistrationForm()">送出登記</button>
   `;
 }
 
@@ -13164,18 +13170,59 @@ function onBusRideTypeChange() {
 //
 // 三態分清楚：查到、名冊沒有、查詢失敗。最後那個不能講成「名冊沒有」，
 // 否則使用者會以為自己不在名冊裡。
+function busSetSubmitDisabled(off, text) {
+  const btn = document.getElementById('bus-submit');
+  if (!btn) return;
+  btn.disabled = !!off || !busState.canRegister;
+  btn.textContent = off ? (text || '已重複登記') : '送出登記';
+}
+
+// 名字改了就先解開封鎖 —— 不然改成另一個人還是按不下去。
+// 真正的判定在 loadBusProfile（離開欄位時）跟後端的鎖裡面。
+function busClearDuplicate() {
+  if (!busState.duplicate) return;
+  busState.duplicate = false;
+  busSetSubmitDisabled(false);
+  const box = document.getElementById('bus-profile-msg');
+  if (box) { box.className = 'msg'; box.innerHTML = ''; }
+}
+
 async function loadBusProfile() {
   const name = val('bus-name');
   if (!name) return;
+  const trip = busCurrentTrip() || {};
   const box = document.getElementById('bus-profile-msg');
   try {
-    const res = await post('getBusMemberProfile', { userId, name, leader: val('bus-leader') }, 10000);
+    const res = await post('getBusMemberProfile',
+      { userId, name, leader: val('bus-leader'), tripCode: trip.tripCode || busState.tripCode }, 10000);
     if (!res || res.status !== 'ok') throw new Error((res && res.message) || '查詢失敗');
     busState.profile = res;
+
+    // 重複在這裡就講完，不要讓他把身分證、電話、生日全部填完才被擋。
+    if (res.duplicate) {
+      busState.duplicate = true;
+      busSetSubmitDisabled(true, '已重複登記');
+      if (box) {
+        box.className = 'msg on err';
+        box.innerHTML = [
+          '⛔ ' + esc(res.duplicateName || name) + ' 已經登記過這個行程了',
+          '雁群：' + esc(res.duplicateFlock || '—'),
+          '搭乘方式：' + esc(res.duplicateRideType || '—'),
+          '去程：' + esc(res.duplicateGoStop || '不搭'),
+          '回程：' + esc(res.duplicateBackStop || '不搭'),
+          '要改搭乘方式或上下車點，請洽會長。'
+        ].join('<br>');
+      }
+      return;
+    }
+    busState.duplicate = false;
+    busSetSubmitDisabled(false);
+
     if (!res.found) {
       if (box) {
         box.className = 'msg on info';
-        box.innerHTML = '🔎 名冊查無「' + esc(name) + '」<br>下面的資料請自行填寫。送出之後會順便把他建進名冊。';
+        box.innerHTML = '🔎 名冊查無「' + esc(name) + '」<br>下面的資料請自行填寫。送出之後會順便把他建進名冊。' +
+          (res.duplicateChecked ? '' : '<br>⚠️ 這次沒能確認是否重複登記，送出時才會知道。');
       }
       return;
     }
@@ -13216,7 +13263,7 @@ async function loadBusProfile() {
         '身分證字號：' + (res.idNumber ? esc(res.idNumber) : '<b>名冊沒有，請自行填寫</b>'),
         '電話：' + (res.phone ? esc(res.phone) : '<b>名冊沒有，請自行填寫</b>'),
         '出生年月日：' + (res.birthDate ? esc(res.birthDate) : '<b>名冊沒有，請自行填寫</b>')
-      ].join('<br>');
+      ].concat(res.duplicateChecked ? [] : ['⚠️ 這次沒能確認是否重複登記，送出時才會知道。']).join('<br>');
     }
   } catch (err) {
     if (box) { box.className = 'msg on warn'; box.textContent = '名冊查詢失敗（' + (err.message || err) + '），請自行填寫下面的資料。'; }
@@ -13254,6 +13301,7 @@ async function submitBusRegistrationForm() {
   };
 
   // 前端先擋一輪只是為了少跑一趟，後端一定會再擋一次。
+  if (busState.duplicate) return showBoxMsg(box, '這個人已經登記過這個行程了，不能重複登記。', 'err');
   if (!payload.name) return showBoxMsg(box, '請填寫姓名。', 'err');
   if (!payload.leader) return showBoxMsg(box, '請填寫上手白金／雁群。', 'err');
   if (!rideType) return showBoxMsg(box, '請選擇搭乘方式。', 'err');
@@ -13784,15 +13832,14 @@ function renderBusRosterShell() {
   renderBusRosterBody();
 }
 
-// 名單照「去程站點」「回程下車點」各分一組 —— 第一階段還沒有車次，
-// 所以就是站點。第二階段編好車次之後再改成照車次分組。
+// 名單先照雁群分組（組長要看得出是哪一組的誰），組內再照去程站點排。
 // 一個人一張卡：基本資料只出現一次，去程與回程左右並排。
 //
 // 原本是去程一區、回程一區，同一個人在兩區各出現一次 —— 要對照他
 // 「哪裡上、哪裡下」得自己在兩張表之間找同一個名字。
 //
-// 排序照去程站點在行程裡的順序，同一站的人會排在一起；單程沒有去程的
-// 排最後。第二階段編好車次之後，這裡會改成照車次分組。
+// 組內排序照去程站點在行程裡的順序，同一站的人會排在一起；單程沒有去程
+// 的排最後。第二階段編好車次之後，分組會改成照車次。
 function renderBusRosterBody() {
   const box = document.getElementById('bus-roster-body');
   if (!box) return;
@@ -13824,9 +13871,25 @@ function renderBusRosterBody() {
     return;
   }
 
-  box.innerHTML = '<div class="bus-card-list">' +
-    list.map((p, i) => busRosterPersonCard(p, i + 1, d.isAdmin)).join('') +
-    '</div>';
+  // 照雁群分組，而且組名要大到一眼看得到 —— 組長要的是「這是哪一組的誰」，
+  // 把雁群縮成名字旁邊的灰字，等於沒標。
+  const groups = new Map();
+  list.forEach(p => {
+    const k = p.flock || '未分組';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(p);
+  });
+  const flocks = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+
+  box.innerHTML = flocks.map(flock => {
+    const ppl = groups.get(flock);
+    return '<div class="bus-flock">' +
+      '<div class="bus-flock-head"><span class="bus-flock-name">' + esc(flock) + '</span>' +
+      '<span class="bus-flock-count">' + ppl.length + ' 人</span></div>' +
+      '<div class="bus-card-list">' +
+      ppl.map((p, i) => busRosterPersonCard(p, i + 1, d.isAdmin)).join('') +
+      '</div></div>';
+  }).join('');
 }
 
 function busRosterPersonCard(p, no, isAdmin) {
@@ -13841,7 +13904,6 @@ function busRosterPersonCard(p, no, isAdmin) {
       <div class="bus-card-head">
         <span class="bus-card-no">${no}</span>
         <span class="bus-card-name">${esc(p.name)}</span>
-        <span class="bus-card-flock">${esc(p.flock || '')}</span>
         <span class="bus-card-type">${esc(p.rideType)}</span>
         <span class="bus-card-price">$${Number(p.price) || 0}</span>
       </div>
