@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.16</title>
+  <title>CYP135 課程報名 V8.17</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -312,6 +312,14 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .import-status-ok{color:#2d7d46;font-weight:700}
 .import-flock-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
 .bus-group{margin-top:10px}
+.stop-list{display:flex;flex-direction:column;gap:6px}
+.stop-row{display:grid;grid-template-columns:28px minmax(0,1fr) 34px 34px 34px;gap:6px;align-items:center}
+.stop-no{text-align:center;font-weight:900;color:#8a7f66;font-size:13px}
+.stop-row .stop-input{width:100%}
+.stop-row .s-icon-btn{width:34px;height:38px;border-radius:9px;border:1px solid #d9d2c0;
+  background:#fff;color:#5b5240;font-size:14px;line-height:1;cursor:pointer;padding:0}
+.stop-row .s-icon-btn.danger{color:#b23b3b;border-color:#e2bcbc}
+@media(max-width:420px){.stop-row{grid-template-columns:24px minmax(0,1fr) 30px 30px 30px;gap:4px}}
 .bus-group-title{font-weight:900;font-size:14px;background:#f3ede0;border:1px solid #e4ddc9;
   border-radius:8px;padding:7px 10px;margin-bottom:6px}
 .import-flock-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
@@ -1008,7 +1016,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.16</small>
+    <small>CYP135 課程系統 V8.17</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -13336,6 +13344,9 @@ function renderBusAdminForm() {
   const box = document.getElementById('bus-admin-form');
   if (!box) return;
   const t = busAdminState.editing;
+  // 新行程、或回程跟去程完全一樣 → 預設勾起來，省得重填一次。
+  const sameAsGo = !t.tripCode ||
+    JSON.stringify(t.goStops || []) === JSON.stringify(t.backStops || []);
 
   box.innerHTML = `
     <div class="card course-form-card" style="margin-top:12px">
@@ -13349,14 +13360,21 @@ function renderBusAdminForm() {
           <label>出發日期</label>
           <input id="bus-f-date" value="${esc(t.tripDate || '')}" placeholder="例如 2026/04/18">
         </div>
+        <datalist id="bus-stop-suggest"></datalist>
         <div class="field full">
           <label>去程上車點（必填）</label>
-          <textarea id="bus-f-go" class="custom-field-options" placeholder="一行一個，例如&#10;圓山捷運站二號出口&#10;新埔捷運站五號出口&#10;桃園群雁空間">${esc((t.goStops || []).join('\n'))}</textarea>
+          <div id="bus-go-stops" class="stop-list"></div>
+          <button type="button" class="s-btn s-btn-secondary s-btn-small" style="margin-top:6px" onclick="busAddStop('go')">＋ 新增一站</button>
+          <div class="muted" style="font-size:12px;margin-top:4px">照實際上車順序排。點輸入框會跳出常用站點，也可以直接打新的。</div>
         </div>
         <div class="field full">
+          <label><input type="checkbox" id="bus-f-same" onchange="onBusSameAsGoToggle()" ${sameAsGo ? 'checked' : ''}> 回程下車點跟去程一樣</label>
+        </div>
+        <div class="field full" id="bus-back-wrap">
           <label>回程下車點</label>
-          <textarea id="bus-f-back" class="custom-field-options" placeholder="留白就跟去程一樣">${esc((t.backStops || []).join('\n'))}</textarea>
-          <div class="muted" style="font-size:12px;margin-top:4px">留白＝跟去程完全一樣。回程少停某一站時才需要另外填。</div>
+          <div id="bus-back-stops" class="stop-list"></div>
+          <button type="button" class="s-btn s-btn-secondary s-btn-small" style="margin-top:6px" onclick="busAddStop('back')">＋ 新增一站</button>
+          <div class="muted" style="font-size:12px;margin-top:4px">回程少停某一站、或停別的地方時才需要改。</div>
         </div>
         <div class="field">
           <label>來回價</label>
@@ -13395,6 +13413,8 @@ function renderBusAdminForm() {
         <button class="btn btn-ghost" onclick="busAdminCancel()">取消</button>
       </div>
     </div>`;
+  // 站點是動態的，表單框架畫完之後才填進去。
+  busRenderStopEditors();
 }
 
 function busAdminCancel() {
@@ -13409,8 +13429,10 @@ async function saveBusTripForm() {
     tripCode: t.tripCode || '',
     tripName: val('bus-f-name'),
     tripDate: val('bus-f-date'),
-    goStops: (document.getElementById('bus-f-go') || { value: '' }).value,
-    backStops: (document.getElementById('bus-f-back') || { value: '' }).value,
+    // 後端吃換行分隔的字串，這裡把列編輯器的內容組回去。
+    goStops: busReadStops('go').join('\n'),
+    // 勾了「跟去程一樣」就送空的 —— 後端留白＝沿用去程。
+    backStops: busSameAsGoChecked() ? '' : busReadStops('back').join('\n'),
     roundPrice: val('bus-f-round'),
     singlePrice: val('bus-f-single'),
     goLimit: val('bus-f-golimit'),
@@ -13421,6 +13443,9 @@ async function saveBusTripForm() {
   };
   if (!payload.tripName) return showBoxMsg('bus-f-msg', '請填寫行程名稱。', 'err');
   if (!payload.goStops.trim()) return showBoxMsg('bus-f-msg', '請至少填一個去程上車點。', 'err');
+  if (!busSameAsGoChecked() && !payload.backStops.trim()) {
+    return showBoxMsg('bus-f-msg', '請至少填一個回程下車點，或勾選「回程跟去程一樣」。', 'err');
+  }
 
   showActionLock('正在儲存行程', '請稍候。');
   try {
@@ -13450,6 +13475,137 @@ async function busToggleSingle(code, on) {
     hideActionLock();
   }
 }
+
+/* ── 站點編輯：一格一列，可增可刪可排序 ──────────────────
+   原本是一個 textarea 叫人「一行一個」，很難看也容易打錯。
+   操作方式跟排座位的「座位區域設定」一致（↑ ↓ ✕），
+   同一套手勢使用者只要學一次。
+
+   建議清單＝內建常用站點 ＋ 其他行程已經用過的站點，
+   打過一次之後下次就選得到。 */
+
+const BUS_COMMON_STOPS = [
+  '圓山捷運站二號出口',
+  '新埔捷運站五號出口',
+  '桃園群雁空間',
+  '板橋火車站',
+  '新竹火車站'
+];
+
+function busStopSuggestions() {
+  const seen = {};
+  const out = [];
+  const push = v => {
+    const t = (v || '').toString().trim();
+    if (!t || seen[t]) return;
+    seen[t] = true;
+    out.push(t);
+  };
+  BUS_COMMON_STOPS.forEach(push);
+  (busAdminState.trips || []).forEach(t => {
+    (t.goStops || []).forEach(push);
+    (t.backStops || []).forEach(push);
+  });
+  return out;
+}
+
+// which = 'go' | 'back'
+function busStopRowsHtml(which, stops) {
+  const list = (stops || []).slice();
+  if (!list.length) list.push('');
+  return list.map((stop, i) => `
+    <div class="stop-row" data-stop-row="${which}">
+      <span class="stop-no">${i + 1}</span>
+      <input class="stop-input" list="bus-stop-suggest" value="${esc(stop)}"
+             placeholder="例如 圓山捷運站二號出口"
+             aria-label="第 ${i + 1} 站">
+      <button type="button" class="s-icon-btn" title="上移" onclick="busMoveStop('${which}',${i},-1)">↑</button>
+      <button type="button" class="s-icon-btn" title="下移" onclick="busMoveStop('${which}',${i},1)">↓</button>
+      <button type="button" class="s-icon-btn danger" title="刪除這一站" onclick="busRemoveStop('${which}',${i})">✕</button>
+    </div>`).join('');
+}
+
+// 從畫面上讀回目前打的內容。先讀再改再重畫，使用者打到一半按新增
+// 也不會把前面打的字弄丟。
+function busReadStops(which) {
+  return Array.from(document.querySelectorAll('[data-stop-row="' + which + '"]'))
+    .map(row => (row.querySelector('.stop-input') || { value: '' }).value.trim())
+    .filter(Boolean);
+}
+
+function busSyncStopsFromForm() {
+  const e = busAdminState.editing;
+  if (!e) return;
+  e.goStops = busReadStops('go');
+  if (!busSameAsGoChecked()) e.backStops = busReadStops('back');
+}
+
+function busSameAsGoChecked() {
+  const el = document.getElementById('bus-f-same');
+  return el ? !!el.checked : false;
+}
+
+function busAddStop(which) {
+  busSyncStopsFromForm();
+  const e = busAdminState.editing;
+  if (!e) return;
+  const key = which === 'go' ? 'goStops' : 'backStops';
+  e[key] = (e[key] || []).concat(['']);
+  busRenderStopEditors();
+  const rows = document.querySelectorAll('[data-stop-row="' + which + '"] .stop-input');
+  if (rows.length) rows[rows.length - 1].focus();
+}
+
+function busRemoveStop(which, index) {
+  busSyncStopsFromForm();
+  const e = busAdminState.editing;
+  if (!e) return;
+  const key = which === 'go' ? 'goStops' : 'backStops';
+  const list = (e[key] || []).slice();
+  list.splice(index, 1);
+  e[key] = list;
+  busRenderStopEditors();
+}
+
+function busMoveStop(which, index, dir) {
+  busSyncStopsFromForm();
+  const e = busAdminState.editing;
+  if (!e) return;
+  const key = which === 'go' ? 'goStops' : 'backStops';
+  const list = (e[key] || []).slice();
+  const to = index + dir;
+  if (to < 0 || to >= list.length) return;
+  const tmp = list[index];
+  list[index] = list[to];
+  list[to] = tmp;
+  e[key] = list;
+  busRenderStopEditors();
+}
+
+// 「回程跟去程一樣」打勾就把回程那一區收起來。
+// 收起來不等於清空 —— 取消打勾要能把原本填的拿回來，所以只藏不刪。
+function onBusSameAsGoToggle() {
+  busSyncStopsFromForm();
+  busRenderStopEditors();
+}
+
+function busRenderStopEditors() {
+  const e = busAdminState.editing;
+  if (!e) return;
+  const same = busSameAsGoChecked();
+
+  const goBox = document.getElementById('bus-go-stops');
+  if (goBox) goBox.innerHTML = busStopRowsHtml('go', e.goStops);
+
+  const backWrap = document.getElementById('bus-back-wrap');
+  const backBox = document.getElementById('bus-back-stops');
+  if (backWrap) backWrap.style.display = same ? 'none' : '';
+  if (backBox && !same) backBox.innerHTML = busStopRowsHtml('back', e.backStops);
+
+  const sug = document.getElementById('bus-stop-suggest');
+  if (sug) sug.innerHTML = busStopSuggestions().map(x => `<option value="${esc(x)}"></option>`).join('');
+}
+
 
 /* ── 名單（會長與雁群組長共用）── */
 async function renderBusRosterPage(tripCode) {
