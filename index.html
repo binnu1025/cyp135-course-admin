@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.25</title>
+  <title>CYP135 課程報名 V8.26</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -328,6 +328,8 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   border-radius:999px;padding:3px 10px}
 .bus-card-price{font-weight:900;font-size:15px;color:#2f4b3a}
 .bus-card-phone{font-size:13px;color:#7d7461;margin-top:3px;letter-spacing:.02em}
+.bus-card-ins{font-size:13px;color:#7d7461;margin-top:3px;letter-spacing:.02em;overflow-wrap:anywhere}
+.bus-card-ins .warn{color:#b8572c}
 .bus-legs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .bus-leg{border:1px solid #e8e1d0;border-radius:9px;background:#fff;padding:7px 8px;min-width:0}
 .bus-leg.off{background:#f6f4ee;border-style:dashed}
@@ -1040,7 +1042,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.25</small>
+    <small>CYP135 課程系統 V8.26</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -13852,6 +13854,7 @@ function renderBusRosterShell() {
       <div class="searchbar"><input id="bus-roster-search" placeholder="搜尋姓名 / 站點" oninput="renderBusRosterBody()"></div>
       <div class="compact-actions">
         <button class="btn btn-sub" onclick="renderBusRosterPage(busRosterState.tripCode, busRosterState.includeAll)">重新載入</button>
+        ${d.isAdmin ? '<button class="btn btn-ghost" onclick="copyBusInsuranceList()">複製保險名單</button>' : ''}
         ${d.isAdmin ? '<button class="btn btn-ghost" onclick="renderBusAdminPage()">行程設定</button>' : ''}
       </div>
       <div id="bus-roster-body"></div>
@@ -13919,6 +13922,70 @@ function renderBusRosterBody() {
   }).join('');
 }
 
+// 保險公司要的是民國年（西元 − 1911）。
+// 看不懂的格式一律原文帶出，不猜 —— 保險名冊的生日填錯等於沒保，
+// 「我不確定」必須跟「我算好了」長得不一樣。
+function rocBirthText(v) {
+  const raw = (v === null || v === undefined ? '' : String(v)).trim();
+  if (!raw) return '';
+  const m = raw.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+  if (!m) return raw;
+  const y = Number(m[1]) - 1911;
+  if (!(y > 0)) return raw;
+  return y + '/' + ('0' + m[2]).slice(-2) + '/' + ('0' + m[3]).slice(-2);
+}
+
+// 換得動才算數：回傳值跟原文一樣，就代表沒換成功。
+function rocBirthConverted(v) {
+  const raw = (v === null || v === undefined ? '' : String(v)).trim();
+  return !!raw && rocBirthText(raw) !== raw;
+}
+
+// 保險公司要的是一張可以直接貼進試算表的表，所以用 TAB 分欄。
+// 缺的欄位寫「未填」而不是留白 —— 留白在試算表裡看起來像沒這個人，
+// 或是整欄位移，寄出去才發現就來不及了。
+function copyBusInsuranceList() {
+  const d = busRosterState.data || {};
+  if (!d.isAdmin) return showMsg('只有會長看得到身分證與生日，無法匯出保險名單。', 'err');
+  const rows = d.rows || [];
+  if (!rows.length) return showMsg('目前這個範圍沒有人，沒有東西可以複製。', 'err');
+
+  const L = ['姓名\t身分證字號\t出生年月日（民國）'];
+  let missing = 0, unconverted = 0;
+  rows.forEach(function (p) {
+    const id = (p.idNumber || '').toString().trim();
+    const b = (p.birthDate || '').toString().trim();
+    if (!id || !b) missing++;
+    if (b && !rocBirthConverted(b)) unconverted++;
+    L.push([(p.name || '').toString().trim(), id || '未填', b ? rocBirthText(b) : '未填'].join('\t'));
+  });
+
+  const text = L.join('\n');
+  const done = function () {
+    let m = '已複製 ' + rows.length + ' 人（' + esc(d.scopeText || '') + '），可直接貼到試算表。';
+    if (missing) m += '<br>其中 ' + missing + ' 筆身分證或生日未填，欄位寫「未填」。';
+    if (unconverted) m += '<br>另有 ' + unconverted + ' 筆生日看不懂格式，照原文帶出，請自己確認。';
+    showMsg(m, (missing || unconverted) ? 'info' : 'ok');
+  };
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(text, done); });
+    } else fallbackCopy(text, done);
+  } catch (err) { fallbackCopy(text, done); }
+}
+
+// 會長才看得到：保險要用的民國生日。
+// 身分證只進「複製保險名單」那一份，不印在畫面上 —— 名單頁會被截圖、
+// 會被旁邊的人看到，而對排車、點名來說身分證一點用都沒有。
+function busInsLine(p) {
+  const b = (p.birthDate || '').toString().trim();
+  if (!b) return '';
+  const body = rocBirthConverted(b)
+    ? '民國 ' + esc(rocBirthText(b))
+    : esc(b) + '<span class="warn">（無法換算民國年）</span>';
+  return '<div class="bus-card-ins">' + body + '</div>';
+}
+
 function busRosterPersonCard(p, no, isAdmin) {
   // 沒有那一段就明講「不搭」，不要留白 —— 留白看起來像漏填。
   const leg = (title, stop) => `
@@ -13935,6 +14002,7 @@ function busRosterPersonCard(p, no, isAdmin) {
         <span class="bus-card-price">$${Number(p.price) || 0}</span>
       </div>
       ${isAdmin && p.phone ? '<div class="bus-card-phone">' + esc(p.phone) + '</div>' : ''}
+      ${isAdmin ? busInsLine(p) : ''}
       <div class="bus-legs">
         ${leg('去程 上車', p.goStop)}
         ${leg('回程 下車', p.backStop)}
