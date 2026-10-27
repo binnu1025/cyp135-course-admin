@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.24</title>
+  <title>CYP135 課程報名 V8.25</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1040,7 +1040,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.24</small>
+    <small>CYP135 課程系統 V8.25</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -10784,7 +10784,7 @@ function renderPortalShell() {
   if (canViewRoster || isAdminUser) {
     const flockTiles = [
       portalTile({ ico: TILE_ICO.roster, title: '小組報名', desc: '查看你的雁群報名狀況', onclick: 'renderMyRegistrationsPage(false)' }),
-      portalTile({ ico: TILE_ICO.classroom, title: '遊覽車名單', desc: '誰報了、哪裡上哪裡下', onclick: 'renderBusRosterPage()' }),
+      portalTile({ ico: TILE_ICO.classroom, title: '遊覽車名單', desc: '誰報了、哪裡上哪裡下', onclick: 'renderBusRosterPage(null, false)' }),
       portalTile({ ico: TILE_ICO.monthly, title: '小組包月', desc: '查看你的雁群包月狀況', onclick: 'renderMonthlyPage(false)' })
     ];
     flockHtml = `
@@ -10808,12 +10808,11 @@ function renderPortalShell() {
       onclick: 'renderMonthlyPage(true)'
     }));
 
-    // 走的是同一個名單頁 —— 會長的名單本來就是全部雁群（getBusRoster 的
-    // isRosterFlockAllowed_ 對會長一律放行），所以這裡不需要再傳一個範圍參數。
-    // 放在會長工具只是讓它跟另外兩個「全教室」排在一起，找得到。
+    // 跟雁群組長專區走同一頁，差在第二個參數：只有這裡傳 true 才看得到全車。
+    // 會長從組長專區進去時看的是自己 C 欄的雁群，跟「小組報名」一致。
     toolTiles.push(portalTile({
       ico: TILE_ICO.classroom, title: '全教室遊覽車', desc: '查看全部雁群遊覽車登記', admin: true,
-      onclick: 'renderBusRosterPage()'
+      onclick: 'renderBusRosterPage(null, true)'
     }));
 
     // 排座位／重建課程分頁／課表編輯改放到獨立的「工具」區，
@@ -13367,7 +13366,7 @@ async function submitBusRegistrationForm() {
 
 /* ═══ 遊覽車：行程設定（會長）＋ 名單（會長與雁群組長）═══ */
 let busAdminState = { trips: [], editing: null };
-let busRosterState = { trips: [], tripCode: '', data: null, query: '' };
+let busRosterState = { trips: [], tripCode: '', data: null, query: '', includeAll: false };
 
 /* ── 行程設定 ── */
 async function renderBusAdminPage(forceRefresh) {
@@ -13417,7 +13416,7 @@ function renderBusAdminShell() {
             </div>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn btn-main" style="margin:0;height:38px" onclick="renderBusRosterPage('${esc(t.tripCode)}')">名單</button>
+            <button class="btn btn-main" style="margin:0;height:38px" onclick="renderBusRosterPage('${esc(t.tripCode)}', true)">名單</button>
             <button class="btn btn-sub" style="margin:0;height:38px" onclick="busAdminEdit('${esc(t.tripCode)}')">編輯</button>
             <button class="btn ${t.allowSingle ? 'btn-warn' : 'btn-ghost'}" style="margin:0;height:38px"
               onclick="busToggleSingle('${esc(t.tripCode)}', ${t.allowSingle ? 'false' : 'true'})">
@@ -13759,8 +13758,9 @@ function busRenderStopEditors() {
 
 
 /* ── 名單（會長與雁群組長共用）── */
-async function renderBusRosterPage(tripCode) {
-  const token = beginPage('busRoster', '遊覽車名單', true);
+async function renderBusRosterPage(tripCode, includeAll) {
+  busRosterState.includeAll = !!includeAll;
+  const token = beginPage('busRoster', includeAll ? '全教室遊覽車' : '遊覽車名單', true);
   showLoading('載入遊覽車名單');
 
   let trips;
@@ -13772,7 +13772,7 @@ async function renderBusRosterPage(tripCode) {
     document.getElementById('app').innerHTML =
       '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>' +
       '<div class="card" style="margin-top:12px"><h2>載入失敗</h2><p class="meta">' +
-      esc(err.message || err) + '</p><button class="btn btn-main" onclick="renderBusRosterPage()">重新載入</button></div>';
+      esc(err.message || err) + '</p><button class="btn btn-main" onclick="renderBusRosterPage(null, busRosterState.includeAll)">重新載入</button></div>';
     return;
   }
   if (!isPageActive(token, 'busRoster')) return;
@@ -13800,7 +13800,8 @@ async function renderBusRosterPage(tripCode) {
 
 async function loadBusRoster(token) {
   try {
-    const data = await post('getBusRoster', { userId, tripCode: busRosterState.tripCode }, 25000);
+    const data = await post('getBusRoster',
+      { userId, tripCode: busRosterState.tripCode, includeAll: busRosterState.includeAll }, 25000);
     if (token && !isPageActive(token, 'busRoster')) return;
     stopLoading();
     if (!data || data.status !== 'ok') {
@@ -13840,7 +13841,7 @@ function renderBusRosterShell() {
   app.innerHTML = `
     <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
     <div class="card" style="margin-top:12px">
-      <h2>遊覽車名單</h2>
+      <h2>${d.includeAll ? '全教室遊覽車' : '遊覽車名單'}</h2>
       ${picker}
       <p class="meta">
         ${esc(trip.tripName || '')}${trip.tripDate ? '｜' + esc(trip.tripDate) : ''}<br>
@@ -13850,7 +13851,7 @@ function renderBusRosterShell() {
       ${d.isAdmin ? '' : '<div class="msg info on">組長看到的是自己雁群的人。身分證與生日只有會長看得到。</div>'}
       <div class="searchbar"><input id="bus-roster-search" placeholder="搜尋姓名 / 站點" oninput="renderBusRosterBody()"></div>
       <div class="compact-actions">
-        <button class="btn btn-sub" onclick="renderBusRosterPage(busRosterState.tripCode)">重新載入</button>
+        <button class="btn btn-sub" onclick="renderBusRosterPage(busRosterState.tripCode, busRosterState.includeAll)">重新載入</button>
         ${d.isAdmin ? '<button class="btn btn-ghost" onclick="renderBusAdminPage()">行程設定</button>' : ''}
       </div>
       <div id="bus-roster-body"></div>
