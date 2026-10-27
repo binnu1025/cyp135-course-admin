@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.14</title>
+  <title>CYP135 課程報名 V8.15</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1005,7 +1005,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.14</small>
+    <small>CYP135 課程系統 V8.15</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -10730,7 +10730,8 @@ function renderPortalShell() {
   // 個人專區：查自己的報名記錄。點進去才需要綁定——綁定是為了這個功能
   // 才存在的，不該在進門時攔住只想報名的人。
   const personalTiles = [
-    portalTile({ ico: TILE_ICO.roster, title: '個人報名', desc: '查詢你自己的報名記錄', onclick: 'renderMyRegistrationsHome()' })
+    portalTile({ ico: TILE_ICO.roster, title: '個人報名', desc: '查詢你自己的報名記錄', onclick: 'renderMyRegistrationsHome()' }),
+    portalTile({ ico: TILE_ICO.classroom, title: '遊覽車登記', desc: '登記上下車地點與來回單程', onclick: 'renderBusTripPage()' })
   ];
   const personalHtml = `
     <div class="portal-section">
@@ -12915,6 +12916,318 @@ function pickDefaultScheduleDay() {
   scheduleState.selected = days.indexOf(t) >= 0 ? t : (days.length ? days[0] : '');
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   遊覽車報名
+   報名時只選「站點」，沒有車次 —— 車次是會長事後編的。
+   名額去程與回程分開算，單程只佔他真的要搭的那一段。
+═══════════════════════════════════════════════════════════════ */
+let busState = { trips: [], tripCode: '', isAdmin: false, canRegister: true, leaders: [], profile: null };
+
+const BUS_ROUND = '來回';
+const BUS_GO = '去程單程';
+const BUS_BACK = '回程單程';
+
+function busCurrentTrip() {
+  return (busState.trips || []).find(t => t.tripCode === busState.tripCode) || null;
+}
+
+async function renderBusTripPage(tripCode) {
+  const token = beginPage('bus', '遊覽車登記', true);
+  showLoading('載入遊覽車行程');
+  let data;
+  try {
+    data = await post('getBusTripInit', { userId }, 20000);
+  } catch (err) {
+    if (!isPageActive(token, 'bus')) return;
+    stopLoading();
+    document.getElementById('app').innerHTML =
+      '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>' +
+      '<div class="card" style="margin-top:12px"><h2>載入失敗</h2><p class="meta">' +
+      esc(err.message || err) + '</p>' +
+      '<button class="btn btn-main" onclick="renderBusTripPage()">重新載入</button></div>';
+    return;
+  }
+  if (!isPageActive(token, 'bus')) return;
+  stopLoading();
+
+  busState.trips = (data && data.trips) || [];
+  busState.isAdmin = !!(data && data.isAdmin);
+  busState.canRegister = !(data && data.hasRegisterColumn) || !!(data && data.canRegister);
+  busState.leaders = (initData && initData.leaders) || (initData && initData.platinumNames) || [];
+  busState.tripCode = tripCode || (busState.trips[0] ? busState.trips[0].tripCode : '');
+  busState.profile = null;
+  renderBusTripShell();
+}
+
+function renderBusTripShell() {
+  const app = document.getElementById('app');
+  const trips = busState.trips || [];
+
+  if (!trips.length) {
+    app.innerHTML = `
+      <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+      <div class="card" style="margin-top:12px">
+        <h2>遊覽車登記</h2>
+        <p class="meta">目前沒有開放登記的行程。</p>
+      </div>`;
+    return;
+  }
+
+  const picker = trips.length > 1
+    ? `<div class="field">
+         <label>選擇行程</label>
+         <select id="bus-trip-select" onchange="onBusTripChange()">
+           ${trips.map(t => `<option value="${esc(t.tripCode)}" ${t.tripCode === busState.tripCode ? 'selected' : ''}>${esc(t.tripName)}${t.tripDate ? '｜' + esc(t.tripDate) : ''}</option>`).join('')}
+         </select>
+       </div>`
+    : '';
+
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+    <div class="card" style="margin-top:12px">
+      <h2>遊覽車登記</h2>
+      ${picker}
+      <div id="bus-trip-body"></div>
+    </div>`;
+  renderBusTripBody();
+}
+
+function onBusTripChange() {
+  busState.tripCode = val('bus-trip-select');
+  renderBusTripBody();
+}
+
+function busSeatText(left, limit) {
+  // 三態：沒設上限 ≠ 剩 0。沒設就不要講剩幾個，講了就是騙人。
+  if (!(Number(limit) > 0)) return '不限名額';
+  if (left === '' || left === null || left === undefined) return '名額未知';
+  return Number(left) > 0 ? ('剩 ' + left + ' 位') : '已額滿';
+}
+
+function renderBusTripBody() {
+  const box = document.getElementById('bus-trip-body');
+  if (!box) return;
+  const trip = busCurrentTrip();
+  if (!trip) { box.innerHTML = '<p class="meta">找不到這個行程。</p>'; return; }
+
+  const u = trip.usage || {};
+  const goFull = Number(u.goLimit) > 0 && u.goLeft === 0;
+  const backFull = Number(u.backLimit) > 0 && u.backLeft === 0;
+
+  // 單程沒開放就只出現來回，不要畫一個按了會被擋的選項。
+  const types = [[BUS_ROUND, trip.roundPrice]];
+  if (trip.allowSingle) {
+    types.push([BUS_GO, trip.singlePrice]);
+    types.push([BUS_BACK, trip.singlePrice]);
+  }
+
+  box.innerHTML = `
+    <p class="meta">
+      ${esc(trip.tripName)}${trip.tripDate ? '｜' + esc(trip.tripDate) : ''}<br>
+      去程：${esc(busSeatText(u.goLeft, u.goLimit))}　·　回程：${esc(busSeatText(u.backLeft, u.backLimit))}<br>
+      來回 $${Number(trip.roundPrice) || 0}${trip.allowSingle ? '　·　單程 $' + (Number(trip.singlePrice) || 0) : ''}
+    </p>
+    ${trip.note ? `<p class="meta">${esc(trip.note)}</p>` : ''}
+    ${!trip.allowSingle ? '<div class="msg info on">目前只開放<b>來回</b>登記。單程會在之後開放。</div>' : ''}
+    ${!busState.canRegister ? '<div class="msg warn on">你目前沒有報名權限，可以瀏覽但無法送出。請洽會長或票務開啟。</div>' : ''}
+
+    <div class="mini-section">
+      <div class="section-title">報名人</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>姓名（必填）</label>
+          <input id="bus-name" placeholder="請輸入姓名" onblur="loadBusProfile()">
+        </div>
+        <div class="field">
+          <label>上手白金／雁群（必填）</label>
+          <input id="bus-leader" list="bus-leader-list" placeholder="請輸入或選擇">
+          <datalist id="bus-leader-list">${(busState.leaders || []).map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
+        </div>
+      </div>
+      <div id="bus-profile-msg" class="msg"></div>
+    </div>
+
+    <div class="mini-section">
+      <div class="section-title">搭乘方式</div>
+      <div class="form-grid">
+        <div class="field full">
+          <label>要搭哪幾段（必填）</label>
+          <select id="bus-ride-type" onchange="onBusRideTypeChange()">
+            <option value="">請選擇</option>
+            ${types.map(t => `<option value="${esc(t[0])}">${esc(t[0])}　$${Number(t[1]) || 0}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field full" id="bus-go-field" style="display:none">
+          <label>去程上車點（必填）</label>
+          <select id="bus-go-stop">
+            <option value="">請選擇</option>
+            ${(trip.goStops || []).map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}
+          </select>
+          ${goFull ? '<div class="msg warn on">去程已額滿。</div>' : ''}
+        </div>
+        <div class="field full" id="bus-back-field" style="display:none">
+          <label>回程下車點（必填）</label>
+          <select id="bus-back-stop">
+            <option value="">請選擇</option>
+            ${(trip.backStops || []).map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}
+          </select>
+          ${backFull ? '<div class="msg warn on">回程已額滿。</div>' : ''}
+        </div>
+      </div>
+      <p class="meta" id="bus-price-hint">選了搭乘方式之後會顯示金額。</p>
+    </div>
+
+    <div class="mini-section">
+      <div class="section-title">保險資料</div>
+      <p class="meta">這三項是投保要用的，全部必填。名冊裡有的話會自動帶出來。</p>
+      <div class="form-grid">
+        <div class="field">
+          <label>身分證字號（必填）</label>
+          <input id="bus-id" placeholder="A123456789" maxlength="10" autocapitalize="characters">
+        </div>
+        <div class="field">
+          <label>電話（必填）</label>
+          <input id="bus-phone" type="tel" inputmode="numeric" placeholder="09xxxxxxxx">
+        </div>
+        <div class="field full">
+          <label>出生年月日（必填）</label>
+          <input id="bus-birth" type="date">
+        </div>
+      </div>
+    </div>
+
+    <div id="bus-msg" class="msg"></div>
+    <button class="btn btn-main" ${busState.canRegister ? '' : 'disabled'} onclick="submitBusRegistrationForm()">送出登記</button>
+  `;
+}
+
+// 選了搭乘方式才決定要顯示哪幾段 —— 單程只選他真的要搭的那一段。
+function onBusRideTypeChange() {
+  const t = val('bus-ride-type');
+  const go = document.getElementById('bus-go-field');
+  const back = document.getElementById('bus-back-field');
+  const hint = document.getElementById('bus-price-hint');
+  const trip = busCurrentTrip() || {};
+
+  if (go) go.style.display = (t === BUS_ROUND || t === BUS_GO) ? '' : 'none';
+  if (back) back.style.display = (t === BUS_ROUND || t === BUS_BACK) ? '' : 'none';
+
+  if (hint) {
+    if (!t) hint.textContent = '選了搭乘方式之後會顯示金額。';
+    else {
+      const p = t === BUS_ROUND ? (trip.roundPrice || 0) : (trip.singlePrice || 0);
+      hint.textContent = t + '　應繳 $' + p;
+    }
+  }
+}
+
+// 從雁群總名冊帶出已知的身分證／電話／生日。
+//
+// 三態分清楚：查到、名冊沒有、查詢失敗。最後那個不能講成「名冊沒有」，
+// 否則使用者會以為自己不在名冊裡。
+async function loadBusProfile() {
+  const name = val('bus-name');
+  if (!name) return;
+  const box = document.getElementById('bus-profile-msg');
+  try {
+    const res = await post('getBusMemberProfile', { userId, name, leader: val('bus-leader') }, 10000);
+    if (!res || res.status !== 'ok') throw new Error((res && res.message) || '查詢失敗');
+    busState.profile = res;
+    if (!res.found) {
+      if (box) { box.className = 'msg on info'; box.textContent = '名冊沒有這個人，請自行填寫下面的資料。'; }
+      return;
+    }
+    const setIfEmpty = (id, v) => {
+      const el = document.getElementById(id);
+      if (el && !el.value && v) el.value = v;
+    };
+    if (res.flock) setIfEmpty('bus-leader', res.flock);
+    setIfEmpty('bus-id', res.idNumber);
+    setIfEmpty('bus-phone', res.phone);
+    setIfEmpty('bus-birth', busToDateInput(res.birthDate));
+    const missing = [];
+    if (!res.idNumber) missing.push('身分證字號');
+    if (!res.phone) missing.push('電話');
+    if (!res.birthDate) missing.push('出生年月日');
+    if (box) {
+      box.className = 'msg on ' + (missing.length ? 'info' : 'ok');
+      box.textContent = missing.length
+        ? ('已帶出名冊資料。' + missing.join('、') + ' 名冊裡還沒有，請自行填寫。')
+        : '已帶出名冊資料，請確認是否正確。';
+    }
+  } catch (err) {
+    if (box) { box.className = 'msg on warn'; box.textContent = '名冊查詢失敗（' + (err.message || err) + '），請自行填寫下面的資料。'; }
+  }
+}
+
+// 名冊裡可能是 2026/01/05 或 2026-01-05，<input type="date"> 只吃後者。
+function busToDateInput(text) {
+  const t = (text || '').toString().trim();
+  if (!t) return '';
+  const m = t.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+  if (!m) return '';
+  return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+}
+
+async function submitBusRegistrationForm() {
+  const trip = busCurrentTrip();
+  if (!trip) return;
+  const box = 'bus-msg';
+  clearBoxMsg(box);
+
+  const rideType = val('bus-ride-type');
+  const payload = {
+    userId,
+    tripCode: trip.tripCode,
+    name: val('bus-name'),
+    leader: val('bus-leader'),
+    rideType: rideType,
+    goStop: val('bus-go-stop'),
+    backStop: val('bus-back-stop'),
+    idNumber: val('bus-id').toUpperCase(),
+    phone: val('bus-phone'),
+    birthDate: val('bus-birth'),
+    displayName: val('bus-name')
+  };
+
+  // 前端先擋一輪只是為了少跑一趟，後端一定會再擋一次。
+  if (!payload.name) return showBoxMsg(box, '請填寫姓名。', 'err');
+  if (!payload.leader) return showBoxMsg(box, '請填寫上手白金／雁群。', 'err');
+  if (!rideType) return showBoxMsg(box, '請選擇搭乘方式。', 'err');
+  if ((rideType === BUS_ROUND || rideType === BUS_GO) && !payload.goStop) return showBoxMsg(box, '請選擇去程上車點。', 'err');
+  if ((rideType === BUS_ROUND || rideType === BUS_BACK) && !payload.backStop) return showBoxMsg(box, '請選擇回程下車點。', 'err');
+  if (!payload.idNumber) return showBoxMsg(box, '請填寫身分證字號。', 'err');
+  if (!payload.phone) return showBoxMsg(box, '請填寫電話。', 'err');
+  if (!payload.birthDate) return showBoxMsg(box, '請填寫出生年月日。', 'err');
+
+  showActionLock('正在送出登記', '請稍候，正在確認名額。');
+  try {
+    const res = await post('submitBusRegistration', payload, 30000);
+    if (!res) throw new Error('連線未回應。這不代表沒有登記成功，重新整理可以確認。');
+    if (res.status !== 'ok') return showBoxMsg(box, esc(res.message || '登記失敗'), 'err');
+
+    // 登記成功之後的重讀另外包起來 —— 重讀失敗不等於登記失敗。
+    let refreshed = true;
+    try {
+      const fresh = await post('getBusTripInit', { userId }, 20000);
+      if (fresh && fresh.status === 'ok') busState.trips = fresh.trips || [];
+      else refreshed = false;
+    } catch (e) { refreshed = false; }
+
+    renderBusTripBody();
+    const base = '已完成登記：' + esc(res.rideType) +
+      (res.goStop ? '　去程 ' + esc(res.goStop) : '') +
+      (res.backStop ? '　回程 ' + esc(res.backStop) : '') +
+      '　應繳 $' + Number(res.price || 0) + '。';
+    showBoxMsg(box, refreshed ? base : (base + '<br>名額數字沒有重新載入成功，畫面可能是舊的。'), refreshed ? 'ok' : 'warn');
+  } catch (err) {
+    showBoxMsg(box, esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
+}
+
+
 /* ═══ 站內導覽歷史（C6） ═══
    舊版切頁不寫入瀏覽器歷史，所以按上一頁會直接離開網站。
    這裡每次切頁 pushState，返回鍵就會在站內走，走到底才離開。 */
@@ -12929,6 +13242,7 @@ const NAV_VIEWS = {
   seat:        () => renderSeatPage(),
   ticket:      () => renderTicketGeneratorPage(),
   pastCourses: () => renderPastCoursesPage(),
+  bus:         () => renderBusTripPage(),
   monthly:     () => renderMonthlyPage()
 };
 
