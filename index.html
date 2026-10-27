@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.22</title>
+  <title>CYP135 課程報名 V8.23</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1040,7 +1040,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.22</small>
+    <small>CYP135 課程系統 V8.23</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -10803,6 +10803,14 @@ function renderPortalShell() {
       onclick: 'renderMonthlyPage(true)'
     }));
 
+    // 走的是同一個名單頁 —— 會長的名單本來就是全部雁群（getBusRoster 的
+    // isRosterFlockAllowed_ 對會長一律放行），所以這裡不需要再傳一個範圍參數。
+    // 放在會長工具只是讓它跟另外兩個「全教室」排在一起，找得到。
+    toolTiles.push(portalTile({
+      ico: TILE_ICO.classroom, title: '全教室遊覽車', desc: '查看全部雁群遊覽車登記', admin: true,
+      onclick: 'renderBusRosterPage()'
+    }));
+
     // 排座位／重建課程分頁／課表編輯改放到獨立的「工具」區，
     // 會長工具只留「全教室」那兩個檢視。
     const utilTiles = [];
@@ -13181,20 +13189,32 @@ function busSetSubmitDisabled(off, text) {
 // 真正的判定在 loadBusProfile（離開欄位時）跟後端的鎖裡面。
 function busClearDuplicate() {
   if (!busState.duplicate) return;
+  busProfileSeq++;
   busState.duplicate = false;
   busSetSubmitDisabled(false);
   const box = document.getElementById('bus-profile-msg');
   if (box) { box.className = 'msg'; box.innerHTML = ''; }
 }
 
+// 查詢是非同步的，姓名跟雁群又都會觸發。改雁群改得快一點，兩個查詢就會
+// 同時在路上，先發的後回來 —— 那份是舊的，但它會把重複封鎖解掉。
+// 每次查詢編號，回來時不是最新的就整份丟掉。
+let busProfileSeq = 0;
+
 async function loadBusProfile() {
   const name = val('bus-name');
   if (!name) return;
   const trip = busCurrentTrip() || {};
   const box = document.getElementById('bus-profile-msg');
+  const seq = ++busProfileSeq;
+
+  // 查詢要花幾秒，中間什麼都不顯示的話，使用者會以為系統沒反應。
+  if (box) { box.className = 'msg on info'; box.textContent = '查詢名冊中...'; }
+
   try {
     const res = await post('getBusMemberProfile',
       { userId, name, leader: val('bus-leader'), tripCode: trip.tripCode || busState.tripCode }, 10000);
+    if (seq !== busProfileSeq) return;
     if (!res || res.status !== 'ok') throw new Error((res && res.message) || '查詢失敗');
     busState.profile = res;
 
@@ -13266,6 +13286,7 @@ async function loadBusProfile() {
       ].concat(res.duplicateChecked ? [] : ['⚠️ 這次沒能確認是否重複登記，送出時才會知道。']).join('<br>');
     }
   } catch (err) {
+    if (seq !== busProfileSeq) return;
     if (box) { box.className = 'msg on warn'; box.textContent = '名冊查詢失敗（' + (err.message || err) + '），請自行填寫下面的資料。'; }
   }
 }
