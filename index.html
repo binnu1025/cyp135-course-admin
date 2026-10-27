@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.19</title>
+  <title>CYP135 課程報名 V8.20</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -313,6 +313,23 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .import-flock-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
 .bus-group{margin-top:10px}
 .stop-list{display:flex;flex-direction:column;gap:6px}
+.bus-card-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.bus-card{border:1px solid #e4ddc9;border-radius:12px;background:#fffdf7;padding:10px 12px}
+.bus-card-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bus-card-no{min-width:26px;height:26px;border-radius:50%;background:#e9e1cc;color:#6b6350;
+  font-weight:900;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
+.bus-card-name{font-weight:900;font-size:16px}
+.bus-card-flock{font-size:13px;color:#7d7461}
+.bus-card-type{margin-left:auto;font-size:12px;font-weight:800;background:#3f7d5a;color:#fff;
+  border-radius:999px;padding:3px 10px}
+.bus-card-price{font-weight:900;font-size:15px;color:#2f4b3a}
+.bus-card-phone{font-size:13px;color:#7d7461;margin-top:3px;letter-spacing:.02em}
+.bus-legs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.bus-leg{border:1px solid #e8e1d0;border-radius:9px;background:#fff;padding:7px 9px}
+.bus-leg.off{background:#f6f4ee;border-style:dashed}
+.bus-leg-title{font-size:11px;font-weight:800;color:#8a7f66;letter-spacing:.08em}
+.bus-leg-stop{font-size:14px;font-weight:700;margin-top:2px;word-break:break-all}
+.bus-leg.off .bus-leg-stop{color:#a39a86;font-weight:600}
 .stop-add{display:block;width:100%;margin-top:8px;padding:11px 10px;border:1px dashed #cbc2a8;
   border-radius:10px;background:#fffdf7;color:#6b6350;font-weight:700;font-size:14px;cursor:pointer}
 .stop-add:hover{background:#f7f2e4;border-color:#b2a582;color:#4e4736}
@@ -1019,7 +1036,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.19</small>
+    <small>CYP135 課程系統 V8.20</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -13150,7 +13167,10 @@ async function loadBusProfile() {
     if (!res || res.status !== 'ok') throw new Error((res && res.message) || '查詢失敗');
     busState.profile = res;
     if (!res.found) {
-      if (box) { box.className = 'msg on info'; box.textContent = '名冊沒有這個人，請自行填寫下面的資料。'; }
+      if (box) {
+        box.className = 'msg on info';
+        box.innerHTML = '🔎 名冊查無「' + esc(name) + '」<br>下面的資料請自行填寫。送出之後會順便把他建進名冊。';
+      }
       return;
     }
     const setIfEmpty = (id, v) => {
@@ -13161,15 +13181,22 @@ async function loadBusProfile() {
     setIfEmpty('bus-id', res.idNumber);
     setIfEmpty('bus-phone', res.phone);
     setIfEmpty('bus-birth', busToDateInput(res.birthDate));
+    // 提示要跟加報那邊一樣顯眼：把帶出來的東西逐項列出來，不要只說
+    // 「已帶出」—— 那樣看不出到底帶了什麼、對不對。
     const missing = [];
     if (!res.idNumber) missing.push('身分證字號');
     if (!res.phone) missing.push('電話');
     if (!res.birthDate) missing.push('出生年月日');
     if (box) {
-      box.className = 'msg on ' + (missing.length ? 'info' : 'ok');
-      box.textContent = missing.length
-        ? ('已帶出名冊資料。' + missing.join('、') + ' 名冊裡還沒有，請自行填寫。')
-        : '已帶出名冊資料，請確認是否正確。';
+      box.className = 'msg on ' + (missing.length ? 'warn' : 'ok');
+      box.innerHTML = [
+        (missing.length ? '⚠️' : '✅') + ' 已找到名冊資料',
+        '姓名：' + esc(res.name || name),
+        '雁群：' + esc(res.flock || '—'),
+        '身分證字號：' + (res.idNumber ? esc(res.idNumber) : '<b>名冊沒有，請自行填寫</b>'),
+        '電話：' + (res.phone ? esc(res.phone) : '<b>名冊沒有，請自行填寫</b>'),
+        '出生年月日：' + (res.birthDate ? esc(res.birthDate) : '<b>名冊沒有，請自行填寫</b>')
+      ].join('<br>');
     }
   } catch (err) {
     if (box) { box.className = 'msg on warn'; box.textContent = '名冊查詢失敗（' + (err.message || err) + '），請自行填寫下面的資料。'; }
@@ -13360,8 +13387,8 @@ function renderBusAdminForm() {
           <input id="bus-f-name" value="${esc(t.tripName || '')}" placeholder="例如 2026 春季旅遊">
         </div>
         <div class="field">
-          <label>出發日期</label>
-          <input id="bus-f-date" value="${esc(t.tripDate || '')}" placeholder="例如 2026/04/18">
+          <label>出發日期與集合時間</label>
+          ${renderDateTimeClockPicker('bus-f-date', t.tripDate || '')}
         </div>
         <datalist id="bus-stop-suggest"></datalist>
         <div class="field full">
@@ -13431,7 +13458,7 @@ async function saveBusTripForm() {
     userId,
     tripCode: t.tripCode || '',
     tripName: val('bus-f-name'),
-    tripDate: val('bus-f-date'),
+    tripDate: busDateTimeToText(val('bus-f-date')),
     // 後端吃換行分隔的字串，這裡把列編輯器的內容組回去。
     goStops: busReadStops('go').join('\n'),
     // 勾了「跟去程一樣」就送空的 —— 後端留白＝沿用去程。
@@ -13536,6 +13563,16 @@ function busStopRowsHtml(which, stops) {
 //     按第 3 列的 ✕ 會 splice(2) 刪不到東西，或刪錯列。
 // 在站名欄位按 Enter 就開下一站，不用跑去按按鈕。
 // 要擋掉預設行為，否則會直接把整張表單送出去。
+// 日期選擇器給的是 2026-12-31T08:00，試算表要存成人看得懂的格式。
+// 看不懂就原樣送回去 —— 不要自作主張清成空的，那會把使用者填的弄不見。
+function busDateTimeToText(v) {
+  const t = (v || '').toString().trim();
+  if (!t) return '';
+  const m = t.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return t;
+  return m[1] + '/' + m[2] + '/' + m[3] + ' ' + m[4] + ':' + m[5];
+}
+
 function busStopKeydown(event, which) {
   if (!event || event.key !== 'Enter') return;
   event.preventDefault();
@@ -13729,48 +13766,71 @@ function renderBusRosterShell() {
 
 // 名單照「去程站點」「回程下車點」各分一組 —— 第一階段還沒有車次，
 // 所以就是站點。第二階段編好車次之後再改成照車次分組。
+// 一個人一張卡：基本資料只出現一次，去程與回程左右並排。
+//
+// 原本是去程一區、回程一區，同一個人在兩區各出現一次 —— 要對照他
+// 「哪裡上、哪裡下」得自己在兩張表之間找同一個名字。
+//
+// 排序照去程站點在行程裡的順序，同一站的人會排在一起；單程沒有去程的
+// 排最後。第二階段編好車次之後，這裡會改成照車次分組。
 function renderBusRosterBody() {
   const box = document.getElementById('bus-roster-body');
   if (!box) return;
   const d = busRosterState.data || {};
+  const trip = d.trip || {};
   const rows = (d.rows || []).filter(r => r.status !== '取消');
   const q = (val('bus-roster-search') || '').toLowerCase();
-  const match = r => !q || [r.name, r.flock, r.goStop, r.backStop, r.rideType].join(' ').toLowerCase().includes(q);
+  const match = r => !q || [r.name, r.flock, r.goStop, r.backStop, r.rideType]
+    .join(' ').toLowerCase().includes(q);
 
   if (!rows.length) {
     box.innerHTML = '<p class="muted">這個行程目前還沒有人登記。</p>';
     return;
   }
 
-  const section = (title, stops, key) => {
-    const groups = [];
-    (stops || []).forEach(stop => {
-      const people = rows.filter(r => r[key] === stop).filter(match);
-      if (!people.length) return;
-      groups.push(`
-        <div class="bus-group">
-          <div class="bus-group-title">${esc(stop)}　<span class="muted">${people.length} 人</span></div>
-          <table class="import-table">
-            <thead><tr><th>#</th><th>姓名</th><th>雁群</th>${d.isAdmin ? '<th>電話</th>' : ''}<th>搭乘</th><th>金額</th></tr></thead>
-            <tbody>${people.map((p, i) => `
-              <tr>
-                <td>${i + 1}</td>
-                <td>${esc(p.name)}</td>
-                <td>${esc(p.flock || '')}</td>
-                ${d.isAdmin ? '<td>' + esc(p.phone || '') + '</td>' : ''}
-                <td>${esc(p.rideType)}</td>
-                <td>$${Number(p.price) || 0}</td>
-              </tr>`).join('')}</tbody>
-          </table>
-        </div>`);
-    });
-    if (!groups.length) return '';
-    return `<div class="mini-section"><div class="section-title">${esc(title)}</div>${groups.join('')}</div>`;
+  const order = (trip.goStops || []);
+  const rank = r => {
+    const i = order.indexOf(r.goStop);
+    return i < 0 ? 9999 : i;
   };
+  const list = rows.filter(match).slice().sort((a, b) => {
+    const d1 = rank(a) - rank(b);
+    if (d1) return d1;
+    return (a.name || '').localeCompare(b.name || '', 'zh-Hant');
+  });
 
-  const html = section('去程（上車點）', d.trip && d.trip.goStops, 'goStop') +
-               section('回程（下車點）', d.trip && d.trip.backStops, 'backStop');
-  box.innerHTML = html || '<p class="muted">沒有符合搜尋條件的資料。</p>';
+  if (!list.length) {
+    box.innerHTML = '<p class="muted">沒有符合搜尋條件的資料。</p>';
+    return;
+  }
+
+  box.innerHTML = '<div class="bus-card-list">' +
+    list.map((p, i) => busRosterPersonCard(p, i + 1, d.isAdmin)).join('') +
+    '</div>';
+}
+
+function busRosterPersonCard(p, no, isAdmin) {
+  // 沒有那一段就明講「不搭」，不要留白 —— 留白看起來像漏填。
+  const leg = (title, stop) => `
+    <div class="bus-leg${stop ? '' : ' off'}">
+      <div class="bus-leg-title">${esc(title)}</div>
+      <div class="bus-leg-stop">${stop ? esc(stop) : '不搭'}</div>
+    </div>`;
+  return `
+    <div class="bus-card">
+      <div class="bus-card-head">
+        <span class="bus-card-no">${no}</span>
+        <span class="bus-card-name">${esc(p.name)}</span>
+        <span class="bus-card-flock">${esc(p.flock || '')}</span>
+        <span class="bus-card-type">${esc(p.rideType)}</span>
+        <span class="bus-card-price">$${Number(p.price) || 0}</span>
+      </div>
+      ${isAdmin && p.phone ? '<div class="bus-card-phone">' + esc(p.phone) + '</div>' : ''}
+      <div class="bus-legs">
+        ${leg('去程 上車', p.goStop)}
+        ${leg('回程 下車', p.backStop)}
+      </div>
+    </div>`;
 }
 
 
