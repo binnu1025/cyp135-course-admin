@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.15</title>
+  <title>CYP135 課程報名 V8.16</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -311,6 +311,9 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .import-table th{background:#faf8f3;color:#555;font-weight:700}
 .import-status-ok{color:#2d7d46;font-weight:700}
 .import-flock-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.bus-group{margin-top:10px}
+.bus-group-title{font-weight:900;font-size:14px;background:#f3ede0;border:1px solid #e4ddc9;
+  border-radius:8px;padding:7px 10px;margin-bottom:6px}
 .import-flock-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
   background:#faf8f2;border:1px solid #e4ddc9;border-radius:10px;padding:10px 12px;font-size:14px}
 .import-flock-row select{min-width:160px;height:38px;border-radius:8px;border:1px solid #cfc7b2;padding:0 8px;background:#fff}
@@ -1005,7 +1008,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.15</small>
+    <small>CYP135 課程系統 V8.16</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -10744,6 +10747,7 @@ function renderPortalShell() {
   if (canViewRoster || isAdminUser) {
     const flockTiles = [
       portalTile({ ico: TILE_ICO.roster, title: '小組報名', desc: '查看你的雁群報名狀況', onclick: 'renderMyRegistrationsPage(false)' }),
+      portalTile({ ico: TILE_ICO.classroom, title: '遊覽車名單', desc: '誰報了、哪裡上哪裡下', onclick: 'renderBusRosterPage()' }),
       portalTile({ ico: TILE_ICO.monthly, title: '小組包月', desc: '查看你的雁群包月狀況', onclick: 'renderMonthlyPage(false)' })
     ];
     flockHtml = `
@@ -10795,6 +10799,7 @@ function renderPortalShell() {
 
     const manageTiles = [
       portalTile({ ico: TILE_ICO.create, title: '建立課程', desc: '新增一堂課程', admin: true, onclick: 'renderCreateCoursePage()' }),
+      portalTile({ ico: TILE_ICO.classroom, title: '遊覽車行程', desc: '建立行程、站點、價格、單程開關', admin: true, onclick: 'renderBusAdminPage()' }),
       portalTile({ ico: TILE_ICO.past, title: '下架區', desc: '已下架的課程，可在這裡上架回來', admin: true, onclick: 'renderPastCoursesPage()' }),
       portalTile({ ico: TILE_ICO.ticket, title: '票券產生', desc: '產生報名者 QR 票券', admin: true, onclick: 'renderTicketGeneratorPage()' }),
       portalTile({ ico: TILE_ICO.trophy, title: '特惠日程', desc: '首頁特惠圖與期間設定', admin: true, onclick: 'renderPromoScheduleManagerPage()' }),
@@ -13228,6 +13233,371 @@ async function submitBusRegistrationForm() {
 }
 
 
+/* ═══ 遊覽車：行程設定（會長）＋ 名單（會長與雁群組長）═══ */
+let busAdminState = { trips: [], editing: null };
+let busRosterState = { trips: [], tripCode: '', data: null, query: '' };
+
+/* ── 行程設定 ── */
+async function renderBusAdminPage(forceRefresh) {
+  const token = beginPage('busAdmin', '遊覽車行程', true);
+  showLoading('載入遊覽車行程');
+  const allowed = await ensureAdminAccess(token, 'busAdmin');
+  if (!isPageActive(token, 'busAdmin')) return;
+  if (!allowed) { stopLoading(); return; }
+
+  let data;
+  try {
+    data = await post('getBusAdminInit', { userId }, 20000);
+  } catch (err) {
+    if (!isPageActive(token, 'busAdmin')) return;
+    stopLoading();
+    document.getElementById('app').innerHTML =
+      '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>' +
+      '<div class="card" style="margin-top:12px"><h2>載入失敗</h2><p class="meta">' +
+      esc(err.message || err) + '</p><button class="btn btn-main" onclick="renderBusAdminPage()">重新載入</button></div>';
+    return;
+  }
+  if (!isPageActive(token, 'busAdmin')) return;
+  stopLoading();
+  if (!data || !data.allowed) return renderNoAdminPage();
+
+  busAdminState.trips = data.trips || [];
+  if (forceRefresh !== 'keep') busAdminState.editing = null;
+  renderBusAdminShell();
+}
+
+function renderBusAdminShell() {
+  const app = document.getElementById('app');
+  const trips = busAdminState.trips || [];
+
+  const list = trips.length
+    ? `<div class="promo-manager-list">${trips.map(t => {
+        const u = t.usage || {};
+        return `
+        <div class="promo-manager-item">
+          <div>
+            <div class="promo-manager-item-title">${esc(t.tripName)}　<span class="muted">${esc(t.tripCode)}</span></div>
+            <div class="promo-manager-item-meta">
+              ${esc(t.tripDate || '日期未設定')}　·　來回 $${Number(t.roundPrice) || 0}　·　單程 $${Number(t.singlePrice) || 0}<br>
+              去程 ${Number(u.goUsed) || 0}/${Number(t.goLimit) || '∞'}　·　回程 ${Number(u.backUsed) || 0}/${Number(t.backLimit) || '∞'}
+              ${t.allowSingle ? '　·　<b>單程已開放</b>' : '　·　只收來回'}
+              ${t.open ? '' : '　·　<b>已關閉報名</b>'}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-main" style="margin:0;height:38px" onclick="renderBusRosterPage('${esc(t.tripCode)}')">名單</button>
+            <button class="btn btn-sub" style="margin:0;height:38px" onclick="busAdminEdit('${esc(t.tripCode)}')">編輯</button>
+            <button class="btn ${t.allowSingle ? 'btn-warn' : 'btn-ghost'}" style="margin:0;height:38px"
+              onclick="busToggleSingle('${esc(t.tripCode)}', ${t.allowSingle ? 'false' : 'true'})">
+              ${t.allowSingle ? '關閉單程' : '開放單程'}
+            </button>
+          </div>
+        </div>`;
+      }).join('')}</div>`
+    : '<p class="meta">還沒有行程。按下面的「新增行程」建立第一個。</p>';
+
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+    <div class="card" style="margin-top:12px">
+      <h2>遊覽車行程</h2>
+      <p class="meta">報名的人只選站點，<b>車次是之後再編的</b>。名額去程與回程分開算，單程只佔他要搭的那一段。</p>
+      <div class="compact-actions">
+        <button class="btn btn-main" onclick="busAdminNew()">新增行程</button>
+        <button class="btn btn-sub" onclick="renderBusAdminPage()">重新載入</button>
+      </div>
+      ${list}
+    </div>
+    <div id="bus-admin-form"></div>`;
+
+  if (busAdminState.editing) renderBusAdminForm();
+}
+
+function busAdminNew() {
+  busAdminState.editing = {
+    tripCode: '', tripName: '', tripDate: '', goStops: [], backStops: [],
+    roundPrice: 0, singlePrice: 0, goLimit: 43, backLimit: 43,
+    allowSingle: false, open: true, note: ''
+  };
+  renderBusAdminShell();
+  const el = document.getElementById('bus-f-name');
+  if (el) el.focus();
+}
+
+function busAdminEdit(code) {
+  const t = (busAdminState.trips || []).find(x => x.tripCode === code);
+  if (!t) return showMsg('找不到這個行程。', 'err');
+  busAdminState.editing = Object.assign({}, t);
+  renderBusAdminShell();
+  const box = document.getElementById('bus-admin-form');
+  if (box && box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderBusAdminForm() {
+  const box = document.getElementById('bus-admin-form');
+  if (!box) return;
+  const t = busAdminState.editing;
+
+  box.innerHTML = `
+    <div class="card course-form-card" style="margin-top:12px">
+      <h3>${t.tripCode ? '編輯行程　' + esc(t.tripCode) : '新增行程'}</h3>
+      <div class="form-grid">
+        <div class="field">
+          <label>行程名稱（必填）</label>
+          <input id="bus-f-name" value="${esc(t.tripName || '')}" placeholder="例如 2026 春季旅遊">
+        </div>
+        <div class="field">
+          <label>出發日期</label>
+          <input id="bus-f-date" value="${esc(t.tripDate || '')}" placeholder="例如 2026/04/18">
+        </div>
+        <div class="field full">
+          <label>去程上車點（必填）</label>
+          <textarea id="bus-f-go" class="custom-field-options" placeholder="一行一個，例如&#10;圓山捷運站二號出口&#10;新埔捷運站五號出口&#10;桃園群雁空間">${esc((t.goStops || []).join('\n'))}</textarea>
+        </div>
+        <div class="field full">
+          <label>回程下車點</label>
+          <textarea id="bus-f-back" class="custom-field-options" placeholder="留白就跟去程一樣">${esc((t.backStops || []).join('\n'))}</textarea>
+          <div class="muted" style="font-size:12px;margin-top:4px">留白＝跟去程完全一樣。回程少停某一站時才需要另外填。</div>
+        </div>
+        <div class="field">
+          <label>來回價</label>
+          <input id="bus-f-round" type="number" min="0" step="1" value="${Number(t.roundPrice) || 0}">
+        </div>
+        <div class="field">
+          <label>單程價</label>
+          <input id="bus-f-single" type="number" min="0" step="1" value="${Number(t.singlePrice) || 0}">
+        </div>
+        <div class="field">
+          <label>去程名額</label>
+          <input id="bus-f-golimit" type="number" min="0" step="1" value="${Number(t.goLimit) || 0}">
+        </div>
+        <div class="field">
+          <label>回程名額</label>
+          <input id="bus-f-backlimit" type="number" min="0" step="1" value="${Number(t.backLimit) || 0}">
+        </div>
+        <div class="field full">
+          <div class="muted" style="font-size:12px">一台遊覽車 43 人。兩台就填 86，要加車就把數字改大。填 0 ＝ 不限。</div>
+        </div>
+        <div class="field full">
+          <label>說明（選填）</label>
+          <input id="bus-f-note" value="${esc(t.note || '')}" placeholder="集合時間、注意事項…">
+        </div>
+        <div class="field full">
+          <label><input type="checkbox" id="bus-f-open" ${t.open === false ? '' : 'checked'}> 開放報名</label>
+        </div>
+        <div class="field full">
+          <label><input type="checkbox" id="bus-f-single-open" ${t.allowSingle ? 'checked' : ''}> 開放單程登記</label>
+          <div class="muted" style="font-size:12px;margin-top:4px">照你的流程：先不要勾，只收來回；等登記差不多再回來勾起來。勾了之後來回還是可以繼續報。</div>
+        </div>
+      </div>
+      <div id="bus-f-msg" class="msg"></div>
+      <div class="compact-actions">
+        <button class="btn btn-main" onclick="saveBusTripForm()">儲存行程</button>
+        <button class="btn btn-ghost" onclick="busAdminCancel()">取消</button>
+      </div>
+    </div>`;
+}
+
+function busAdminCancel() {
+  busAdminState.editing = null;
+  renderBusAdminShell();
+}
+
+async function saveBusTripForm() {
+  const t = busAdminState.editing || {};
+  const payload = {
+    userId,
+    tripCode: t.tripCode || '',
+    tripName: val('bus-f-name'),
+    tripDate: val('bus-f-date'),
+    goStops: (document.getElementById('bus-f-go') || { value: '' }).value,
+    backStops: (document.getElementById('bus-f-back') || { value: '' }).value,
+    roundPrice: val('bus-f-round'),
+    singlePrice: val('bus-f-single'),
+    goLimit: val('bus-f-golimit'),
+    backLimit: val('bus-f-backlimit'),
+    note: val('bus-f-note'),
+    open: !!(document.getElementById('bus-f-open') || {}).checked,
+    allowSingle: !!(document.getElementById('bus-f-single-open') || {}).checked
+  };
+  if (!payload.tripName) return showBoxMsg('bus-f-msg', '請填寫行程名稱。', 'err');
+  if (!payload.goStops.trim()) return showBoxMsg('bus-f-msg', '請至少填一個去程上車點。', 'err');
+
+  showActionLock('正在儲存行程', '請稍候。');
+  try {
+    const res = await post('saveBusTrip', payload, 30000);
+    if (!res) throw new Error('連線未回應。這不代表沒有存成功，重新載入可以確認。');
+    if (res.status !== 'ok') return showBoxMsg('bus-f-msg', esc(res.message || '儲存失敗'), 'err');
+    busAdminState.editing = null;
+    showMsg(res.message || '已儲存。', 'ok');
+    await renderBusAdminPage();
+  } catch (err) {
+    showBoxMsg('bus-f-msg', esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
+}
+
+async function busToggleSingle(code, on) {
+  showActionLock(on ? '正在開放單程' : '正在關閉單程', '請稍候。');
+  try {
+    const res = await post('setBusTripSingleOpen', { userId, tripCode: code, allowSingle: on }, 20000);
+    if (!res || res.status !== 'ok') return showMsg(esc((res && res.message) || '更新失敗'), 'err');
+    showMsg(res.message, 'ok');
+    await renderBusAdminPage();
+  } catch (err) {
+    showMsg(esc(err.message || err), 'err');
+  } finally {
+    hideActionLock();
+  }
+}
+
+/* ── 名單（會長與雁群組長共用）── */
+async function renderBusRosterPage(tripCode) {
+  const token = beginPage('busRoster', '遊覽車名單', true);
+  showLoading('載入遊覽車名單');
+
+  let trips;
+  try {
+    trips = await post('getBusRosterTrips', { userId }, 20000);
+  } catch (err) {
+    if (!isPageActive(token, 'busRoster')) return;
+    stopLoading();
+    document.getElementById('app').innerHTML =
+      '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>' +
+      '<div class="card" style="margin-top:12px"><h2>載入失敗</h2><p class="meta">' +
+      esc(err.message || err) + '</p><button class="btn btn-main" onclick="renderBusRosterPage()">重新載入</button></div>';
+    return;
+  }
+  if (!isPageActive(token, 'busRoster')) return;
+
+  if (!trips || !trips.allowed) {
+    stopLoading();
+    document.getElementById('app').innerHTML =
+      '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>' +
+      '<div class="card" style="margin-top:12px"><h2>遊覽車名單</h2><p class="meta">' +
+      esc((trips && trips.message) || '沒有名單查看權限。') + '</p></div>';
+    return;
+  }
+
+  busRosterState.trips = trips.trips || [];
+  busRosterState.tripCode = tripCode || (busRosterState.trips[0] ? busRosterState.trips[0].tripCode : '');
+  if (!busRosterState.tripCode) {
+    stopLoading();
+    document.getElementById('app').innerHTML =
+      '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>' +
+      '<div class="card" style="margin-top:12px"><h2>遊覽車名單</h2><p class="meta">目前沒有行程。</p></div>';
+    return;
+  }
+  await loadBusRoster(token);
+}
+
+async function loadBusRoster(token) {
+  try {
+    const data = await post('getBusRoster', { userId, tripCode: busRosterState.tripCode }, 25000);
+    if (token && !isPageActive(token, 'busRoster')) return;
+    stopLoading();
+    if (!data || data.status !== 'ok') {
+      return showMsg(esc((data && data.message) || '載入失敗'), 'err');
+    }
+    busRosterState.data = data;
+    renderBusRosterShell();
+  } catch (err) {
+    if (token && !isPageActive(token, 'busRoster')) return;
+    stopLoading();
+    showMsg(esc(err.message || err), 'err');
+  }
+}
+
+function onBusRosterTripChange() {
+  busRosterState.tripCode = val('bus-roster-trip');
+  showLoading('載入遊覽車名單');
+  loadBusRoster(null);
+}
+
+function renderBusRosterShell() {
+  const app = document.getElementById('app');
+  const d = busRosterState.data || {};
+  const trip = d.trip || {};
+  const u = d.usage || {};
+  const trips = busRosterState.trips || [];
+
+  const picker = trips.length > 1
+    ? `<div class="field">
+         <label>選擇行程</label>
+         <select id="bus-roster-trip" onchange="onBusRosterTripChange()">
+           ${trips.map(t => `<option value="${esc(t.tripCode)}" ${t.tripCode === busRosterState.tripCode ? 'selected' : ''}>${esc(t.tripName)}${t.tripDate ? '｜' + esc(t.tripDate) : ''}</option>`).join('')}
+         </select>
+       </div>`
+    : '';
+
+  app.innerHTML = `
+    <button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>
+    <div class="card" style="margin-top:12px">
+      <h2>遊覽車名單</h2>
+      ${picker}
+      <p class="meta">
+        ${esc(trip.tripName || '')}${trip.tripDate ? '｜' + esc(trip.tripDate) : ''}<br>
+        去程 ${Number(u.goUsed) || 0}${Number(u.goLimit) > 0 ? ' / ' + u.goLimit : ''}　·　回程 ${Number(u.backUsed) || 0}${Number(u.backLimit) > 0 ? ' / ' + u.backLimit : ''}<br>
+        你看得到的範圍：${esc(d.scopeText || '—')}
+      </p>
+      ${d.isAdmin ? '' : '<div class="msg info on">組長看到的是自己雁群的人。身分證與生日只有會長看得到。</div>'}
+      <div class="searchbar"><input id="bus-roster-search" placeholder="搜尋姓名 / 站點" oninput="renderBusRosterBody()"></div>
+      <div class="compact-actions">
+        <button class="btn btn-sub" onclick="renderBusRosterPage(busRosterState.tripCode)">重新載入</button>
+        ${d.isAdmin ? '<button class="btn btn-ghost" onclick="renderBusAdminPage()">行程設定</button>' : ''}
+      </div>
+      <div id="bus-roster-body"></div>
+    </div>`;
+  renderBusRosterBody();
+}
+
+// 名單照「去程站點」「回程下車點」各分一組 —— 第一階段還沒有車次，
+// 所以就是站點。第二階段編好車次之後再改成照車次分組。
+function renderBusRosterBody() {
+  const box = document.getElementById('bus-roster-body');
+  if (!box) return;
+  const d = busRosterState.data || {};
+  const rows = (d.rows || []).filter(r => r.status !== '取消');
+  const q = (val('bus-roster-search') || '').toLowerCase();
+  const match = r => !q || [r.name, r.flock, r.goStop, r.backStop, r.rideType].join(' ').toLowerCase().includes(q);
+
+  if (!rows.length) {
+    box.innerHTML = '<p class="muted">這個行程目前還沒有人登記。</p>';
+    return;
+  }
+
+  const section = (title, stops, key) => {
+    const groups = [];
+    (stops || []).forEach(stop => {
+      const people = rows.filter(r => r[key] === stop).filter(match);
+      if (!people.length) return;
+      groups.push(`
+        <div class="bus-group">
+          <div class="bus-group-title">${esc(stop)}　<span class="muted">${people.length} 人</span></div>
+          <table class="import-table">
+            <thead><tr><th>#</th><th>姓名</th><th>雁群</th>${d.isAdmin ? '<th>電話</th>' : ''}<th>搭乘</th><th>金額</th></tr></thead>
+            <tbody>${people.map((p, i) => `
+              <tr>
+                <td>${i + 1}</td>
+                <td>${esc(p.name)}</td>
+                <td>${esc(p.flock || '')}</td>
+                ${d.isAdmin ? '<td>' + esc(p.phone || '') + '</td>' : ''}
+                <td>${esc(p.rideType)}</td>
+                <td>$${Number(p.price) || 0}</td>
+              </tr>`).join('')}</tbody>
+          </table>
+        </div>`);
+    });
+    if (!groups.length) return '';
+    return `<div class="mini-section"><div class="section-title">${esc(title)}</div>${groups.join('')}</div>`;
+  };
+
+  const html = section('去程（上車點）', d.trip && d.trip.goStops, 'goStop') +
+               section('回程（下車點）', d.trip && d.trip.backStops, 'backStop');
+  box.innerHTML = html || '<p class="muted">沒有符合搜尋條件的資料。</p>';
+}
+
+
 /* ═══ 站內導覽歷史（C6） ═══
    舊版切頁不寫入瀏覽器歷史，所以按上一頁會直接離開網站。
    這裡每次切頁 pushState，返回鍵就會在站內走，走到底才離開。 */
@@ -13243,6 +13613,8 @@ const NAV_VIEWS = {
   ticket:      () => renderTicketGeneratorPage(),
   pastCourses: () => renderPastCoursesPage(),
   bus:         () => renderBusTripPage(),
+  busAdmin:    () => renderBusAdminPage(),
+  busRoster:   () => renderBusRosterPage(),
   monthly:     () => renderMonthlyPage()
 };
 
