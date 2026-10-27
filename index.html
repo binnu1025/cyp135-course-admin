@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.20</title>
+  <title>CYP135 課程報名 V8.21</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1036,7 +1036,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.20</small>
+    <small>CYP135 課程系統 V8.21</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -12986,7 +12986,10 @@ async function renderBusTripPage(tripCode) {
   busState.trips = (data && data.trips) || [];
   busState.isAdmin = !!(data && data.isAdmin);
   busState.canRegister = !(data && data.hasRegisterColumn) || !!(data && data.canRegister);
-  busState.leaders = (initData && initData.leaders) || (initData && initData.platinumNames) || [];
+  // 後端送的優先；拿不到才退回 initData（會長從設定頁過來時才會有）。
+  busState.leaders = (data && data.leaders && data.leaders.length)
+    ? data.leaders
+    : ((initData && (initData.leaders || initData.platinumNames)) || []);
   busState.tripCode = tripCode || (busState.trips[0] ? busState.trips[0].tripCode : '');
   busState.profile = null;
   renderBusTripShell();
@@ -13073,8 +13076,11 @@ function renderBusTripBody() {
         </div>
         <div class="field">
           <label>上手白金／雁群（必填）</label>
-          <input id="bus-leader" list="bus-leader-list" placeholder="請輸入或選擇">
-          <datalist id="bus-leader-list">${(busState.leaders || []).map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
+          <!-- 用真的 select，不要 datalist：Android 會把 datalist 變成鍵盤上方的
+               建議列，看起來像壞掉，也選不到完整清單。報名表一直都是 select。 -->
+          <select id="bus-leader" onchange="loadBusProfile()">
+            ${optionHtml(busState.leaders || [], '', '請選擇上手白金/雁群組長')}
+          </select>
         </div>
       </div>
       <div id="bus-profile-msg" class="msg"></div>
@@ -13177,7 +13183,21 @@ async function loadBusProfile() {
       const el = document.getElementById(id);
       if (el && !el.value && v) el.value = v;
     };
-    if (res.flock) setIfEmpty('bus-leader', res.flock);
+    // select 塞一個選項裡沒有的值會變成空白（看起來像沒帶到），
+    // 所以先把名冊給的雁群補成一個選項再選。
+    if (res.flock) {
+      const sel = document.getElementById('bus-leader');
+      if (sel && !sel.value) {
+        const exists = Array.from(sel.options).some(o => o.value === res.flock);
+        if (!exists) {
+          const opt = document.createElement('option');
+          opt.value = res.flock;
+          opt.textContent = res.flock;
+          sel.appendChild(opt);
+        }
+        sel.value = res.flock;
+      }
+    }
     setIfEmpty('bus-id', res.idNumber);
     setIfEmpty('bus-phone', res.phone);
     setIfEmpty('bus-birth', busToDateInput(res.birthDate));
