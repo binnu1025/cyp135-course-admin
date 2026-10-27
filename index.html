@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.13</title>
+  <title>CYP135 課程報名 V8.14</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -137,6 +137,12 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .custom-field-body{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(120px,.55fr) minmax(120px,.55fr);gap:10px;align-items:end}
 .custom-field-body .options{grid-column:1 / -1}
 .custom-field-options{min-height:76px}
+.qty-list{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.qty-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:#faf8f2;border:1px solid #e4ddc9;border-radius:9px;padding:8px 10px}
+.qty-name{font-weight:700;font-size:14px;word-break:break-all}
+.qty-num{width:84px;flex:none;text-align:center}
+.qty-sum{font-size:12px;margin-top:6px}
 .icon-btn{border:none;border-radius:11px;background:#f3eeee;color:#9a3333;font-weight:900;height:43px;cursor:pointer}
 .custom-field-head .icon-btn{width:38px;height:38px;flex:0 0 38px}
 .success-box{text-align:left;font-size:14px;line-height:1.9;color:#4f4a43}
@@ -999,7 +1005,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.13</small>
+    <small>CYP135 課程系統 V8.14</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -5337,7 +5343,8 @@ function normalizeFieldModeClient(mode) {
 
 function normalizeCustomFieldTypeClient(type) {
   type = String(type || '').trim();
-  if (['text', 'textarea', 'select', 'number', 'date'].includes(type)) return type;
+  if (['text', 'textarea', 'select', 'quantity', 'number', 'date'].includes(type)) return type;
+  if (type === '數量選擇' || type === '數量') return 'quantity';
   if (type === '長文字') return 'textarea';
   if (type === '下拉選單') return 'select';
   if (type === '數字') return 'number';
@@ -5396,7 +5403,8 @@ function renderCustomFieldTypeOptions(selected) {
   const options = [
     ['text', '短文字'],
     ['textarea', '長文字'],
-    ['select', '下拉選單'],
+    ['select', '下拉選單（只能選一個）'],
+    ['quantity', '數量選擇（可多選並填數量）'],
     ['number', '數字'],
     ['date', '日期']
   ];
@@ -5434,8 +5442,9 @@ function renderCustomRegistrationFieldEditor(field, index) {
           <select class="custom-field-mode">${renderCustomFieldModeOptions(field.mode)}</select>
         </div>
         <div class="field options">
-          <label>下拉選項</label>
-          <textarea class="custom-field-options" placeholder="選擇下拉選單時填寫；每行或逗號分隔一個選項">${esc((field.options || []).join('\n'))}</textarea>
+          <label>選項（下拉選單／數量選擇用）</label>
+          <textarea class="custom-field-options" placeholder="一行一個選項，例如&#10;S&#10;M&#10;L&#10;XL">${esc((field.options || []).join('\n'))}</textarea>
+          <div class="muted" style="font-size:12px;margin-top:4px">一行一個（也可以用逗號分隔）。「下拉選單」是只能選一個；「數量選擇」是每個選項各填件數。</div>
         </div>
       </div>
     </div>
@@ -8283,6 +8292,25 @@ function registrationExtraFieldLabels() {
   };
 }
 
+// 把那一題所有數量格重算成一行字塞回隱藏欄位，並更新下面那行小計。
+// 格式要跟後端 normalizeQuantityAnswer_ 一致：「XL×1、M×2」。
+// 後端還是會再算一次，這裡只是讓使用者當下看得到自己選了什麼。
+function syncQuantityField(inputId) {
+  const hidden = document.getElementById(inputId);
+  if (!hidden) return;
+  const parts = [];
+  let total = 0;
+  document.querySelectorAll('[data-qty-for="' + inputId + '"]').forEach(el => {
+    const n = parseInt(el.value, 10);
+    if (!(n > 0)) return;
+    parts.push(el.dataset.qtyName + '×' + n);
+    total += n;
+  });
+  hidden.value = parts.join('、');
+  const sum = document.getElementById(inputId + '__sum');
+  if (sum) sum.textContent = parts.length ? ('已選 ' + parts.join('、') + '，共 ' + total + ' 件') : '尚未選擇';
+}
+
 function customRegistrationInputId(prefix, field) {
   return prefix + 'custom-' + String(field.id || '').replace(/[^A-Za-z0-9_-]/g, '_');
 }
@@ -8295,6 +8323,30 @@ function renderCustomRegistrationInput(field, inputId, required) {
   if (field.type === 'select') {
     const options = (field.options || []).map(option => `<option value="${esc(option)}">${esc(option)}</option>`).join('');
     return `<select id="${esc(inputId)}" ${requiredAttr}><option value="">請選擇</option>${options}</select>`;
+  }
+  // 數量選擇：一個選項一列，各自填件數。
+  //
+  // 真正的答案放在隱藏欄位裡，格式「XL×1、M×2」，每次改數字就重算一次。
+  // 這樣 collectRegistrationExtraAnswers 照舊用 val(inputId) 就讀得到，
+  // 送出、驗證、存檔那一整條完全不用動。
+  if (field.type === 'quantity') {
+    const opts = (field.options || []).filter(Boolean);
+    if (!opts.length) {
+      // 三態：沒有選項不是「沒選」，是這一題設定不完整。不要畫一個填不了
+      // 的空框讓人以為是自己的問題。
+      return `<input id="${esc(inputId)}" type="hidden" value="">
+        <div class="msg warn on">這一題還沒有設定選項，請告知會長。</div>`;
+    }
+    const rows = opts.map(o => `
+      <div class="qty-row">
+        <span class="qty-name">${esc(o)}</span>
+        <input class="qty-num" type="number" inputmode="numeric" min="0" max="99" step="1"
+               placeholder="0" data-qty-for="${esc(inputId)}" data-qty-name="${esc(o)}"
+               oninput="syncQuantityField(this.dataset.qtyFor)">
+      </div>`).join('');
+    return `<input id="${esc(inputId)}" type="hidden" value="">
+      <div class="qty-list">${rows}</div>
+      <div class="qty-sum muted" id="${esc(inputId)}__sum">尚未選擇</div>`;
   }
   if (field.type === 'number') {
     return `<input id="${esc(inputId)}" type="number" placeholder="${esc(field.label)}" ${requiredAttr}>`;
