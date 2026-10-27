@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.18</title>
+  <title>CYP135 課程報名 V8.19</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -313,6 +313,9 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .import-flock-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
 .bus-group{margin-top:10px}
 .stop-list{display:flex;flex-direction:column;gap:6px}
+.stop-add{display:block;width:100%;margin-top:8px;padding:11px 10px;border:1px dashed #cbc2a8;
+  border-radius:10px;background:#fffdf7;color:#6b6350;font-weight:700;font-size:14px;cursor:pointer}
+.stop-add:hover{background:#f7f2e4;border-color:#b2a582;color:#4e4736}
 .stop-row{display:grid;grid-template-columns:28px minmax(0,1fr) 34px 34px 34px;gap:6px;align-items:center}
 .stop-no{text-align:center;font-weight:900;color:#8a7f66;font-size:13px}
 .stop-row .stop-input{width:100%}
@@ -1016,7 +1019,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.18</small>
+    <small>CYP135 課程系統 V8.19</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -13364,8 +13367,8 @@ function renderBusAdminForm() {
         <div class="field full">
           <label>去程上車點（必填）</label>
           <div id="bus-go-stops" class="stop-list"></div>
-          <button type="button" class="s-btn s-btn-secondary s-btn-small" style="margin-top:6px" onclick="busAddStop('go')">＋ 新增一站</button>
-          <div class="muted" style="font-size:12px;margin-top:4px">照實際上車順序排。點輸入框會跳出常用站點，也可以直接打新的。</div>
+          <button type="button" class="stop-add" onclick="busAddStop('go')">＋ 新增一站</button>
+          <div class="muted" style="font-size:12px;margin-top:4px">照實際上車順序排。點輸入框會跳出常用站點，也可以直接打新的；按 Enter 直接開下一站。沒填的那幾列存檔時會自動略過。</div>
         </div>
         <div class="field full">
           <label><input type="checkbox" id="bus-f-same" onchange="onBusSameAsGoToggle()" ${sameAsGo ? 'checked' : ''}> 回程下車點跟去程一樣</label>
@@ -13373,7 +13376,7 @@ function renderBusAdminForm() {
         <div class="field full" id="bus-back-wrap">
           <label>回程下車點</label>
           <div id="bus-back-stops" class="stop-list"></div>
-          <button type="button" class="s-btn s-btn-secondary s-btn-small" style="margin-top:6px" onclick="busAddStop('back')">＋ 新增一站</button>
+          <button type="button" class="stop-add" onclick="busAddStop('back')">＋ 新增一站</button>
           <div class="muted" style="font-size:12px;margin-top:4px">回程少停某一站、或停別的地方時才需要改。</div>
         </div>
         <div class="field">
@@ -13516,6 +13519,7 @@ function busStopRowsHtml(which, stops) {
       <span class="stop-no">${i + 1}</span>
       <input class="stop-input" list="bus-stop-suggest" value="${esc(stop)}"
              placeholder="例如 圓山捷運站二號出口"
+             onkeydown="busStopKeydown(event, '${which}')"
              aria-label="第 ${i + 1} 站">
       <button type="button" class="s-icon-btn" title="上移" onclick="busMoveStop('${which}',${i},-1)">↑</button>
       <button type="button" class="s-icon-btn" title="下移" onclick="busMoveStop('${which}',${i},1)">↓</button>
@@ -13523,19 +13527,37 @@ function busStopRowsHtml(which, stops) {
     </div>`).join('');
 }
 
-// 從畫面上讀回目前打的內容。先讀再改再重畫，使用者打到一半按新增
-// 也不會把前面打的字弄丟。
-function busReadStops(which) {
+// 從畫面上讀回目前打的內容。
+//
+// ⚠️ 編輯途中一定要用 Raw（保留空白列），只有存檔才濾空白：
+//   ‧ 濾掉空白列的話，按「新增一站」會先把剛開的空白列丟掉再加一列，
+//     等於原地踏步 —— 使用者就得先把上一列填完才加得了下一列。
+//   ‧ 更糟的是刪除：清單是 [A, 空白, B] 時，濾完變成 [A, B]，
+//     按第 3 列的 ✕ 會 splice(2) 刪不到東西，或刪錯列。
+// 在站名欄位按 Enter 就開下一站，不用跑去按按鈕。
+// 要擋掉預設行為，否則會直接把整張表單送出去。
+function busStopKeydown(event, which) {
+  if (!event || event.key !== 'Enter') return;
+  event.preventDefault();
+  busAddStop(which);
+}
+
+function busReadStopsRaw(which) {
   return Array.from(document.querySelectorAll('[data-stop-row="' + which + '"]'))
-    .map(row => (row.querySelector('.stop-input') || { value: '' }).value.trim())
-    .filter(Boolean);
+    .map(row => (row.querySelector('.stop-input') || { value: '' }).value.trim());
+}
+
+// 存檔用：這時候才把沒填的丟掉。
+function busReadStops(which) {
+  return busReadStopsRaw(which).filter(Boolean);
 }
 
 function busSyncStopsFromForm() {
   const e = busAdminState.editing;
   if (!e) return;
-  e.goStops = busReadStops('go');
-  if (!busSameAsGoChecked()) e.backStops = busReadStops('back');
+  // 編輯途中保留空白列，見 busReadStopsRaw 的說明。
+  e.goStops = busReadStopsRaw('go');
+  if (!busSameAsGoChecked()) e.backStops = busReadStopsRaw('back');
 }
 
 function busSameAsGoChecked() {
