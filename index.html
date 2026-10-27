@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.23</title>
+  <title>CYP135 課程報名 V8.24</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1040,7 +1040,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.23</small>
+    <small>CYP135 課程系統 V8.24</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1073,7 +1073,12 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 
 <div class="wrap">
   <div id="msg" class="msg"></div>
-  <div id="app" class="loading">載入中...</div>
+  <!-- ⚠️ class="loading" 不要掛在 #app 身上。
+       .loading 有 text-align:center 跟 padding:42px，而沒有任何地方會把它拿掉
+       （showLoading 只換 innerHTML），結果是整個網站每一頁的文字都被置中、
+       上面多出一截空白 —— 表單的欄位標籤跟輸入框對不齊就是這樣來的。
+       開站時的「載入中...」自己包一層，之後被 innerHTML 換掉就沒了。 -->
+  <div id="app"><div class="loading">載入中...</div></div>
 </div>
 
 <script>
@@ -13084,11 +13089,11 @@ function renderBusTripBody() {
     <div class="mini-section">
       <div class="section-title">報名人</div>
       <div class="form-grid">
-        <div class="field">
+        <div class="field full">
           <label>姓名（必填）</label>
           <input id="bus-name" placeholder="請輸入姓名" oninput="busClearDuplicate()" onblur="loadBusProfile()">
         </div>
-        <div class="field">
+        <div class="field full">
           <label>上手白金／雁群（必填）</label>
           <!-- 用真的 select，不要 datalist：Android 會把 datalist 變成鍵盤上方的
                建議列，看起來像壞掉，也選不到完整清單。報名表一直都是 select。 -->
