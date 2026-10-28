@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.26</title>
+  <title>CYP135 課程報名 V8.27</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1042,7 +1042,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.26</small>
+    <small>CYP135 課程系統 V8.27</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -9673,6 +9673,7 @@ const TILE_ICO = (function () {
     'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg></span>';
   return {
     classroom: chip('#EAF4EE', 'tg-classroom', '<defs><linearGradient id="tg-classroom" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3F7D5A"/><stop offset="100%" stop-color="#83C09D"/></linearGradient></defs><rect x="3.6" y="3.4" width="16.8" height="17.2" rx="2.6"/><circle cx="8.8" cy="9" r="1.7"/><path class="acc" d="M13 9h3.6"/><circle cx="8.8" cy="15" r="1.7"/><path class="acc" d="M13 15h3.6"/>'),
+    bus: chip('#FBE9E6', 'tg-bus', '<defs><linearGradient id="tg-bus" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#A93A2E"/><stop offset="100%" stop-color="#E08A7C"/></linearGradient></defs><rect x="2.8" y="4.2" width="18.4" height="13" rx="2.6"/><rect x="5" y="6.8" width="9" height="4" rx="1.1"/><rect class="acc" x="16" y="6.8" width="3" height="7.8" rx="1.1"/><circle cx="7.2" cy="19" r="1.8"/><circle cx="16.8" cy="19" r="1.8"/>'),
     monthly: chip('#F8F1E1', 'tg-monthly', '<defs><linearGradient id="tg-monthly" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#B8862F"/><stop offset="100%" stop-color="#E5BB6B"/></linearGradient></defs><rect x="3.2" y="5" width="17.6" height="15.6" rx="2.6"/><path d="M3.2 9.6h17.6M8 3.2v3.4M16 3.2v3.4"/><circle class="acc" cx="12" cy="15.2" r="2.7"/><path class="acc" d="M12 13.3v3.8"/>'),
     seat: chip('#FAEDE8', 'tg-seat', '<defs><linearGradient id="tg-seat" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#B36A54"/><stop offset="100%" stop-color="#E5A18A"/></linearGradient></defs><rect x="3.2" y="5.6" width="5.2" height="4.6" rx="1.3"/><rect x="9.4" y="5.6" width="5.2" height="4.6" rx="1.3"/><rect x="15.6" y="5.6" width="5.2" height="4.6" rx="1.3"/><rect class="acc" x="3.2" y="13.2" width="5.2" height="4.6" rx="1.3"/><rect class="acc" x="9.4" y="13.2" width="5.2" height="4.6" rx="1.3"/><rect class="acc" x="15.6" y="13.2" width="5.2" height="4.6" rx="1.3"/>'),
     schedule: chip('#ECF1F9', 'tg-schedule', '<defs><linearGradient id="tg-schedule" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#43689B"/><stop offset="100%" stop-color="#8BAEDA"/></linearGradient></defs><path d="M19.4 11.4V5.6a2 2 0 0 0-2-2H4.6a2 2 0 0 0-2 2v12.8a2 2 0 0 0 2 2H11"/><path d="M2.6 9.2h16.8M7 2.4v3.2M15 2.4v3.2"/><path class="acc" d="M14.8 20.8v-2.6l4.8-4.8 2.6 2.6-4.8 4.8h-2.6Z"/>'),
@@ -10773,7 +10774,7 @@ function renderPortalShell() {
   // 才存在的，不該在進門時攔住只想報名的人。
   const personalTiles = [
     portalTile({ ico: TILE_ICO.roster, title: '個人報名', desc: '查詢你自己的報名記錄', onclick: 'renderMyRegistrationsHome()' }),
-    portalTile({ ico: TILE_ICO.classroom, title: '遊覽車登記', desc: '登記上下車地點與來回單程', onclick: 'renderBusTripPage()' })
+    portalTile({ ico: TILE_ICO.bus, title: '遊覽車登記', desc: '登記上下車地點與來回單程', onclick: 'renderBusTripPage()' })
   ];
   const personalHtml = `
     <div class="portal-section">
@@ -10786,7 +10787,7 @@ function renderPortalShell() {
   if (canViewRoster || isAdminUser) {
     const flockTiles = [
       portalTile({ ico: TILE_ICO.roster, title: '小組報名', desc: '查看你的雁群報名狀況', onclick: 'renderMyRegistrationsPage(false)' }),
-      portalTile({ ico: TILE_ICO.classroom, title: '遊覽車名單', desc: '誰報了、哪裡上哪裡下', onclick: 'renderBusRosterPage(null, false)' }),
+      portalTile({ ico: TILE_ICO.bus, title: '遊覽車名單', desc: '誰報了、哪裡上哪裡下', onclick: 'renderBusRosterPage(null, false)' }),
       portalTile({ ico: TILE_ICO.monthly, title: '小組包月', desc: '查看你的雁群包月狀況', onclick: 'renderMonthlyPage(false)' })
     ];
     flockHtml = `
@@ -10813,7 +10814,7 @@ function renderPortalShell() {
     // 跟雁群組長專區走同一頁，差在第二個參數：只有這裡傳 true 才看得到全車。
     // 會長從組長專區進去時看的是自己 C 欄的雁群，跟「小組報名」一致。
     toolTiles.push(portalTile({
-      ico: TILE_ICO.classroom, title: '全教室遊覽車', desc: '查看全部雁群遊覽車登記', admin: true,
+      ico: TILE_ICO.bus, title: '全教室遊覽車', desc: '查看全部雁群遊覽車登記', admin: true,
       onclick: 'renderBusRosterPage(null, true)'
     }));
 
@@ -10845,7 +10846,7 @@ function renderPortalShell() {
 
     const manageTiles = [
       portalTile({ ico: TILE_ICO.create, title: '建立課程', desc: '新增一堂課程', admin: true, onclick: 'renderCreateCoursePage()' }),
-      portalTile({ ico: TILE_ICO.classroom, title: '遊覽車行程', desc: '建立行程、站點、價格、單程開關', admin: true, onclick: 'renderBusAdminPage()' }),
+      portalTile({ ico: TILE_ICO.bus, title: '遊覽車行程', desc: '建立行程、站點、價格、單程開關', admin: true, onclick: 'renderBusAdminPage()' }),
       portalTile({ ico: TILE_ICO.past, title: '下架區', desc: '已下架的課程，可在這裡上架回來', admin: true, onclick: 'renderPastCoursesPage()' }),
       portalTile({ ico: TILE_ICO.ticket, title: '票券產生', desc: '產生報名者 QR 票券', admin: true, onclick: 'renderTicketGeneratorPage()' }),
       portalTile({ ico: TILE_ICO.trophy, title: '特惠日程', desc: '首頁特惠圖與期間設定', admin: true, onclick: 'renderPromoScheduleManagerPage()' }),
