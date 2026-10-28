@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.27</title>
+  <title>CYP135 課程報名 V8.28</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -319,6 +319,25 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .bus-flock-name{font-weight:900;font-size:15px;letter-spacing:.02em}
 .bus-flock-count{margin-left:auto;font-size:12px;font-weight:800;opacity:.9}
 .bus-card-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.bus-seat-car{border:1px solid #e4ddc9;border-radius:14px;background:#fffdf7;padding:10px 12px;margin-top:12px}
+.bus-seat-car.full{border-color:#c9a46a}
+.bus-seat-car.waiting{background:#fbf7f0;border-style:dashed}
+.bus-seat-car.waiting.has{border-color:#b8572c;background:#fdf0ea}
+.bus-seat-car-head{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:14px;color:#2D5A3D;margin-bottom:6px}
+.bus-seat-car.waiting.has .bus-seat-car-head{color:#b8572c}
+.bus-seat-stop{margin-top:8px}
+.bus-seat-stop-head{display:flex;justify-content:space-between;font-size:12px;color:#7d7461;border-bottom:1px solid #eee5d2;padding-bottom:3px;margin-bottom:5px}
+.bus-seat-chips{display:flex;flex-wrap:wrap;gap:6px}
+.bus-seat-chip{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;
+  border:1px solid #ddd3bb;border-radius:9px;background:#fff;padding:5px 9px;cursor:pointer;
+  font-family:inherit;line-height:1.25;text-align:left}
+.bus-seat-chip.on{border-color:#2D5A3D;background:#e8f1ea;box-shadow:0 0 0 2px rgba(45,90,61,.18)}
+.bus-seat-name{font-size:14px;font-weight:700;color:#3a3527}
+.bus-seat-flock{font-size:11px;color:#8a8170}
+.bus-seat-drop{border:1px dashed #2D5A3D;border-radius:9px;background:#f2f8f3;color:#2D5A3D;
+  padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.bus-seat-empty{font-size:13px;color:#8a8170;padding:4px 0}
+@media (max-width:480px){.bus-seat-name{font-size:13px}}
 .bus-card{border:1px solid #e4ddc9;border-radius:12px;background:#fffdf7;padding:10px 12px}
 .bus-card-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .bus-card-no{min-width:26px;height:26px;border-radius:50%;background:#e9e1cc;color:#6b6350;
@@ -1042,7 +1061,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.27</small>
+    <small>CYP135 課程系統 V8.28</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -13420,6 +13439,7 @@ function renderBusAdminShell() {
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn btn-main" style="margin:0;height:38px" onclick="renderBusRosterPage('${esc(t.tripCode)}', true)">名單</button>
+            <button class="btn btn-sub" style="margin:0;height:38px" onclick="renderBusSeatingPage('${esc(t.tripCode)}', 'go')">編車</button>
             <button class="btn btn-sub" style="margin:0;height:38px" onclick="busAdminEdit('${esc(t.tripCode)}')">編輯</button>
             <button class="btn ${t.allowSingle ? 'btn-warn' : 'btn-ghost'}" style="margin:0;height:38px"
               onclick="busToggleSingle('${esc(t.tripCode)}', ${t.allowSingle ? 'false' : 'true'})">
@@ -13449,7 +13469,7 @@ function renderBusAdminShell() {
 function busAdminNew() {
   busAdminState.editing = {
     tripCode: '', tripName: '', tripDate: '', goStops: [], backStops: [],
-    roundPrice: 0, singlePrice: 0, goLimit: 43, backLimit: 43,
+    roundPrice: 0, singlePrice: 0, goLimit: 43, backLimit: 43, busCount: 1, seatsPerBus: 43,
     allowSingle: false, open: true, note: ''
   };
   renderBusAdminShell();
@@ -13518,8 +13538,19 @@ function renderBusAdminForm() {
           <label>回程名額</label>
           <input id="bus-f-backlimit" type="number" min="0" step="1" value="${Number(t.backLimit) || 0}">
         </div>
+        <div class="field">
+          <label>台數</label>
+          <input id="bus-f-buscount" type="number" min="1" step="1" value="${Number(t.busCount) || 1}">
+        </div>
+        <div class="field">
+          <label>每台座位</label>
+          <input id="bus-f-seats" type="number" min="1" step="1" value="${Number(t.seatsPerBus) || 43}">
+        </div>
         <div class="field full">
-          <div class="muted" style="font-size:12px">一台遊覽車 43 人。兩台就填 86，要加車就把數字改大。填 0 ＝ 不限。</div>
+          <div class="muted" style="font-size:12px">
+            名額是「這個行程總共收幾個人」，一台遊覽車 43 人、兩台就填 86，填 0 ＝ 不限。<br>
+            台數與每台座位是給「編車」用的，決定畫幾台車、一台放得下幾個人。
+          </div>
         </div>
         <div class="field full">
           <label>說明（選填）</label>
@@ -13563,6 +13594,8 @@ async function saveBusTripForm() {
     singlePrice: val('bus-f-single'),
     goLimit: val('bus-f-golimit'),
     backLimit: val('bus-f-backlimit'),
+    busCount: val('bus-f-buscount'),
+    seatsPerBus: val('bus-f-seats'),
     note: val('bus-f-note'),
     open: !!(document.getElementById('bus-f-open') || {}).checked,
     allowSingle: !!(document.getElementById('bus-f-single-open') || {}).checked
@@ -13856,6 +13889,7 @@ function renderBusRosterShell() {
       <div class="compact-actions">
         <button class="btn btn-sub" onclick="renderBusRosterPage(busRosterState.tripCode, busRosterState.includeAll)">重新載入</button>
         ${d.isAdmin ? '<button class="btn btn-ghost" onclick="copyBusInsuranceList()">複製保險名單</button>' : ''}
+        ${d.isAdmin ? '<button class="btn btn-ghost" onclick="renderBusSeatingPage(busRosterState.tripCode, \'go\')">編車</button>' : ''}
         ${d.isAdmin ? '<button class="btn btn-ghost" onclick="renderBusAdminPage()">行程設定</button>' : ''}
       </div>
       <div id="bus-roster-body"></div>
@@ -14012,6 +14046,319 @@ function busRosterPersonCard(p, no, isAdmin) {
 }
 
 
+/* ═══ 遊覽車編車（會長）═══
+   不排座位，只排「第幾台車」與「哪一站上／下」。
+
+   交換 = 兩個人對調車次與站點，兩邊都變。
+   移動 = 一個人搬到某一台的某一站；那一台滿了就不給搬（交換不受限，
+          因為一進一出人數不變）。
+   未分配 = 車次 0。這跟「沒報名」「編了但車上沒人」是三件不同的事，
+          所以未分配區一定畫出來，就算是空的也寫「目前沒有」。
+
+   存檔只送有改過的人，沒動到的不碰。 */
+
+let busSeatState = {
+  tripCode: '', leg: 'go', trip: null,
+  people: [], orig: {}, sel: null, loaded: false
+};
+
+const BUS_SEAT_NOSTOP = '（未填）';
+
+function busSeatLegName(leg) {
+  return leg === 'back' ? '回程' : '去程';
+}
+
+function busSeatStopLabel(stop) {
+  return stop ? stop : BUS_SEAT_NOSTOP;
+}
+
+// 站點順序照行程設定的清單走，沒填的排最後。
+function busSeatStopOrder() {
+  const stops = (busSeatState.trip && busSeatState.trip.stops) || [];
+  const order = {};
+  stops.forEach((s, i) => { order[s] = i; });
+  return p => (p.stop && order[p.stop] !== undefined) ? order[p.stop] : 9999;
+}
+
+function busSeatCountIn(bus) {
+  return busSeatState.people.filter(p => Number(p.bus) === Number(bus)).length;
+}
+
+function busSeatDirtyList() {
+  const out = [];
+  busSeatState.people.forEach(p => {
+    const o = busSeatState.orig[p.registrationId];
+    if (!o) return;
+    if (o.bus !== p.bus || o.stop !== p.stop) {
+      out.push({ registrationId: p.registrationId, bus: p.bus, stop: p.stop });
+    }
+  });
+  return out;
+}
+
+async function renderBusSeatingPage(tripCode, leg) {
+  const token = beginPage('busSeat', '遊覽車編車', true);
+  const want = leg === 'back' ? 'back' : 'go';
+
+  if (busSeatState.loaded && busSeatDirtyList().length &&
+      (busSeatState.tripCode !== (tripCode || busSeatState.tripCode) || busSeatState.leg !== want)) {
+    if (!confirm('還有沒存檔的異動，離開這一程就會不見。要繼續嗎？')) return;
+  }
+
+  busSeatState.tripCode = tripCode || busSeatState.tripCode;
+  busSeatState.leg = want;
+  busSeatState.sel = null;
+  busSeatState.loaded = false;
+
+  showLoading('載入編車資料');
+  let data;
+  try {
+    data = await post('getBusSeatingInit',
+      { userId, tripCode: busSeatState.tripCode, leg: busSeatState.leg }, 25000);
+  } catch (err) {
+    if (!isPageActive(token, 'busSeat')) return;
+    stopLoading();
+    document.getElementById('app').innerHTML =
+      '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>' +
+      '<div class="card" style="margin-top:12px"><h2>載入失敗</h2><p class="meta">' +
+      esc(err.message || err) + '</p></div>';
+    return;
+  }
+  if (!isPageActive(token, 'busSeat')) return;
+  stopLoading();
+
+  if (!data || data.status !== 'ok') {
+    document.getElementById('app').innerHTML =
+      '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>' +
+      '<div class="card" style="margin-top:12px"><h2>遊覽車編車</h2><p class="meta">' +
+      esc((data && data.message) || '載入失敗') + '</p></div>';
+    return;
+  }
+
+  busSeatState.trip = data.trip;
+  busSeatState.people = (data.people || []).map(p => ({
+    registrationId: p.registrationId, name: p.name, flock: p.flock,
+    rideType: p.rideType, stop: p.stop || '', bus: Number(p.bus) || 0
+  }));
+  busSeatState.orig = {};
+  busSeatState.people.forEach(p => {
+    busSeatState.orig[p.registrationId] = { bus: p.bus, stop: p.stop };
+  });
+  busSeatState.loaded = true;
+  renderBusSeatShell();
+}
+
+function renderBusSeatShell() {
+  const t = busSeatState.trip || {};
+  const leg = busSeatState.leg;
+  const dirty = busSeatDirtyList().length;
+  const waiting = busSeatState.people.filter(p => !p.bus).length;
+
+  const legTabs = ['go', 'back'].map(l =>
+    `<button class="btn ${l === leg ? 'btn-main' : 'btn-sub'}" style="flex:1"
+       onclick="renderBusSeatingPage(null, '${l}')">${busSeatLegName(l)}</button>`).join('');
+
+  const buses = [];
+  for (let b = 1; b <= (Number(t.busCount) || 1); b++) buses.push(busSeatBusHtml(b));
+
+  document.getElementById('app').innerHTML = `
+    <button class="btn btn-ghost" onclick="busSeatLeave()">← 返回首頁</button>
+    <div class="card" style="margin-top:12px">
+      <h2>遊覽車編車</h2>
+      <p class="meta">
+        ${esc(t.tripName || '')}${t.tripDate ? '｜' + esc(t.tripDate) : ''}<br>
+        ${Number(t.busCount) || 1} 台　每台 ${Number(t.seatsPerBus) || 0} 位　共 ${busSeatState.people.length} 人要搭${busSeatLegName(leg)}
+      </p>
+      <div style="display:flex;gap:8px;margin:10px 0">${legTabs}</div>
+
+      <div id="bus-seat-hint" class="msg on info">${busSeatHintText()}</div>
+
+      <div class="compact-actions">
+        <button class="btn ${dirty ? 'btn-main' : 'btn-sub'}" onclick="busSeatSave()">
+          儲存${dirty ? '（' + dirty + ' 筆異動）' : ''}</button>
+        <button class="btn btn-ghost" onclick="renderBusSeatingPage(null, '${leg}')">重新載入</button>
+      </div>
+      ${leg === 'back' ? `
+      <div class="compact-actions" style="margin-top:6px">
+        <button class="btn btn-sub" onclick="busSeatCopyFromGo()">回程照去程編一次</button>
+      </div>` : ''}
+
+      <div id="bus-seat-body">
+        ${buses.join('')}
+        ${busSeatWaitingHtml(waiting)}
+      </div>
+    </div>`;
+}
+
+function busSeatHintText() {
+  const s = busSeatState.sel;
+  if (!s) return '點一個人開始。再點另一個人就兩個對調（車次與站點一起換）；點「移來這裡」就是把他搬過去。';
+  const p = busSeatState.people.find(x => x.registrationId === s);
+  if (!p) return '點一個人開始。';
+  return '已選<b>　' + esc(p.name) + '　</b>（' +
+    (p.bus ? '第 ' + p.bus + ' 台' : '未分配') + '　' + esc(busSeatStopLabel(p.stop)) +
+    '）　<button class="btn btn-ghost" style="height:26px;padding:0 10px;margin:0" onclick="busSeatPick(null)">取消選取</button>';
+}
+
+function busSeatPersonChip(p) {
+  const on = busSeatState.sel === p.registrationId;
+  return `<button class="bus-seat-chip${on ? ' on' : ''}" onclick="busSeatPick('${esc(p.registrationId)}')">
+      <span class="bus-seat-name">${esc(p.name)}</span>
+      <span class="bus-seat-flock">${esc(p.flock || '—')}</span>
+    </button>`;
+}
+
+// 一台車：照站點分段，段的大小就是那一站的人數。
+function busSeatBusHtml(bus) {
+  const t = busSeatState.trip || {};
+  const seats = Number(t.seatsPerBus) || 0;
+  const mine = busSeatState.people.filter(p => Number(p.bus) === bus);
+  const full = seats > 0 && mine.length >= seats;
+
+  const stops = ((t.stops || []).slice());
+  const used = {};
+  mine.forEach(p => { used[p.stop || ''] = true; });
+  if (used[''] ) stops.push('');
+  const seen = {};
+  const ordered = stops.filter(st => { if (seen[st]) return false; seen[st] = true; return true; });
+
+  const groups = ordered.map(st => {
+    const list = mine.filter(p => (p.stop || '') === st);
+    const drop = busSeatDropHtml(bus, st, full);
+    if (!list.length && !drop) return '';
+    return `<div class="bus-seat-stop">
+        <div class="bus-seat-stop-head">
+          <span>${esc(busSeatStopLabel(st))}</span><span>${list.length} 人</span>
+        </div>
+        <div class="bus-seat-chips">${list.map(busSeatPersonChip).join('')}${drop}</div>
+      </div>`;
+  }).join('');
+
+  return `<div class="bus-seat-car${full ? ' full' : ''}">
+      <div class="bus-seat-car-head">
+        <span>🚌 第 ${bus} 台</span>
+        <span>${mine.length}${seats ? ' / ' + seats : ''}${full ? '　已滿' : ''}</span>
+      </div>
+      ${groups || '<div class="bus-seat-empty">這台還沒有人</div>'}
+    </div>`;
+}
+
+function busSeatDropHtml(bus, stop, full) {
+  const s = busSeatState.sel;
+  if (!s) return '';
+  const p = busSeatState.people.find(x => x.registrationId === s);
+  if (!p) return '';
+  if (Number(p.bus) === bus && (p.stop || '') === stop) return '';
+  // 滿的車不給搬進來；但如果他本來就在這台（只是換站）就不算搬進來。
+  if (full && Number(p.bus) !== bus) return '';
+  return `<button class="bus-seat-drop" onclick="busSeatMove(${bus}, '${esc(stop).replace(/'/g, "\\'")}')">移來這裡</button>`;
+}
+
+function busSeatWaitingHtml(waiting) {
+  const list = busSeatState.people.filter(p => !p.bus);
+  const order = busSeatStopOrder();
+  list.sort((a, b) => order(a) - order(b));
+  const drop = busSeatDropHtml(0, null, false);
+  return `<div class="bus-seat-car waiting${waiting ? ' has' : ''}">
+      <div class="bus-seat-car-head">
+        <span>未分配</span><span>${waiting} 人</span>
+      </div>
+      ${list.length
+        ? '<div class="bus-seat-chips">' + list.map(busSeatPersonChip).join('') + busSeatUnassignDropHtml() + '</div>'
+        : '<div class="bus-seat-empty">目前沒有人在未分配</div>' + busSeatUnassignDropHtml()}
+    </div>`;
+}
+
+function busSeatUnassignDropHtml() {
+  const s = busSeatState.sel;
+  if (!s) return '';
+  const p = busSeatState.people.find(x => x.registrationId === s);
+  if (!p || !p.bus) return '';
+  return `<button class="bus-seat-drop" onclick="busSeatMove(0, null)">移來這裡（取消編車）</button>`;
+}
+
+function busSeatPick(id) {
+  if (!id) { busSeatState.sel = null; return renderBusSeatShell(); }
+  if (busSeatState.sel === id) { busSeatState.sel = null; return renderBusSeatShell(); }
+  if (!busSeatState.sel) { busSeatState.sel = id; return renderBusSeatShell(); }
+
+  // 第二次點人 = 兩個對調（車次與站點一起換）
+  const a = busSeatState.people.find(x => x.registrationId === busSeatState.sel);
+  const b = busSeatState.people.find(x => x.registrationId === id);
+  if (!a || !b) { busSeatState.sel = null; return renderBusSeatShell(); }
+
+  const ab = a.bus, as = a.stop;
+  a.bus = b.bus; a.stop = b.stop;
+  b.bus = ab; b.stop = as;
+
+  busSeatState.sel = null;
+  renderBusSeatShell();
+  showMsg('已對調：' + esc(a.name) + ' ↔ ' + esc(b.name) + '　（還沒存檔）', 'info');
+}
+
+function busSeatMove(bus, stop) {
+  const s = busSeatState.sel;
+  const p = busSeatState.people.find(x => x.registrationId === s);
+  if (!p) return;
+
+  const seats = Number((busSeatState.trip || {}).seatsPerBus) || 0;
+  if (bus > 0 && Number(p.bus) !== Number(bus) && seats > 0 && busSeatCountIn(bus) >= seats) {
+    busSeatState.sel = null;
+    renderBusSeatShell();
+    return showMsg('第 ' + bus + ' 台已經滿了（' + seats + ' 位），沒有搬過去。要換人請點車上的某個人直接對調。', 'err');
+  }
+
+  p.bus = Number(bus) || 0;
+  if (stop !== null && stop !== undefined) p.stop = stop;
+  busSeatState.sel = null;
+  renderBusSeatShell();
+  showMsg('已把 ' + esc(p.name) + ' 移到 ' +
+    (p.bus ? '第 ' + p.bus + ' 台　' + esc(busSeatStopLabel(p.stop)) : '未分配') + '　（還沒存檔）', 'info');
+}
+
+async function busSeatSave() {
+  const list = busSeatDirtyList();
+  if (!list.length) return showMsg('沒有異動要存。', 'info');
+
+  showActionLock('存檔中', '正在寫回試算表，請稍候。');
+  try {
+    const res = await post('saveBusSeating',
+      { userId, tripCode: busSeatState.tripCode, leg: busSeatState.leg, assignments: list }, 40000);
+    hideActionLock();
+    if (!res || res.status !== 'ok') return showMsg(esc((res && res.message) || '存檔失敗'), 'err');
+    await renderBusSeatingPage(busSeatState.tripCode, busSeatState.leg);
+    showMsg(esc(res.message), res.waiting ? 'info' : 'ok');
+  } catch (err) {
+    hideActionLock();
+    showMsg(esc(err.message || err), 'err');
+  }
+}
+
+async function busSeatCopyFromGo() {
+  if (busSeatDirtyList().length) {
+    return showMsg('先存檔再複製，不然這邊的異動會被蓋掉。', 'err');
+  }
+  if (!confirm('回程會照去程重編一次。只有來回票的人會被複製，單程的人不動。要繼續嗎？')) return;
+
+  showActionLock('複製中', '正在把去程的車次寫到回程。');
+  try {
+    const res = await post('copyBusSeatingGoToBack', { userId, tripCode: busSeatState.tripCode }, 40000);
+    hideActionLock();
+    if (!res || res.status !== 'ok') return showMsg(esc((res && res.message) || '複製失敗'), 'err');
+    await renderBusSeatingPage(busSeatState.tripCode, 'back');
+    showMsg(esc(res.message), (res.skippedSingle || res.skippedUnassigned) ? 'info' : 'ok');
+  } catch (err) {
+    hideActionLock();
+    showMsg(esc(err.message || err), 'err');
+  }
+}
+
+function busSeatLeave() {
+  if (busSeatDirtyList().length && !confirm('還有沒存檔的異動，離開就會不見。要離開嗎？')) return;
+  renderPortalPage();
+}
+
+
 /* ═══ 站內導覽歷史（C6） ═══
    舊版切頁不寫入瀏覽器歷史，所以按上一頁會直接離開網站。
    這裡每次切頁 pushState，返回鍵就會在站內走，走到底才離開。 */
@@ -14029,6 +14376,7 @@ const NAV_VIEWS = {
   bus:         () => renderBusTripPage(),
   busAdmin:    () => renderBusAdminPage(),
   busRoster:   () => renderBusRosterPage(),
+  busSeat:     () => renderBusSeatingPage(),
   monthly:     () => renderMonthlyPage()
 };
 
