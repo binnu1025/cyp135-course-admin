@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.29</title>
+  <title>CYP135 課程報名 V8.30</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1061,7 +1061,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.29</small>
+    <small>CYP135 課程系統 V8.30</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -14177,6 +14177,9 @@ function renderBusSeatShell() {
       <div id="bus-seat-hint" class="msg on info">${busSeatHintText()}</div>
 
       <div class="compact-actions">
+        <button class="btn btn-ghost" onclick="busSeatAutoFill()">照站點自動排</button>
+      </div>
+      <div class="compact-actions" style="margin-top:6px">
         <button class="btn ${dirty ? 'btn-main' : 'btn-sub'}" onclick="busSeatSave()">
           儲存${dirty ? '（' + dirty + ' 筆異動）' : ''}</button>
         <button class="btn btn-ghost" onclick="renderBusSeatingPage(null, '${leg}')">重新載入</button>
@@ -14294,6 +14297,83 @@ function busSeatUnassignDropHtml() {
   const p = busSeatState.people.find(x => x.registrationId === s);
   if (!p || !p.bus) return '';
   return `<button class="bus-seat-drop" onclick="busSeatMove(0, null)">移來這裡（取消編車）</button>`;
+}
+
+// 照站點自動排：同一站的人盡量同一台（車是照站繞的，同一站的人擠在
+// 一起比較好點名），一台塞滿再換下一台。
+//
+// 排完「只改畫面，不存檔」—— 這是起點不是答案。不滿意就按重新載入，
+// 試算表一個字都沒動。
+//
+// 擠不下的人留在未分配，而且一定要講出來有幾個。
+// 悄悄少掉幾個人，就是漏載。
+function busSeatAutoPlan() {
+  const t = busSeatState.trip || {};
+  const seats = Math.max(1, Number(t.seatsPerBus) || 1);
+  const count = Math.max(1, Number(t.busCount) || 1);
+
+  // 站點順序照行程設定，沒填站的排最後
+  const stops = (t.stops || []).slice();
+  if (busSeatState.people.some(p => !p.stop)) stops.push('');
+  const seen = {};
+  const ordered = stops.filter(st => { if (seen[st]) return false; seen[st] = true; return true; });
+
+  const room = [];
+  for (let b = 0; b <= count; b++) room.push(seats);
+
+  const plan = {};
+  let overflow = 0;
+
+  ordered.forEach(st => {
+    const group = busSeatState.people.filter(p => (p.stop || '') === st);
+    let i = 0;
+    while (i < group.length) {
+      const left = group.length - i;
+
+      // 先找放得下「整團」的車，而且挑剩餘空間最小的那台 ——
+      // 不然一團 5 個人就把一台空車占掉，後面的大團反而要被拆。
+      let target = 0;
+      for (let b = 1; b <= count; b++) {
+        if (room[b] >= left && (!target || room[b] < room[target])) target = b;
+      }
+
+      // 整團真的放不下才拆，這時候挑剩最多的那台先塞。
+      // ⚠️ 不能用「一個往前走的游標」—— 走過的車就回不去了，
+      //    前面那台剩下的位子會永遠空著，人卻被判定載不完。
+      if (!target) {
+        for (let b = 1; b <= count; b++) {
+          if (room[b] > 0 && (!target || room[b] > room[target])) target = b;
+        }
+      }
+      if (!target) { overflow += left; break; }
+
+      const take = Math.min(room[target], left);
+      for (let k = 0; k < take; k++) plan[group[i + k].registrationId] = target;
+      room[target] -= take;
+      i += take;
+    }
+  });
+
+  return { plan: plan, overflow: overflow, seats: seats, count: count };
+}
+
+function busSeatAutoFill() {
+  const assigned = busSeatState.people.filter(p => p.bus).length;
+  if (assigned && !confirm('已經有 ' + assigned + ' 人編好了，自動排會把全部重排一次。要繼續嗎？')) return;
+
+  const r = busSeatAutoPlan();
+  busSeatState.people.forEach(p => { p.bus = r.plan[p.registrationId] || 0; });
+  busSeatState.sel = null;
+  renderBusSeatShell();
+
+  const placed = busSeatState.people.filter(p => p.bus).length;
+  let m = '已照站點排好 ' + placed + ' 人。<b>還沒存檔</b>，確認沒問題再按儲存；不滿意就按重新載入。';
+  if (r.overflow) {
+    m += '<br>有 ' + r.overflow + ' 人放不下，留在未分配 —— ' +
+      r.count + ' 台 × ' + r.seats + ' 位＝' + (r.count * r.seats) + ' 個位子，不夠載 ' +
+      busSeatState.people.length + ' 人。請到行程設定把台數加大。';
+  }
+  showMsg(m, r.overflow ? 'err' : 'info');
 }
 
 function busSeatPick(id) {
