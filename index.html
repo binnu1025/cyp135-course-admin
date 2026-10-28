@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.30</title>
+  <title>CYP135 課程報名 V8.31</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -349,6 +349,11 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .bus-card-phone{font-size:13px;color:#7d7461;margin-top:3px;letter-spacing:.02em}
 .bus-card-ins{font-size:13px;color:#7d7461;margin-top:3px;letter-spacing:.02em;overflow-wrap:anywhere}
 .bus-card-ins .warn{color:#b8572c}
+.bus-card.cancelled{background:#f6f3ea;border-style:dashed}
+.bus-card.cancelled .bus-card-name{text-decoration:line-through;color:#8a8270}
+.bus-card.cancelled .bus-card-type{background:#9a9486}
+.bus-card-act{margin-top:8px;display:flex;justify-content:flex-end}
+.bus-card-act .btn{margin:0;height:32px;padding:0 14px;font-size:13px}
 .bus-legs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .bus-leg{border:1px solid #e8e1d0;border-radius:9px;background:#fff;padding:7px 8px;min-width:0}
 .bus-leg.off{background:#f6f4ee;border-style:dashed}
@@ -1061,7 +1066,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.30</small>
+    <small>CYP135 課程系統 V8.31</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1124,6 +1129,9 @@ let publicData = null;
 let adminCourseData = [];
 let isAdminUser = false;
 let canViewRoster = false;
+// 遊覽車管理：會長，或 LINE權限表「遊覽車」欄有填的人。
+// 跟「是不是會長」是兩件事，所以用兩個旗標，不要互相代用。
+let canBusManage = false;
 // LINE權限表「是否有報名權限」。空白＝不能報名（嚴格 opt-in）。
 // hasRegisterColumn 為 false 代表權限表還沒有這一欄，此時一律放行。
 let canRegisterSelf = true;
@@ -1461,6 +1469,8 @@ function setPublicData(data, fromCache) {
   else if (typeof data.isAdmin !== 'undefined') isAdminUser = !!data.isAdmin;
   if (typeof audit.canViewRoster !== 'undefined') canViewRoster = !!audit.canViewRoster;
   else canViewRoster = !!(isAdminUser || data.rosterAllowed);
+  if (typeof audit.canManageBus !== 'undefined') canBusManage = !!audit.canManageBus;
+  else canBusManage = !!(canBusManage || isAdminUser);
   syncRegisterPermissionFromData(data);
   renderMenu();
 
@@ -5950,6 +5960,7 @@ function renderLinePermList(d) {
   const rows = d.linePerms || [];
   const flocks = d.flocks || [];
   const regNote = d.hasRegisterColumn ? '' : '<p class="meta" style="color:#B3261E">LINE權限表 缺少「是否有報名權限」欄，報名權限暫時不能在這裡改。</p>';
+  const busNote = '<p class="meta">「遊覽車」開了之後，那個人在遊覽車這一塊跟會長一樣：看全車名單、編車、改行程、取消登記。其他地方不變。</p>';
   const cards = rows.map(r => {
     const me = r.uid === d.myUserId;
     const scope = (r.scopeText || '').split(/[,，、\s]+/).filter(Boolean);
@@ -5969,6 +5980,8 @@ function renderLinePermList(d) {
             onclick="togglePerm('${esc(r.uid)}','canMonthly',${r.canMonthly ? 'false' : 'true'})">包月</button>
           <button class="perm-toggle ${r.canRegister ? 'on' : ''}" ${d.hasRegisterColumn ? '' : 'disabled'}
             onclick="togglePerm('${esc(r.uid)}','canRegister',${r.canRegister ? 'false' : 'true'})">報名</button>
+          <button class="perm-toggle ${(r.isAdmin || r.canBus) ? 'on' : ''}" ${r.isAdmin ? 'disabled title="會長本來就管得到遊覽車"' : ''}
+            onclick="togglePerm('${esc(r.uid)}','canBus',${r.canBus ? 'false' : 'true'})">遊覽車</button>
         </div>
         <div class="perm-scope">
           <div class="perm-scope-label">可查詢雁群${r.isAdmin ? '（會長本來就看得到全部）' : (scope.length ? '' : '：目前沒有，看不到任何名單')}</div>
@@ -5980,7 +5993,7 @@ function renderLinePermList(d) {
       </div>`;
   }).join('');
 
-  return regNote + (cards || '<p class="meta">權限表目前沒有任何人。</p>') + renderPermCandidatePicker(d, 'line');
+  return regNote + busNote + (cards || '<p class="meta">權限表目前沒有任何人。</p>') + renderPermCandidatePicker(d, 'line');
 }
 
 function renderScanPermList(d) {
@@ -10816,6 +10829,29 @@ function renderPortalShell() {
       </div>`;
   }
 
+  // 遊覽車管理員（非會長）的入口。會長的入口在「會長工具」裡，不重複放。
+  //
+  // 這一區只有「權限表遊覽車欄有填、但不是會長」的人看得到 ——
+  // 遊覽車是整車的事，不是某一組的事，所以不塞進雁群組長專區。
+  let busHtml = '';
+  if (canBusManage && !isAdminUser) {
+    const busTiles = [
+      portalTile({
+        ico: TILE_ICO.bus, title: '全教室遊覽車', desc: '全部雁群的登記、編車、取消', admin: true,
+        onclick: 'renderBusRosterPage(null, true)'
+      }),
+      portalTile({
+        ico: TILE_ICO.bus, title: '遊覽車行程', desc: '建立行程、站點、價格、單程開關', admin: true,
+        onclick: 'renderBusAdminPage()'
+      })
+    ];
+    busHtml = `
+      <div class="portal-section">
+        <p class="portal-section-title">遊覽車管理</p>
+        <div class="portal-grid">${busTiles.join('')}</div>
+      </div>`;
+  }
+
   let adminHtml = '';
   if (isAdminUser) {
     const toolTiles = [];
@@ -10903,6 +10939,7 @@ function renderPortalShell() {
     </div>` : ''}
     ${personalHtml}
     ${flockHtml}
+    ${busHtml}
     ${adminHtml}
   `;
   renderPortalUpcoming();
@@ -13394,10 +13431,9 @@ let busRosterState = { trips: [], tripCode: '', data: null, query: '', includeAl
 async function renderBusAdminPage(forceRefresh) {
   const token = beginPage('busAdmin', '遊覽車行程', true);
   showLoading('載入遊覽車行程');
-  const allowed = await ensureAdminAccess(token, 'busAdmin');
-  if (!isPageActive(token, 'busAdmin')) return;
-  if (!allowed) { stopLoading(); return; }
-
+  // 不先用「是不是會長」擋。權限表「遊覽車」欄有填的人也進得來，
+  // 而且擋下來的理由要由後端講 —— 它分得出「你沒權限」和
+  // 「權限表還沒有這一欄」，前端擋只會回一句含糊的「限會長」。
   let data;
   try {
     data = await post('getBusAdminInit', { userId }, 20000);
@@ -13412,7 +13448,13 @@ async function renderBusAdminPage(forceRefresh) {
   }
   if (!isPageActive(token, 'busAdmin')) return;
   stopLoading();
-  if (!data || !data.allowed) return renderNoAdminPage();
+  if (!data || !data.allowed) {
+    document.getElementById('app').innerHTML =
+      '<button class="btn btn-ghost" onclick="renderPortalPage()">← 返回首頁</button>' +
+      '<div class="card" style="margin-top:12px"><h2>沒有權限</h2><p class="meta">' +
+      esc((data && data.message) || '此功能限會長或遊覽車管理員使用。') + '</p></div>';
+    return;
+  }
 
   busAdminState.trips = data.trips || [];
   if (forceRefresh !== 'keep') busAdminState.editing = null;
@@ -13866,7 +13908,7 @@ function renderBusRosterShell() {
   const trips = busRosterState.trips || [];
   // 管理動作只在「全教室遊覽車」出現。從雁群組長專區進來的人（包含會長）
   // 看的是自己那一組，那一頁只負責看，不負責改。
-  const manage = !!(d.isAdmin && d.includeAll);
+  const manage = !!(d.canManageBus && d.includeAll);
 
   const picker = trips.length > 1
     ? `<div class="field">
@@ -13887,7 +13929,7 @@ function renderBusRosterShell() {
         去程 ${Number(u.goUsed) || 0}${Number(u.goLimit) > 0 ? ' / ' + u.goLimit : ''}　·　回程 ${Number(u.backUsed) || 0}${Number(u.backLimit) > 0 ? ' / ' + u.backLimit : ''}<br>
         你看得到的範圍：${esc(d.scopeText || '—')}
       </p>
-      ${d.isAdmin ? '' : '<div class="msg info on">組長看到的是自己雁群的人。身分證與生日只有會長看得到。</div>'}
+      ${d.canManageBus ? '' : '<div class="msg info on">組長看到的是自己雁群的人。身分證與生日只有會長與遊覽車管理員看得到。</div>'}
       <div class="searchbar"><input id="bus-roster-search" placeholder="搜尋姓名 / 站點" oninput="renderBusRosterBody()"></div>
       <div class="compact-actions">
         <button class="btn btn-sub" onclick="renderBusRosterPage(busRosterState.tripCode, busRosterState.includeAll)">重新載入</button>
@@ -13913,13 +13955,18 @@ function renderBusRosterBody() {
   if (!box) return;
   const d = busRosterState.data || {};
   const trip = d.trip || {};
-  const rows = (d.rows || []).filter(r => r.status !== '取消');
+  const manage = !!(d.canManageBus && d.includeAll);
+  const all = d.rows || [];
+  const rows = all.filter(r => r.status !== '取消');
+  // 取消的人不混在名單裡，但一定要在下面列出來。
+  // 直接消失的話，看的人分不出「他沒報名」和「他取消了」—— 那是兩件事。
+  const tail = busRosterCancelledHtml(all.filter(r => r.status === '取消'), manage);
   const q = (val('bus-roster-search') || '').toLowerCase();
   const match = r => !q || [r.name, r.flock, r.goStop, r.backStop, r.rideType]
     .join(' ').toLowerCase().includes(q);
 
   if (!rows.length) {
-    box.innerHTML = '<p class="muted">這個行程目前還沒有人登記。</p>';
+    box.innerHTML = '<p class="muted">這個行程目前還沒有人登記。</p>' + tail;
     return;
   }
 
@@ -13935,7 +13982,7 @@ function renderBusRosterBody() {
   });
 
   if (!list.length) {
-    box.innerHTML = '<p class="muted">沒有符合搜尋條件的資料。</p>';
+    box.innerHTML = '<p class="muted">沒有符合搜尋條件的資料。</p>' + tail;
     return;
   }
 
@@ -13955,9 +14002,72 @@ function renderBusRosterBody() {
       '<div class="bus-flock-head"><span class="bus-flock-name">' + esc(flock) + '</span>' +
       '<span class="bus-flock-count">' + ppl.length + ' 人</span></div>' +
       '<div class="bus-card-list">' +
-      ppl.map((p, i) => busRosterPersonCard(p, i + 1, d.isAdmin)).join('') +
+      ppl.map((p, i) => busRosterPersonCard(p, i + 1, d.canManageBus, manage)).join('') +
       '</div></div>';
-  }).join('');
+  }).join('') + tail;
+}
+
+// 已取消的人。不是刪掉就算了 —— 錢退了沒、保險要不要抽掉，都得看得到是誰。
+// 沒有人取消就什麼都不顯示；有人取消就一定列出來，含原因。
+function busRosterCancelledHtml(list, manage) {
+  if (!list.length) return '';
+  const cards = list.map(p => `
+    <div class="bus-card cancelled">
+      <div class="bus-card-head">
+        <span class="bus-card-name">${esc(p.name)}</span>
+        <span class="bus-card-type">已取消</span>
+        <span class="bus-card-price">$${Number(p.price) || 0}</span>
+      </div>
+      <div class="bus-card-ins">原因：${esc(p.cancelReason || '（沒有填原因）')}</div>
+      ${manage ? '<div class="bus-card-act"><button class="btn btn-sub" onclick="busRosterSetStatus(\'' +
+        esc(p.registrationId) + '\',\'\')">恢復登記</button></div>' : ''}
+    </div>`).join('');
+  return `<div class="bus-flock" style="margin-top:14px;opacity:.85">
+      <div class="bus-flock-head"><span class="bus-flock-name">已取消</span>
+      <span class="bus-flock-count">${list.length} 人</span></div>
+      <p class="meta">取消的人不佔名額、不出現在名單與編車畫面。恢復之後要重新編車。</p>
+      <div class="bus-card-list">${cards}</div>
+    </div>`;
+}
+
+// 取消 / 恢復。取消一定要填原因，跟課程名單同一套規則。
+async function busRosterSetStatus(regId, status) {
+  const d = busRosterState.data || {};
+  const who = (d.rows || []).filter(r => r.registrationId === regId)[0];
+  const name = who ? who.name : '這筆登記';
+
+  let reason = '';
+  if (status === '取消') {
+    reason = await requestCancelReason();
+    if (reason === null) return;
+    reason = reason.trim();
+    if (!reason) return showMsg('取消登記必須填寫原因。', 'err');
+  } else {
+    const ok = await openConfirmDialog({
+      title: 'CYP135 票務系統',
+      message: '要恢復 ' + name + ' 的遊覽車登記嗎？他會回到「未分配」，要重新編車。',
+      okText: '確定', cancelText: '取消'
+    });
+    if (!ok) return;
+  }
+
+  showActionLock(status === '取消' ? '正在取消登記' : '正在恢復登記', '請稍候，正在寫回試算表。');
+  try {
+    const res = await post('setBusRegistrationStatus', {
+      userId, displayName,
+      tripCode: busRosterState.tripCode,
+      registrationId: regId,
+      status,
+      cancelReason: reason
+    }, 40000);
+    hideActionLock();
+    if (!res || res.status !== 'ok') return showMsg(esc((res && res.message) || '更新失敗'), 'err');
+    await renderBusRosterPage(busRosterState.tripCode, busRosterState.includeAll);
+    showMsg(esc(res.message), res.unchanged ? 'info' : 'ok');
+  } catch (err) {
+    hideActionLock();
+    showMsg(esc(err.message || err), 'err');
+  }
 }
 
 // 保險公司要的是民國年（西元 − 1911）。
@@ -13984,8 +14094,9 @@ function rocBirthConverted(v) {
 // 或是整欄位移，寄出去才發現就來不及了。
 function copyBusInsuranceList() {
   const d = busRosterState.data || {};
-  if (!d.isAdmin) return showMsg('只有會長看得到身分證與生日，無法匯出保險名單。', 'err');
-  const rows = d.rows || [];
+  if (!d.canManageBus) return showMsg('只有會長與遊覽車管理員看得到身分證與生日，無法匯出保險名單。', 'err');
+  // 取消的人不能進保險名單 —— 保了一個不上車的人，等於少保一個要上車的人。
+  const rows = (d.rows || []).filter(r => r.status !== '取消');
   if (!rows.length) return showMsg('目前這個範圍沒有人，沒有東西可以複製。', 'err');
 
   const L = ['姓名\t身分證字號\t出生年月日（民國）'];
@@ -14024,7 +14135,7 @@ function busInsLine(p) {
   return '<div class="bus-card-ins">' + body + '</div>';
 }
 
-function busRosterPersonCard(p, no, isAdmin) {
+function busRosterPersonCard(p, no, canSeeDetail, manage) {
   // 沒有那一段就明講「不搭」，不要留白 —— 留白看起來像漏填。
   const leg = (title, stop) => `
     <div class="bus-leg${stop ? '' : ' off'}">
@@ -14039,12 +14150,14 @@ function busRosterPersonCard(p, no, isAdmin) {
         <span class="bus-card-type">${esc(p.rideType)}</span>
         <span class="bus-card-price">$${Number(p.price) || 0}</span>
       </div>
-      ${isAdmin && p.phone ? '<div class="bus-card-phone">' + esc(p.phone) + '</div>' : ''}
-      ${isAdmin ? busInsLine(p) : ''}
+      ${canSeeDetail && p.phone ? '<div class="bus-card-phone">' + esc(p.phone) + '</div>' : ''}
+      ${canSeeDetail ? busInsLine(p) : ''}
       <div class="bus-legs">
         ${leg('去程 上車', p.goStop)}
         ${leg('回程 下車', p.backStop)}
       </div>
+      ${manage ? '<div class="bus-card-act"><button class="btn btn-sub" onclick="busRosterSetStatus(\'' +
+        esc(p.registrationId) + '\',\'取消\')">取消登記</button></div>' : ''}
     </div>`;
 }
 
