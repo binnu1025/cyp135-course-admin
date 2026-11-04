@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.31</title>
+  <title>CYP135 課程報名 V8.32</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1066,7 +1066,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.31</small>
+    <small>CYP135 課程系統 V8.32</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -1437,6 +1437,10 @@ function post(action, payload, timeoutMs) {
 }
 
 
+
+// 課程沒有活動代碼時，名單／編輯／上下架都走不通。
+// 三個入口共用同一句話，不要各寫各的。
+const COURSE_CODE_MISSING_MSG = '這堂課在「課程管理」裡沒有活動代碼（A 欄是空的），所以名單、編輯、上下架都沒辦法用。請在那一列的 A 欄補回代碼 —— 同一列「報名連結」結尾 course= 後面就是它原本的代碼。';
 
 function normalizeCode(code) {
   return String(code || '').trim().toUpperCase();
@@ -2745,6 +2749,7 @@ function startCourseRegistration(courseCode) {
 async function toggleCoursePublishStatus(event, courseCode, publishStatus) {
   if (event) event.stopPropagation();
   const code = normalizeCode(courseCode);
+  if (!code) return showMsg(COURSE_CODE_MISSING_MSG, 'err');
   const nextStatus = publishStatus === '下架' ? '下架' : '上架';
   const course = (adminCourseData || []).find(c => normalizeCode(c.eventCode) === code) || getCourseFromState(code) || {};
 
@@ -3074,6 +3079,7 @@ function getCountText(c) {
 // 名單管理
 // ─────────────────────────────
 async function renderCourseRosterPage(courseCode, options) {
+  if (!isSharedEntry && !normalizeCode(courseCode)) return showMsg(COURSE_CODE_MISSING_MSG, 'err');
   if (isSharedEntry) {
     if (currentCourse) renderCourseDetailContent(currentCourse);
     else if (sharedCourseToken) renderSharedCourseDetail(sharedCourseToken);
@@ -4622,6 +4628,7 @@ function renderPastCourseList(courses, loadFailed) {
           <div class="past-course-main">
             <div class="past-course-title">${esc(c.eventName || '未命名活動')}</div>
             <div class="past-course-meta">${esc(buildPastCourseMeta(c))}</div>
+            ${c.eventCode ? '' : '<div class="past-course-meta" style="color:#B3261E">沒有活動代碼，名單／編輯／上架都不能用</div>'}
             <div class="past-course-status">下架｜${isExternalPurposeCourse(c) ? '外部匯入' : '報名網站'}</div>
           </div>
           <div class="past-course-actions">
@@ -4739,6 +4746,7 @@ function renderCreateCourseShell() {
 }
 
 async function renderEditCoursePageByCode(code) {
+  if (!normalizeCode(code)) return showMsg(COURSE_CODE_MISSING_MSG, 'err');
   let c = (adminCourseData || []).find(x => String(x.eventCode || '') === String(code || ''));
   c = c || getCourseFromState(code);
   if (c) {
