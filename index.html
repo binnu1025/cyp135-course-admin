@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.33</title>
+  <title>CYP135 課程報名 V8.35</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -176,6 +176,8 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .permission-debug-row:last-child{border-bottom:none}
 .permission-debug-row strong{color:#2d5a3d}
 .permission-debug-value{word-break:break-all;color:#4f4a43}
+.past-course-group{margin:14px 0 2px;font-size:15px;font-weight:900;color:#4a3426;letter-spacing:.04em}
+.past-course-group:first-child{margin-top:4px}
 .past-course-list{display:grid;gap:8px;margin-top:12px}
 .past-course-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid #eee7da;border-radius:13px;background:#fff;padding:10px}
 .past-course-main{min-width:0}
@@ -1066,7 +1068,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.33</small>
+    <small>CYP135 課程系統 V8.35</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -2726,6 +2728,12 @@ function courseCardHtml(c) {
 }
 
 function openCourseAddRegistration(courseCode) {
+  // 只有「確定是外部匯入」才擋。查不到這堂課＝不知道，不知道不等於是，
+  // 放它過去讓後端判斷——後端有完整資料，訊息也講得比較清楚。
+  const known = getCourseFromState(courseCode);
+  if (known && isExternalPurposeCourse(known)) {
+    return showMsg('這是外部匯入的課程，不開放管理加報。要補人請到「外部名單匯入」重新上傳一次名單 —— 已經匯過的人會被當重複跳過，只會進新增的那幾位。', 'err');
+  }
   renderCourseAddRegistrationPage(courseCode);
 }
 
@@ -3024,7 +3032,8 @@ function renderCourseDetailContent(c) {
   const rosterButton = showRosterButton
     ? `<button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">查看名單</button>`
     : '';
-  const addButton = !isSharedEntry && userCanManageRoster() && !canRegister
+  // 外部匯入的課只能靠匯入進名單，不給加報（後端也擋）。
+  const addButton = !isSharedEntry && userCanManageRoster() && !canRegister && !isExternalPurposeCourse(c)
     ? `<button class="btn btn-main" onclick="openCourseAddRegistration('${esc(c.eventCode)}')">管理加報</button>`
     : '';
   const img = c.dmUrl ? `<img class="detail-hero" loading="lazy" src="${esc(c.dmUrl)}" onerror="this.style.display='none'">` : '';
@@ -3485,7 +3494,7 @@ function renderRosterTopActions(c) {
       <button class="btn btn-sub" onclick="renderHomePage({skipRefresh:true})">課程首頁</button>
       <button class="btn btn-sub" onclick="renderCourseDetailPage('${esc(c.eventCode)}')">活動詳情</button>
       <button class="btn ${rosterState.openAdd ? 'btn-sub' : 'btn-main'}" onclick="openCourseRosterList('${esc(c.eventCode)}')">名單</button>
-      ${rosterState.canManage ? `<button class="btn ${rosterState.openAdd ? 'btn-main' : 'btn-sub'}" onclick="openCourseAddRegistration('${esc(c.eventCode)}')">管理加報</button>` : ''}
+      ${rosterState.canManage && !isExternalPurposeCourse(c) ? `<button class="btn ${rosterState.openAdd ? 'btn-main' : 'btn-sub'}" onclick="openCourseAddRegistration('${esc(c.eventCode)}')">管理加報</button>` : ''}
       ${isAdminUser ? '<button class="btn btn-sub" onclick="renderSignSheetPage()">簽到表</button>' : ''}
       <button class="btn btn-main icon-only" onclick="refreshRoster()" title="重新整理" aria-label="重新整理">↻</button>
     </div>
@@ -4621,15 +4630,27 @@ function renderPastCourseList(courses, loadFailed) {
     return;
   }
 
-  el.innerHTML = `
+  // 報名網站跟外部匯入分開列。這兩種課上架回去會回到不同的地方
+  // （課程首頁、外部課程頁），混在一起按下去不知道東西會跑到哪裡。
+  const groups = [
+    { key: 'website',  title: '報名網站', note: '上架後會回到課程首頁', items: [] },
+    { key: 'external', title: '外部匯入', note: '上架後會回到「外部課程」頁', items: [] }
+  ];
+  (courses || []).forEach(c => {
+    groups[isExternalPurposeCourse(c) ? 1 : 0].items.push(c);
+  });
+
+  el.innerHTML = groups.filter(g => g.items.length).map(g => `
+    <h3 class="past-course-group">${esc(g.title)}（${g.items.length}）</h3>
+    <p class="meta" style="margin:0 0 8px">${esc(g.note)}</p>
     <div class="past-course-list">
-      ${courses.map(c => `
+      ${g.items.map(c => `
         <div class="${courseHiddenClass(c, 'past-course-row')}">
           <div class="past-course-main">
             <div class="past-course-title">${esc(c.eventName || '未命名活動')}</div>
             <div class="past-course-meta">${esc(buildPastCourseMeta(c))}</div>
             ${c.eventCode ? '' : '<div class="past-course-meta" style="color:#B3261E">沒有活動代碼，名單／編輯／上架都不能用</div>'}
-            <div class="past-course-status">下架｜${isExternalPurposeCourse(c) ? '外部匯入' : '報名網站'}</div>
+            <div class="past-course-status">下架｜${esc(g.title)}</div>
           </div>
           <div class="past-course-actions">
             <button class="btn btn-sub" onclick="renderCourseRosterPage('${esc(c.eventCode)}')">名單</button>
@@ -4639,7 +4660,7 @@ function renderPastCourseList(courses, loadFailed) {
         </div>
       `).join('')}
     </div>
-  `;
+  `).join('');
 }
 
 
@@ -4842,7 +4863,7 @@ function renderCourseForm(course) {
             <label>活動代碼</label>
             <input id="c-code" placeholder="可空白，自動產生 A0001 連號" value="${esc(course ? course.eventCode : '')}" ${isEdit ? 'readonly' : ''}>
           </div>
-          <div class="field">
+          <div class="field" id="course-field-max">
             <label>上限人數</label>
             <input id="c-max" type="number" placeholder="例如 80" value="${esc(course && Number(course.maxCount) > 0 ? course.maxCount : '')}"
               ${(course && Number(course.maxCount) > 0) ? '' : 'disabled'}>
@@ -4859,10 +4880,14 @@ function renderCourseForm(course) {
           </div>
           <div class="field full">
             <label>課程用途</label>
-            <select id="c-purpose">
+            <select id="c-purpose" onchange="toggleCoursePurposeFields()">
               <option value="報名網站" ${purposeValue !== '外部匯入' ? 'selected' : ''}>報名網站，會出現在課程首頁</option>
               <option value="外部匯入" ${purposeValue === '外部匯入' ? 'selected' : ''}>外部匯入</option>
             </select>
+            <p class="meta hide" id="course-purpose-note" style="margin:6px 0 0">
+              外部匯入的課不開放線上報名，也不開放管理加報，名單只從「外部名單匯入」進來，
+              所以報名相關的設定都收起來了。要補人就重新上傳一次名單，已經匯過的人會自動跳過。
+            </p>
           </div>
           <div class="field full">
             <label>前台顯示</label>
@@ -4947,7 +4972,7 @@ function renderCourseForm(course) {
         </div>
       </div>
 
-      <div class="mini-section">
+      <div class="mini-section" id="course-section-apply">
         <div class="section-title">報名設定</div>
         <div class="form-grid one">
           <div class="field full">
@@ -4968,7 +4993,7 @@ function renderCourseForm(course) {
         </div>
       </div>
 
-      <div class="mini-section">
+      <div class="mini-section" id="course-section-eligibility">
         <div class="section-title">報名資格</div>
         <label class="alevel-toggle">
           <input type="checkbox" id="c-require-alevel"${regFields.requireALevel ? ' checked' : ''}>
@@ -5016,7 +5041,23 @@ function renderCourseForm(course) {
   }
   togglePricingMode();
   toggleOtherTicket();
+  toggleCoursePurposeFields();
   if (!isEdit && coursePrefillFromImport) coursePrefillFromImport = null;
+}
+
+// 外部匯入的課：報名進不來、加報也擋掉，所以上限人數、報名設定、報名資格
+// （含報名欄位設定與自訂問題）對它一個都不起作用，收起來不要佔版面。
+//
+// ⚠️ 是「藏起來」不是「拿掉」。欄位還在 DOM 裡，值也原封不動帶著走，
+//    這樣改回「報名網站」時原本設好的東西會整組回來，不會被這趟靜靜清掉。
+function toggleCoursePurposeFields() {
+  const external = (val('c-purpose') || '') === '外部匯入';
+  ['course-field-max', 'course-section-apply', 'course-section-eligibility'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hide', external);
+  });
+  const note = document.getElementById('course-purpose-note');
+  if (note) note.classList.toggle('hide', !external);
 }
 
 function cancelCourseEdit() {
