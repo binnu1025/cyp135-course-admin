@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.36</title>
+  <title>CYP135 課程報名 V8.37</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1068,7 +1068,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.36</small>
+    <small>CYP135 課程系統 V8.37</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -4859,6 +4859,24 @@ function renderCourseForm(course) {
       <div class="mini-section">
         <div class="section-title">基本資料</div>
         <div class="form-grid">
+          <div class="field full">
+            <label>課程用途</label>
+            <select id="c-purpose" onchange="toggleCoursePurposeFields()">
+              <option value="報名網站" ${purposeValue !== '外部匯入' ? 'selected' : ''}>報名網站，會出現在課程首頁</option>
+              <option value="外部匯入" ${purposeValue === '外部匯入' ? 'selected' : ''}>外部匯入</option>
+            </select>
+            <p class="meta hide" id="course-purpose-note" style="margin:6px 0 0">
+              外部匯入的課不開放線上報名，也不開放管理加報，名單只從「外部名單匯入」進來，
+              所以報名相關的設定都收起來了。要補人就重新上傳一次名單，已經匯過的人會自動跳過。
+            </p>
+          </div>
+          <div class="field full">
+            <label>前台顯示</label>
+            <select id="c-publish">
+              <option value="上架" ${publishValue !== '下架' ? 'selected' : ''}>上架，顯示在前台課程首頁</option>
+              <option value="下架" ${publishValue === '下架' ? 'selected' : ''}>下架，只保留後台資料</option>
+            </select>
+          </div>
           <div class="field">
             <label>活動代碼</label>
             <input id="c-code" placeholder="可空白，自動產生 A0001 連號" value="${esc(course ? course.eventCode : '')}" ${isEdit ? 'readonly' : ''}>
@@ -4877,24 +4895,6 @@ function renderCourseForm(course) {
           <div class="field full">
             <label>活動名稱</label>
             <input id="c-name" placeholder="例如 7/20 牙技行銷課" value="${esc(course ? course.eventName : (prefill.eventName || ''))}">
-          </div>
-          <div class="field full">
-            <label>課程用途</label>
-            <select id="c-purpose" onchange="toggleCoursePurposeFields()">
-              <option value="報名網站" ${purposeValue !== '外部匯入' ? 'selected' : ''}>報名網站，會出現在課程首頁</option>
-              <option value="外部匯入" ${purposeValue === '外部匯入' ? 'selected' : ''}>外部匯入</option>
-            </select>
-            <p class="meta hide" id="course-purpose-note" style="margin:6px 0 0">
-              外部匯入的課不開放線上報名，也不開放管理加報，名單只從「外部名單匯入」進來，
-              所以報名相關的設定都收起來了。要補人就重新上傳一次名單，已經匯過的人會自動跳過。
-            </p>
-          </div>
-          <div class="field full">
-            <label>前台顯示</label>
-            <select id="c-publish">
-              <option value="上架" ${publishValue !== '下架' ? 'selected' : ''}>上架，顯示在前台課程首頁</option>
-              <option value="下架" ${publishValue === '下架' ? 'selected' : ''}>下架，只保留後台資料</option>
-            </select>
           </div>
           <div class="field full">
             <label>DM / EDM 圖片</label>
