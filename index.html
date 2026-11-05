@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.37</title>
+  <title>CYP135 課程報名 V8.38</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -378,6 +378,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
   background:#faf8f2;border:1px solid #e4ddc9;border-radius:10px;padding:10px 12px;font-size:14px}
 .import-flock-row select{min-width:160px;height:38px;border-radius:8px;border:1px solid #cfc7b2;padding:0 8px;background:#fff}
 .import-status-duplicate,.import-status-error{color:#b23b3b;font-weight:700}
+.import-status-nobuy{color:#8a8a8a;font-weight:700}
 .external-import-progress{margin-top:10px}
 .external-import-progress-bar{height:9px;border-radius:999px;background:#e8f0ea;overflow:hidden;margin-top:8px}
 .external-import-progress-bar i{display:block;height:100%;width:0;background:#2d5a3d;transition:width .22s ease}
@@ -1068,7 +1069,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.37</small>
+    <small>CYP135 課程系統 V8.38</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -5015,7 +5016,13 @@ function renderCourseForm(course) {
           ${renderCourseFieldModeSelect('c-field-birth', '出生年月日', regFields.birthDate)}
           ${renderCourseFieldModeSelect('c-field-meal', '葷素', regFields.meal)}
         </div>
-        <div class="section-title" style="margin-top:18px">自訂問題</div>
+      </div>
+
+      <!-- 自訂問題自己一區：外部匯入的課也要看得到。
+           匯入的欄位（尺寸、件數、票選…）就是對應到這些題目，
+           跟著「報名資格」一起收起來的話，外部課就沒地方設了。 -->
+      <div class="mini-section">
+        <div class="section-title">自訂問題</div>
         <div id="custom-field-list">${renderCustomRegistrationFieldRows(regFields.customFields)}</div>
         <div class="custom-field-tools">
           <button class="btn btn-sub" type="button" onclick="addCustomRegistrationField(1)">新增 1 題</button>
@@ -6492,6 +6499,8 @@ function getDefaultExternalImportColumns(grid, headerIndex) {
     registeredAt: -1,
     sourceChannel: -1,
     remark: -1,
+    // 猜得到就先填好，猜不到留 -1 讓使用者自己指定。
+    quantity: findImportColumn(headers, ['總件數','件數','數量','購買件數'], -1),
 
     // 附加欄位：來源的標題常常不叫這些名字，所以猜不到就留 -1（不匯入），
     // 由使用者自己在欄位對應那頁指定要拉哪一欄。
@@ -6523,6 +6532,9 @@ function extractExternalImportRows(grid, columns) {
       idNumber: cellText(row[col.idNumber]),
       birthday: cellText(row[col.birthday])
     };
+    // ⚠️ 沒指定件數欄位時「不要放這個鍵」。後端是用 undefined 來分辨
+    //    「沒指定」和「指定了但格子是空的」—— 後者代表沒買，要跳過。
+    if (Number(col.quantity) >= 0) item.quantity = cellText(row[col.quantity]) || '0';
     return item;
   }).filter(item => item.name || item.leader || item.packageName);
 }
@@ -6625,6 +6637,11 @@ function renderExternalColumnMapper() {
         <div class="field">
           <label>白金/非白金，可選</label>
           <select id="import-col-member">${colOptions(columns.memberType, true)}</select>
+        </div>
+        <div class="field">
+          <label>件數，可選</label>
+          <select id="import-col-qty">${colOptions(columns.quantity, true)}</select>
+          <p class="meta" style="margin:5px 0 0">指定之後，金額＝單價 × 件數，<b>件數 0 的那幾列不會匯入</b>。不指定就跟以前一樣一人一筆。</p>
         </div>
         <div class="field">
           <label>報名時間，可選</label>
@@ -6734,6 +6751,7 @@ async function applyExternalColumnMapping() {
     leader: Number(val('import-col-leader')),
     packageName: Number(val('import-col-package')),
     memberType: Number(val('import-col-member')),
+    quantity: Number(val('import-col-qty')),
     registeredAt: Number(val('import-col-time')),
     sourceChannel: -1,
     remark: Number(val('import-col-remark')),
@@ -6931,6 +6949,7 @@ function renderExternalImportPreview(data) {
         <div class="import-stat"><strong>${Number(summary.duplicate || 0)}</strong><span>已重複</span></div>
         <div class="import-stat"><strong>${Number(summary.error || 0)}</strong><span>需處理</span></div>
         ${Number(summary.needFlock || 0) ? '<div class="import-stat"><strong>' + Number(summary.needFlock) + '</strong><span>待指定雁群</span></div>' : ''}
+        ${Number(summary.nobuy || 0) ? '<div class="import-stat"><strong>' + Number(summary.nobuy) + '</strong><span>沒購買</span></div>' : ''}
         ${Number(summary.cancelledSkipped || 0) ? '<div class="import-stat"><strong>' + Number(summary.cancelledSkipped) + '</strong><span>已取消略過</span></div>' : ''}
       </div>
       ${renamedNote}
@@ -6959,8 +6978,16 @@ function renderExternalImportPreview(data) {
 }
 
 function importPreviewRowHtml(row) {
-  const statusText = row.status === 'ok' ? (row.committed ? '已匯入' : '可匯入') : (row.status === 'duplicate' ? '重複' : '錯誤');
-  const cls = row.status === 'ok' ? 'import-status-ok' : (row.status === 'duplicate' ? 'import-status-duplicate' : 'import-status-error');
+  // 「沒購買」是正常結果，不是錯誤，顏色和文字都要分開，
+  // 不然 43 個沒買的人在畫面上會看起來像 43 個問題。
+  const statusText = row.status === 'ok' ? (row.committed ? '已匯入' : '可匯入')
+    : row.status === 'duplicate' ? '重複'
+    : row.status === 'nobuy' ? '沒購買'
+    : '錯誤';
+  const cls = row.status === 'ok' ? 'import-status-ok'
+    : row.status === 'duplicate' ? 'import-status-duplicate'
+    : row.status === 'nobuy' ? 'import-status-nobuy'
+    : 'import-status-error';
   return `
     <tr>
       <td>${esc(row.rowNumber || '')}</td>
@@ -6970,7 +6997,7 @@ function importPreviewRowHtml(row) {
       <td>${esc(row.flock || '')}</td>
       <td>${esc(row.activityName || '')}</td>
       <td>${esc(row.classType || '')}</td>
-      <td>${esc(row.price === undefined || row.price === null ? '' : row.price)}</td>
+      <td>${esc(row.price === undefined || row.price === null ? '' : row.price)}${Number(row.quantity) > 1 ? esc('（' + Number(row.quantity) + ' 件）') : ''}</td>
       <td>${esc((row.messages || []).join('；'))}</td>
     </tr>
   `;
