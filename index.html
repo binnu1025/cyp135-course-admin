@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.40</title>
+  <title>CYP135 課程報名 V8.41</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1069,7 +1069,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.40</small>
+    <small>CYP135 課程系統 V8.41</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -13548,7 +13548,7 @@ async function submitBusRegistrationForm() {
 
 
 /* ═══ 遊覽車：行程設定（會長）＋ 名單（會長與雁群組長）═══ */
-let busAdminState = { trips: [], editing: null };
+let busAdminState = { trips: [], editing: null, openEditCode: '' };
 let busRosterState = { trips: [], tripCode: '', data: null, query: '', includeAll: false };
 
 /* ── 行程設定 ── */
@@ -13582,7 +13582,22 @@ async function renderBusAdminPage(forceRefresh) {
 
   busAdminState.trips = data.trips || [];
   if (forceRefresh !== 'keep') busAdminState.editing = null;
+
+  // 從編車頁點「行程設定」進來的：直接把那個行程的編輯表單打開，
+  // 不要讓人在清單裡再找一次自己剛剛明明就在編的那個行程。
+  let jumped = false;
+  if (busAdminState.openEditCode) {
+    const want = busAdminState.openEditCode;
+    busAdminState.openEditCode = '';
+    const t = (busAdminState.trips || []).find(x => x.tripCode === want);
+    if (t) { busAdminState.editing = Object.assign({}, t); jumped = true; }
+  }
+
   renderBusAdminShell();
+  if (jumped) {
+    const box = document.getElementById('bus-admin-form');
+    if (box && box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 function renderBusAdminShell() {
@@ -14051,7 +14066,8 @@ function renderBusRosterShell() {
       <p class="meta">
         ${esc(trip.tripName || '')}${trip.tripDate ? '｜' + esc(trip.tripDate) : ''}<br>
         去程 ${Number(u.goUsed) || 0}${Number(u.goLimit) > 0 ? ' / ' + u.goLimit : ''}　·　回程 ${Number(u.backUsed) || 0}${Number(u.backLimit) > 0 ? ' / ' + u.backLimit : ''}<br>
-        你看得到的範圍：${esc(d.scopeText || '—')}
+        你看得到的範圍：${esc(d.scopeText || '—')}<br>
+        ${esc(busMoneyText(busMoneySummary(d.rows || [])))}
       </p>
       ${d.canManageBus ? '' : '<div class="msg info on">組長看到的是自己雁群的人。身分證與生日只有會長與遊覽車管理員看得到。</div>'}
       <div class="searchbar"><input id="bus-roster-search" placeholder="搜尋姓名 / 站點" oninput="renderBusRosterBody()"></div>
@@ -14064,6 +14080,26 @@ function renderBusRosterShell() {
       <div id="bus-roster-body"></div>
     </div>`;
   renderBusRosterBody();
+}
+
+// 這一車（或這一組）要收多少。取消的不算 —— 他不上車也不付錢。
+function busMoneySummary(rows) {
+  return (rows || []).reduce((s, r) => {
+    if (r.status === '取消') return s;
+    s.people += 1;
+    if (r.rideType === '來回') s.round += 1; else s.single += 1;
+    s.total += Number(r.price) || 0;
+    return s;
+  }, { people: 0, round: 0, single: 0, total: 0 });
+}
+
+// 是 0 的就不要寫出來，「0 位單程」只是雜訊 —— 跟 LINE 那邊同一個規矩。
+function busMoneyText(m) {
+  const parts = [m.people + ' 人'];
+  if (m.round) parts.push(m.round + ' 來回');
+  if (m.single) parts.push(m.single + ' 單程');
+  parts.push('應收 $' + Number(m.total || 0).toLocaleString('en-US'));
+  return parts.join('　·　');
 }
 
 // 名單先照雁群分組（組長要看得出是哪一組的誰），組內再照去程站點排。
@@ -14124,7 +14160,7 @@ function renderBusRosterBody() {
     const ppl = groups.get(flock);
     return '<div class="bus-flock">' +
       '<div class="bus-flock-head"><span class="bus-flock-name">' + esc(flock) + '</span>' +
-      '<span class="bus-flock-count">' + ppl.length + ' 人</span></div>' +
+      '<span class="bus-flock-count">' + esc(busMoneyText(busMoneySummary(ppl))) + '</span></div>' +
       '<div class="bus-card-list">' +
       ppl.map((p, i) => busRosterPersonCard(p, i + 1, d.canManageBus, manage)).join('') +
       '</div></div>';
@@ -14299,8 +14335,42 @@ function busRosterPersonCard(p, no, canSeeDetail, manage) {
 
 let busSeatState = {
   tripCode: '', leg: 'go', trip: null,
-  people: [], orig: {}, sel: null, loaded: false
+  people: [], orig: {}, sel: null, loaded: false,
+  // 每個「行程＋這一程」各存一份。去程跟回程是兩份名單，
+  // 但它們來自同一張報名表 —— 點一下分頁就整個重抓太慢，
+  // 而且會把還沒存檔的編排丟掉。
+  cache: {}
 };
+
+function busSeatCacheKey(tripCode, leg) {
+  return (tripCode || '') + '|' + (leg === 'back' ? 'back' : 'go');
+}
+
+// 離開這一程之前先把現況（含還沒存檔的編排）收進快取。
+function busSeatStash() {
+  if (!busSeatState.loaded || !busSeatState.tripCode) return;
+  busSeatState.cache[busSeatCacheKey(busSeatState.tripCode, busSeatState.leg)] = {
+    trip: busSeatState.trip,
+    people: busSeatState.people,
+    orig: busSeatState.orig
+  };
+}
+
+// 整個編車畫面還有幾筆沒存 —— 含不在眼前那一程的。
+// 只看眼前那一程的話，去程改完切到回程再離開，去程的編排會無聲消失。
+function busSeatDirtyAll() {
+  let n = busSeatDirtyList().length;
+  const cur = busSeatCacheKey(busSeatState.tripCode, busSeatState.leg);
+  Object.keys(busSeatState.cache).forEach(k => {
+    if (k === cur) return;
+    const c = busSeatState.cache[k] || {};
+    (c.people || []).forEach(p => {
+      const o = (c.orig || {})[p.registrationId];
+      if (o && (o.bus !== p.bus || o.stop !== p.stop)) n++;
+    });
+  });
+  return n;
+}
 
 const BUS_SEAT_NOSTOP = '（未填）';
 
@@ -14336,20 +14406,30 @@ function busSeatDirtyList() {
   return out;
 }
 
-async function renderBusSeatingPage(tripCode, leg) {
+// force ＝ 真的要跟後端重拿（存檔後、按重新載入）。
+// 其他時候（切去／回程、切行程）先看快取 —— 名單只在第一次真的需要
+// 載人的時候跑，不是每點一下就跑一次。
+async function renderBusSeatingPage(tripCode, leg, force) {
   const token = beginPage('busSeat', '遊覽車編車', true);
   const want = leg === 'back' ? 'back' : 'go';
 
-  if (busSeatState.loaded && busSeatDirtyList().length &&
-      (busSeatState.tripCode !== (tripCode || busSeatState.tripCode) || busSeatState.leg !== want)) {
-    if (!confirm('還有沒存檔的異動，離開這一程就會不見。要繼續嗎？')) return;
-  }
+  busSeatStash();
 
   busSeatState.tripCode = tripCode || busSeatState.tripCode;
   busSeatState.leg = want;
   busSeatState.sel = null;
-  busSeatState.loaded = false;
 
+  const hit = force ? null : busSeatState.cache[busSeatCacheKey(busSeatState.tripCode, want)];
+  if (hit) {
+    busSeatState.trip = hit.trip;
+    busSeatState.people = hit.people;
+    busSeatState.orig = hit.orig;
+    busSeatState.loaded = true;
+    renderBusSeatShell();
+    return;
+  }
+
+  busSeatState.loaded = false;
   showLoading('載入編車資料');
   let data;
   try {
@@ -14385,6 +14465,7 @@ async function renderBusSeatingPage(tripCode, leg) {
     busSeatState.orig[p.registrationId] = { bus: p.bus, stop: p.stop };
   });
   busSeatState.loaded = true;
+  busSeatStash();
   renderBusSeatShell();
 }
 
@@ -14408,6 +14489,7 @@ function renderBusSeatShell() {
       <p class="meta">
         ${esc(t.tripName || '')}${t.tripDate ? '｜' + esc(t.tripDate) : ''}<br>
         ${Number(t.busCount) || 1} 台　每台 ${Number(t.seatsPerBus) || 0} 位　共 ${busSeatState.people.length} 人要搭${busSeatLegName(leg)}
+        ${busSeatCapacityNote(t)}
       </p>
       <div style="display:flex;gap:8px;margin:10px 0">${legTabs}</div>
 
@@ -14417,9 +14499,16 @@ function renderBusSeatShell() {
         <button class="btn btn-ghost" onclick="busSeatAutoFill()">照站點自動排</button>
       </div>
       <div class="compact-actions" style="margin-top:6px">
+        <button class="btn btn-sub" onclick="busSeatSetBusCount(1)">＋ 加一台車</button>
+        <button class="btn btn-ghost" onclick="busSeatSetBusCount(-1)">－ 減一台</button>
+      </div>
+      <div class="compact-actions" style="margin-top:6px">
+        <button class="btn btn-ghost" onclick="busSeatToTripSettings()">行程設定（站點・價格・每台座位）</button>
+      </div>
+      <div class="compact-actions" style="margin-top:6px">
         <button class="btn ${dirty ? 'btn-main' : 'btn-sub'}" onclick="busSeatSave()">
           儲存${dirty ? '（' + dirty + ' 筆異動）' : ''}</button>
-        <button class="btn btn-ghost" onclick="renderBusSeatingPage(null, '${leg}')">重新載入</button>
+        <button class="btn btn-ghost" onclick="renderBusSeatingPage(null, '${leg}', true)">重新載入</button>
       </div>
       ${leg === 'back' ? `
       <div class="compact-actions" style="margin-top:6px">
@@ -14431,6 +14520,18 @@ function renderBusSeatShell() {
         ${busSeatWaitingHtml(waiting)}
       </div>
     </div>`;
+}
+
+// 位子夠不夠要當場講。等到「自動排」排不完才發現，人已經編一半了。
+function busSeatCapacityNote(t) {
+  const room = (Math.max(1, Number(t.busCount) || 1)) * (Number(t.seatsPerBus) || 0);
+  const need = busSeatState.people.length;
+  if (!room) return '';
+  if (need > room) {
+    return '<br><b style="color:#b3261e">位子不夠：' + need + ' 人、' + room +
+      ' 個位子，差 ' + (need - room) + ' 個。按「＋ 加一台車」。</b>';
+  }
+  return '<br>還有 ' + (room - need) + ' 個空位';
 }
 
 function busSeatHintText() {
@@ -14662,7 +14763,7 @@ async function busSeatSave() {
       { userId, tripCode: busSeatState.tripCode, leg: busSeatState.leg, assignments: list }, 40000);
     hideActionLock();
     if (!res || res.status !== 'ok') return showMsg(esc((res && res.message) || '存檔失敗'), 'err');
-    await renderBusSeatingPage(busSeatState.tripCode, busSeatState.leg);
+    await renderBusSeatingPage(busSeatState.tripCode, busSeatState.leg, true);
     showMsg(esc(res.message), res.waiting ? 'info' : 'ok');
   } catch (err) {
     hideActionLock();
@@ -14681,7 +14782,8 @@ async function busSeatCopyFromGo() {
     const res = await post('copyBusSeatingGoToBack', { userId, tripCode: busSeatState.tripCode }, 40000);
     hideActionLock();
     if (!res || res.status !== 'ok') return showMsg(esc((res && res.message) || '複製失敗'), 'err');
-    await renderBusSeatingPage(busSeatState.tripCode, 'back');
+    delete busSeatState.cache[busSeatCacheKey(busSeatState.tripCode, 'back')];
+    await renderBusSeatingPage(busSeatState.tripCode, 'back', true);
     showMsg(esc(res.message), (res.skippedSingle || res.skippedUnassigned) ? 'info' : 'ok');
   } catch (err) {
     hideActionLock();
@@ -14690,8 +14792,59 @@ async function busSeatCopyFromGo() {
 }
 
 function busSeatLeave() {
-  if (busSeatDirtyList().length && !confirm('還有沒存檔的異動，離開就會不見。要離開嗎？')) return;
+  if (busSeatDirtyAll() && !confirm('還有沒存檔的異動（含另一程），離開就會不見。要離開嗎？')) return;
+  busSeatState.cache = {};
   renderPortalPage();
+}
+
+// 編車編到一半要改行程設定（站點、價格、每台座位）就從這裡進去，
+// 不必先退回首頁再找一次。
+function busSeatToTripSettings() {
+  if (busSeatDirtyAll() && !confirm('還有沒存檔的編車異動，離開就會不見。要離開嗎？')) return;
+  const code = busSeatState.tripCode;
+  busSeatState.cache = {};
+  busAdminState.openEditCode = code;
+  renderBusAdminPage();
+}
+
+// 台數直接在編車頁加減。減的時候後端會擋「被砍掉那幾台還有人」，
+// 前端先自己擋一次，省一趟往返也講得比較清楚。
+async function busSeatSetBusCount(delta) {
+  const t = busSeatState.trip || {};
+  const now = Math.max(1, Number(t.busCount) || 1);
+  const next = now + delta;
+  if (next < 1) return showMsg('至少要有一台車。', 'info');
+
+  if (delta < 0) {
+    const stuck = busSeatState.people.filter(p => Number(p.bus) > next).map(p => p.name);
+    if (stuck.length) {
+      return showMsg('第 ' + (next + 1) + ' 台還有人：' + esc(stuck.slice(0, 5).join('、')) +
+        (stuck.length > 5 ? ' 等 ' + stuck.length + ' 人' : '') + '。請先把他們移到前面幾台。', 'err');
+    }
+  }
+
+  showActionLock('更新台數', '正在寫回行程設定。');
+  try {
+    const res = await post('setBusTripBusCount',
+      { userId, tripCode: busSeatState.tripCode, busCount: next }, 20000);
+    hideActionLock();
+    if (!res || res.status !== 'ok') return showMsg(esc((res && res.message) || '更新失敗'), 'err');
+
+    // 只有台數變了，名單一個字都沒動 —— 不要為了這個重抓整份名單。
+    // 兩程的快取都要跟著改，不然切過去又會看到舊的台數。
+    const applied = Number(res.busCount) || next;
+    if (busSeatState.trip) busSeatState.trip.busCount = applied;
+    Object.keys(busSeatState.cache).forEach(k => {
+      if (k.indexOf(busSeatState.tripCode + '|') !== 0) return;
+      const c = busSeatState.cache[k];
+      if (c && c.trip) c.trip.busCount = applied;
+    });
+    renderBusSeatShell();
+    showMsg(esc(res.message), 'ok');
+  } catch (err) {
+    hideActionLock();
+    showMsg(esc(err.message || err), 'err');
+  }
 }
 
 
