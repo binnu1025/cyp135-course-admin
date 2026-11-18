@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.41</title>
+  <title>CYP135 課程報名 V8.42</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1069,7 +1069,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.41</small>
+    <small>CYP135 課程系統 V8.42</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -13622,6 +13622,7 @@ function renderBusAdminShell() {
             <button class="btn btn-main" style="margin:0;height:38px" onclick="renderBusRosterPage('${esc(t.tripCode)}', true)">名單</button>
             <button class="btn btn-sub" style="margin:0;height:38px" onclick="renderBusSeatingPage('${esc(t.tripCode)}', 'go')">編車</button>
             <button class="btn btn-sub" style="margin:0;height:38px" onclick="busAdminEdit('${esc(t.tripCode)}')">編輯</button>
+            <button class="btn btn-sub" style="margin:0;height:38px" onclick="renderBusImportPage('${esc(t.tripCode)}')">匯入名單</button>
             <button class="btn ${t.allowSingle ? 'btn-warn' : 'btn-ghost'}" style="margin:0;height:38px"
               onclick="busToggleSingle('${esc(t.tripCode)}', ${t.allowSingle ? 'false' : 'true'})">
               ${t.allowSingle ? '關閉單程' : '開放單程'}
@@ -14074,6 +14075,7 @@ function renderBusRosterShell() {
       <div class="compact-actions">
         <button class="btn btn-sub" onclick="renderBusRosterPage(busRosterState.tripCode, busRosterState.includeAll)">重新載入</button>
         ${manage ? '<button class="btn btn-ghost" onclick="copyBusInsuranceList()">複製保險名單</button>' : ''}
+        ${manage ? '<button class="btn btn-ghost" onclick="renderBusImportPage(busRosterState.tripCode)">匯入名單</button>' : ''}
         ${manage ? '<button class="btn btn-ghost" onclick="renderBusSeatingPage(busRosterState.tripCode, \'go\')">編車</button>' : ''}
         ${manage ? '<button class="btn btn-ghost" onclick="renderBusAdminPage()">行程設定</button>' : ''}
       </div>
@@ -14848,6 +14850,373 @@ async function busSeatSetBusCount(delta) {
 }
 
 
+
+/* ═══ 遊覽車外部名單匯入 ═══════════════════════════════════
+   另外一間教室要跟我們一起搭車：他們給一份試算表，從這裡進來。
+
+   刻意跟課程的外部匯入長得很像 —— 同一個人要用的是同一套操作，
+   不要因為是遊覽車就換一種做法。檔案解析、表頭偵測、欄位比對
+   也全部沿用那邊的函式，不另外寫一份。
+*/
+let busImportState = {
+  tripCode: '', trip: null, grid: [], columns: null,
+  fileName: '', preview: null, committed: null
+};
+
+const BUS_IMPORT_FIELDS = [
+  { key: 'name',     label: '姓名（必要）', aliases: ['姓名', '學員姓名', '報名者', '會員姓名', '名字'] },
+  { key: 'rideType', label: '搭乘方式',     aliases: ['搭乘方式', '來回', '單程', '乘車方式', '車程'] },
+  { key: 'goStop',   label: '去程上車點',   aliases: ['去程上車點', '上車點', '去程', '上車地點'] },
+  { key: 'backStop', label: '回程下車點',   aliases: ['回程下車點', '下車點', '回程', '下車地點'] },
+  { key: 'phone',    label: '電話',         aliases: ['電話', '手機', '聯絡電話', '行動電話'] },
+  { key: 'idNumber', label: '身分證字號',   aliases: ['身分證', '身份證', '身分證字號', '證號'] },
+  { key: 'birthday', label: '出生年月日',   aliases: ['生日', '出生年月日', '出生日期'] }
+];
+
+async function renderBusImportPage(tripCode) {
+  const token = beginPage('busImport', '遊覽車名單匯入', true);
+  if (tripCode) {
+    busImportState = { tripCode, trip: null, grid: [], columns: null,
+                       fileName: '', preview: null, committed: null };
+  }
+  if (!busImportState.tripCode) return renderBusAdminPage();
+
+  // 行程資料從行程設定那份拿就好，不要為了一個名字再打一次後端。
+  const t = (busAdminState.trips || []).find(x => x.tripCode === busImportState.tripCode);
+  if (t) busImportState.trip = t;
+  if (!isPageActive(token, 'busImport')) return;
+  renderBusImportShell();
+}
+
+function renderBusImportShell() {
+  const t = busImportState.trip || {};
+  const grid = busImportState.grid || [];
+  const col = busImportState.columns || {};
+  const headers = grid.length ? (grid[Number(col.headerIndex) || 0] || []) : [];
+
+  const colSelect = (f) => `
+    <div class="field">
+      <label>${esc(f.label)}</label>
+      <select id="bus-imp-col-${f.key}" onchange="onBusImportColumnChange()">
+        <option value="-1">（沒有這一欄）</option>
+        ${headers.map((h, i) =>
+          `<option value="${i}" ${Number(col[f.key]) === i ? 'selected' : ''}>${esc(excelColumnName(i))}：${esc(cellText(h) || '（空白）')}</option>`
+        ).join('')}
+      </select>
+    </div>`;
+
+  const mapping = grid.length ? `
+    <div class="card compact-card" style="margin-top:12px">
+      <h3>欄位對應</h3>
+      <p class="meta">來源：${esc(busImportState.fileName || '')}　共 ${grid.length} 列</p>
+      <div class="field">
+        <label>表頭在第幾列</label>
+        <select id="bus-imp-header" onchange="onBusImportHeaderChange()">
+          ${grid.slice(0, 10).map((r, i) =>
+            `<option value="${i}" ${Number(col.headerIndex) === i ? 'selected' : ''}>第 ${i + 1} 列：${esc((r || []).slice(0, 5).map(cellText).join(' | ').slice(0, 40))}</option>`
+          ).join('')}
+        </select>
+      </div>
+      <div class="form-grid">${BUS_IMPORT_FIELDS.map(colSelect).join('')}</div>
+      <div class="field full">
+        <label>沒有搭乘方式那一欄時，整批視為</label>
+        <select id="bus-imp-default-ride">
+          <option value="">（不指定 —— 沒寫的那幾列會被標成錯誤，不會匯）</option>
+          <option value="來回" selected>全部來回</option>
+          ${t.allowSingle ? '<option value="去程單程">全部去程單程</option><option value="回程單程">全部回程單程</option>' : ''}
+        </select>
+        <div class="muted" style="font-size:12px;margin-top:4px">
+          只有在上面「搭乘方式」選「沒有這一欄」時才會用到。有那一欄的話，
+          每一列照它自己寫的算；寫了但看不懂的那一列會被標成錯誤，不會拿這個值去蓋。
+        </div>
+      </div>
+      <button class="btn btn-main" onclick="busImportPreview()">預覽</button>
+    </div>` : '';
+
+  document.getElementById('app').innerHTML = `
+    <button class="btn btn-ghost" onclick="renderBusAdminPage()">← 回行程設定</button>
+    <div class="card" style="margin-top:12px">
+      <h2>遊覽車名單匯入</h2>
+      <p class="meta">
+        ${esc(t.tripName || busImportState.tripCode)}${t.tripDate ? '｜' + esc(t.tripDate) : ''}<br>
+        來回 $${Number(t.roundPrice) || 0}　·　${t.allowSingle ? '單程 $' + (Number(t.singlePrice) || 0) : '目前只收來回'}<br>
+        去程站點：${esc((t.goStops || []).join('、') || '未設定')}<br>
+        回程站點：${esc((t.backStops || []).join('、') || '未設定')}
+      </p>
+      <div class="msg info on">
+        匯進來的人會用<b>這個行程的價格</b>算錢。身分證與生日有就收、沒有就空著 ——
+        空著代表「對方沒給」，名單上會標出來，不會當成他沒有。
+      </div>
+
+      <div class="field">
+        <label>這批人歸在哪一組（必填）</label>
+        <input id="bus-imp-flock" value="${esc(busImportState.flockName || '')}" placeholder="例如 台北教室">
+        <div class="muted" style="font-size:12px;margin-top:4px">
+          名單頁、編車頁都會把他們獨立成這一組，不會跟我們自己的雁群混在一起。
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="field">
+        <label>上傳 Excel／CSV</label>
+        <input id="bus-imp-file" type="file" accept=".xlsx,.xls,.csv" onchange="onBusImportFile(this)">
+      </div>
+      <div class="field">
+        <label>或貼 Google 試算表網址</label>
+        <input id="bus-imp-url" placeholder="https://docs.google.com/spreadsheets/d/...">
+        <button class="btn btn-sub" style="margin-top:8px" onclick="busImportLoadSheetTabs()">開啟試算表</button>
+        <div id="bus-imp-tabs" style="margin-top:8px"></div>
+      </div>
+      <div id="bus-imp-msg" class="msg"></div>
+    </div>
+    ${mapping}
+    <div id="bus-imp-preview"></div>`;
+}
+
+// 表頭換一列，欄位對應要跟著重猜一次 —— 留著舊的對應只會對到錯的欄。
+function onBusImportHeaderChange() {
+  const idx = Number(val('bus-imp-header'));
+  busImportState.columns = guessBusImportColumns(busImportState.grid, idx);
+  busImportState.preview = null;
+  renderBusImportShell();
+}
+
+function onBusImportColumnChange() {
+  const col = busImportState.columns || {};
+  BUS_IMPORT_FIELDS.forEach(f => { col[f.key] = Number(val('bus-imp-col-' + f.key)); });
+  busImportState.columns = col;
+  busImportState.preview = null;
+}
+
+function guessBusImportColumns(grid, headerIndex) {
+  const idx = Number.isFinite(headerIndex) ? headerIndex : findExternalHeaderRow(grid);
+  const headers = (grid || [])[idx] || [];
+  const col = { headerIndex: idx };
+  BUS_IMPORT_FIELDS.forEach(f => {
+    col[f.key] = findImportColumn(headers, f.aliases, f.key === 'name' ? 0 : -1);
+  });
+  return col;
+}
+
+function busImportRowsFromGrid() {
+  const grid = busImportState.grid || [];
+  const col = busImportState.columns || {};
+  const start = (Number(col.headerIndex) || 0) + 1;
+  const out = [];
+  for (let i = start; i < grid.length; i++) {
+    const row = grid[i] || [];
+    const item = {};
+    let any = false;
+    BUS_IMPORT_FIELDS.forEach(f => {
+      const c = Number(col[f.key]);
+      // ⚠️ 沒指定的欄位「不要放這個鍵」。後端是用它在不在來分辨
+      //    「這份名單沒有這一欄」和「有這一欄但這一格是空的」。
+      if (!(c >= 0)) return;
+      const v = cellText(row[c]);
+      item[f.key] = v;
+      if (v) any = true;
+    });
+    if (!any) continue;
+    out.push(item);
+  }
+  return out;
+}
+
+async function onBusImportFile(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  try {
+    showActionLock('讀取檔案', '正在解析這份名單。');
+    await ensureExcelParser();
+    const grid = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('讀取檔案失敗'));
+      reader.onload = e => {
+        try {
+          const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          resolve(XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false }));
+        } catch (err) { reject(err); }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+    hideActionLock();
+    busImportApplyGrid(grid, file.name);
+  } catch (err) {
+    hideActionLock();
+    showBoxMsg('bus-imp-msg', esc(err.message || err), 'err');
+  }
+}
+
+async function busImportLoadSheetTabs() {
+  const url = (val('bus-imp-url') || '').trim();
+  if (!url) return showBoxMsg('bus-imp-msg', '請先貼上 Google 試算表網址。', 'err');
+  busImportState.flockName = val('bus-imp-flock');
+  try {
+    showActionLock('開啟試算表', '正在讀取分頁清單。');
+    const res = await post('readExternalSheetGrid', { userId, url }, 30000);
+    hideActionLock();
+    if (!res || res.status !== 'ok') {
+      return showBoxMsg('bus-imp-msg', esc((res && res.message) || '讀取失敗').replace(/\n/g, '<br>'), 'err');
+    }
+    const sheets = res.sheets || [];
+    if (!sheets.length) return showBoxMsg('bus-imp-msg', '這份試算表沒有任何分頁。', 'err');
+    const box = document.getElementById('bus-imp-tabs');
+    if (box) {
+      box.innerHTML = '<select id="bus-imp-tab">' +
+        sheets.map(x => `<option value="${esc(x.name)}">${esc(x.name)}（${x.rows} 筆）</option>`).join('') +
+        '</select><button class="btn btn-main" style="margin-top:8px" onclick="busImportLoadSheetGrid()">讀取這個分頁</button>';
+    }
+    showBoxMsg('bus-imp-msg', '已開啟「' + esc(res.title || '') + '」，請選分頁。', 'ok');
+  } catch (err) {
+    hideActionLock();
+    showBoxMsg('bus-imp-msg', esc(err.message || err), 'err');
+  }
+}
+
+async function busImportLoadSheetGrid() {
+  const url = (val('bus-imp-url') || '').trim();
+  const sheetName = val('bus-imp-tab') || '';
+  if (!url || !sheetName) return;
+  busImportState.flockName = val('bus-imp-flock');
+  try {
+    showActionLock('讀取分頁', '正在取得名單內容。');
+    const res = await post('readExternalSheetGrid', { userId, url, sheetName }, 45000);
+    hideActionLock();
+    if (!res || res.status !== 'ok') {
+      return showBoxMsg('bus-imp-msg', esc((res && res.message) || '讀取失敗').replace(/\n/g, '<br>'), 'err');
+    }
+    if (!(res.grid || []).length) return showBoxMsg('bus-imp-msg', '這個分頁沒有資料。', 'err');
+    busImportApplyGrid(res.grid, (res.title || 'Google 試算表') + ' / ' + sheetName);
+  } catch (err) {
+    hideActionLock();
+    showBoxMsg('bus-imp-msg', esc(err.message || err), 'err');
+  }
+}
+
+function busImportApplyGrid(grid, label) {
+  busImportState.flockName = val('bus-imp-flock') || busImportState.flockName;
+  busImportState.grid = grid || [];
+  busImportState.fileName = label || '';
+  busImportState.columns = guessBusImportColumns(busImportState.grid);
+  busImportState.preview = null;
+  busImportState.committed = null;
+  renderBusImportShell();
+  showBoxMsg('bus-imp-msg', '讀到 ' + busImportState.grid.length + ' 列，請確認欄位對應。', 'ok');
+}
+
+async function busImportPreview() {
+  onBusImportColumnChange();
+  busImportState.flockName = (val('bus-imp-flock') || '').trim();
+  if (!busImportState.flockName) {
+    return showBoxMsg('bus-imp-msg', '請先填「這批人歸在哪一組」。', 'err');
+  }
+  const rows = busImportRowsFromGrid();
+  if (!rows.length) return showBoxMsg('bus-imp-msg', '對應之後沒有任何一列有資料，請確認表頭與欄位。', 'err');
+
+  try {
+    showActionLock('預覽中', '正在比對名單。');
+    const res = await post('previewBusImport', {
+      userId,
+      tripCode: busImportState.tripCode,
+      flockName: busImportState.flockName,
+      rideTypeDefault: val('bus-imp-default-ride') || '',
+      rows
+    }, 45000);
+    hideActionLock();
+    if (!res || res.status !== 'ok') {
+      return showBoxMsg('bus-imp-msg', esc((res && res.message) || '預覽失敗'), 'err');
+    }
+    busImportState.preview = res;
+    busImportState.committed = null;
+    renderBusImportResult();
+  } catch (err) {
+    hideActionLock();
+    showBoxMsg('bus-imp-msg', esc(err.message || err), 'err');
+  }
+}
+
+function busImportStatusText(s) {
+  if (s === 'ok') return '<span class="import-status-ok">會匯入</span>';
+  if (s === 'duplicate') return '<span class="import-status-duplicate">跳過</span>';
+  return '<span class="import-status-error">有問題</span>';
+}
+
+function renderBusImportResult() {
+  const p = busImportState.preview;
+  const box = document.getElementById('bus-imp-preview');
+  if (!box || !p) return;
+  const s = p.summary || {};
+  const done = busImportState.committed;
+
+  box.innerHTML = `
+    <div class="card compact-card" style="margin-top:12px">
+      <h3>${done ? '匯入結果' : '預覽'}</h3>
+      <div class="roster-summary">
+        <div class="roster-stat"><strong>${Number(s.ok) || 0}</strong><span>${done ? '已匯入' : '會匯入'}</span></div>
+        <div class="roster-stat"><strong>${Number(s.duplicate) || 0}</strong><span>跳過重複</span></div>
+        <div class="roster-stat"><strong>${Number(s.error) || 0}</strong><span>有問題</span></div>
+        <div class="roster-stat"><strong>$${Number(s.money || 0).toLocaleString('en-US')}</strong><span>應收</span></div>
+      </div>
+      <p class="meta">去程 ${Number(s.go) || 0} 人　·　回程 ${Number(s.back) || 0} 人${
+        Number(s.missingInfo) ? '　·　<b>' + Number(s.missingInfo) + ' 人缺身分證或生日</b>' : ''}</p>
+      ${((p.seat || {}).notes || []).length
+        ? '<div class="msg warn on">' + (p.seat.notes || []).map(esc).join('<br>') + '</div>' : ''}
+      ${done ? '' : `<button class="btn btn-main" ${Number(s.ok) ? '' : 'disabled'} onclick="busImportCommit()">
+        確認匯入 ${Number(s.ok) || 0} 人</button>`}
+      ${done ? '<button class="btn btn-sub" onclick="renderBusRosterPage(busImportState.tripCode, true)">去看名單</button>' : ''}
+      <div class="roster-table-wrap" style="margin-top:10px">
+        <table class="roster-table">
+          <thead><tr><th>#</th><th>姓名</th><th>狀態</th><th>搭乘</th><th>上車</th><th>下車</th><th>金額</th><th>說明</th></tr></thead>
+          <tbody>${(p.rows || []).map(r => `
+            <tr>
+              <td>${Number(r.rowNumber)}</td>
+              <td>${esc(r.name || '（空白）')}</td>
+              <td>${busImportStatusText(r.status)}</td>
+              <td>${esc(r.rideType || '—')}</td>
+              <td>${esc(r.goStop || '—')}</td>
+              <td>${esc(r.backStop || '—')}</td>
+              <td>${r.price === '' || r.price === undefined ? '—' : '$' + Number(r.price)}</td>
+              <td>${esc((r.messages || []).join('；') || '—')}</td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+  if (box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function busImportCommit() {
+  const p = busImportState.preview;
+  if (!p || !Number((p.summary || {}).ok)) return;
+  if (!confirm('要把 ' + Number(p.summary.ok) + ' 個人匯進「' + busImportState.flockName +
+               '」嗎？已經在名單裡的人會跳過，不會重複。')) return;
+
+  const rows = busImportRowsFromGrid();
+  try {
+    showActionLock('匯入中', '正在寫回試算表。');
+    const res = await post('commitBusImport', {
+      userId,
+      tripCode: busImportState.tripCode,
+      flockName: busImportState.flockName,
+      rideTypeDefault: val('bus-imp-default-ride') || '',
+      rows
+    }, 90000);
+    hideActionLock();
+    if (!res || res.status !== 'ok') {
+      return showBoxMsg('bus-imp-msg', esc((res && res.message) || '匯入失敗'), 'err');
+    }
+    // 編車的快取裡是匯入前的名單，一定要丟掉。
+    busSeatState.cache = {};
+    busImportState.preview = { summary: res.summary, seat: res.seat, rows: res.rows };
+    busImportState.committed = true;
+    renderBusImportResult();
+    showMsg(esc(res.message), 'ok');
+  } catch (err) {
+    hideActionLock();
+    showBoxMsg('bus-imp-msg', esc(err.message || err), 'err');
+  }
+}
+
 /* ═══ 站內導覽歷史（C6） ═══
    舊版切頁不寫入瀏覽器歷史，所以按上一頁會直接離開網站。
    這裡每次切頁 pushState，返回鍵就會在站內走，走到底才離開。 */
@@ -14866,6 +15235,7 @@ const NAV_VIEWS = {
   busAdmin:    () => renderBusAdminPage(),
   busRoster:   () => renderBusRosterPage(),
   busSeat:     () => renderBusSeatingPage(),
+  busImport:   () => renderBusImportPage(),
   monthly:     () => renderMonthlyPage()
 };
 
