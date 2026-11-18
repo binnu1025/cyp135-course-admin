@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.42</title>
+  <title>CYP135 課程報名 V8.43</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -1069,7 +1069,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.42</small>
+    <small>CYP135 課程系統 V8.43</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -14415,7 +14415,17 @@ async function renderBusSeatingPage(tripCode, leg, force) {
   const token = beginPage('busSeat', '遊覽車編車', true);
   const want = leg === 'back' ? 'back' : 'go';
 
-  busSeatStash();
+  // ⚠️ 有帶 tripCode ＝ 從外面（行程設定、名單頁）重新走進這一頁。
+  //    這段期間行程設定很可能被改過 —— 台數、每台座位、站點都在那裡改。
+  //    快取裡的是進來之前那一份，繼續用就會出現「設定寫 2 台 43 位、
+  //    編車頁卻說 1 台 100 位」。
+  //
+  //    只有切去／回程（不帶 tripCode）才吃快取 —— 那本來就是當初加快取
+  //    要解決的事。快取存的是同一份陣列的參照，所以載入時收一次就夠，
+  //    切換時不用再收一次。
+  if (tripCode) {
+    busSeatState.cache = {};
+  }
 
   busSeatState.tripCode = tripCode || busSeatState.tripCode;
   busSeatState.leg = want;
