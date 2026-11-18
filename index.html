@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CYP135 課程報名 V8.43</title>
+  <title>CYP135 課程報名 V8.44</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -322,7 +322,15 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .bus-flock-count{margin-left:auto;font-size:12px;font-weight:800;opacity:.9}
 .bus-card-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .bus-seat-car{border:1px solid #e4ddc9;border-radius:14px;background:#fffdf7;padding:10px 12px;margin-top:12px}
-.bus-seat-car.full{border-color:#c9a46a}
+.bus-seat-car.full{border-color:#c9a46a;background:#fffaf0}
+.bus-seat-car.over{border-color:#d08a84;background:#fdf1f0}
+.bus-seat-fill{font-size:12.5px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.bus-seat-fill.ok{color:#2d7d46;background:#e8f1ea}
+.bus-seat-fill.full{color:#8a5a00;background:#fbeecd}
+.bus-seat-fill.over{color:#fff;background:#b3261e}
+.bus-seat-fill.unknown{color:#6b6b6b;background:#efefef}
+.bus-seat-overflow{font-size:12.5px;font-weight:700;line-height:1.6;color:#b3261e;background:#fdeceb;
+  border:1px solid #e9b8b4;border-radius:10px;padding:7px 10px;margin:2px 0 8px}
 .bus-seat-car.waiting{background:#fbf7f0;border-style:dashed}
 .bus-seat-car.waiting.has{border-color:#b8572c;background:#fdf0ea}
 .bus-seat-car-head{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:14px;color:#2D5A3D;margin-bottom:6px}
@@ -1069,7 +1077,7 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
   </button>
   <div class="hd-home" role="button" tabindex="0" onclick="goHomeFromHeader()" onkeydown="handleHeaderHomeKey(event)" aria-label="回首頁">
-    <small>CYP135 課程系統 V8.43</small>
+    <small>CYP135 課程系統 V8.44</small>
     <h1 id="page-title">課程報名</h1>
   </div>
   <div class="hd-actions">
@@ -14538,11 +14546,13 @@ function renderBusSeatShell() {
 function busSeatCapacityNote(t) {
   const room = (Math.max(1, Number(t.busCount) || 1)) * (Number(t.seatsPerBus) || 0);
   const need = busSeatState.people.length;
-  if (!room) return '';
+  // 不知道每台幾個位子就說不知道，不要算出一個假的空位數。
+  if (!room) return '<br><b style="color:#b3261e">行程設定沒填「每台座位」，算不出夠不夠。</b>';
   if (need > room) {
     return '<br><b style="color:#b3261e">位子不夠：' + need + ' 人、' + room +
       ' 個位子，差 ' + (need - room) + ' 個。按「＋ 加一台車」。</b>';
   }
+  if (need === room) return '<br><b style="color:#8a5a00">位子剛好用完，沒有多的</b>';
   return '<br>還有 ' + (room - need) + ' 個空位';
 }
 
@@ -14564,12 +14574,40 @@ function busSeatPersonChip(p) {
     </button>`;
 }
 
+// 一台車坐得下坐不下。三態要分開：
+//
+//   未滿   還有位子，正常
+//   剛好滿 排好了，不是問題
+//   超過   有人上不了車 —— 這是會漏載的狀態，必須看起來就不一樣
+//
+// 原本三種都寫「已滿」，所以 46 個人坐 43 個位子的車也只是淡淡地說
+// 「46 / 43 已滿」，看的人會以為排完了。
+//
+// seats 是 0 ＝ 不知道這台幾個位子（行程設定沒填），那就說不知道，
+// 不要拿「沒超過」當成「坐得下」。
+function busSeatCarFill(count, seats) {
+  count = Number(count) || 0;
+  seats = Number(seats) || 0;
+  if (!seats) return { level: 'unknown', text: '未設定座位數', note: '' };
+  if (count > seats) {
+    return {
+      level: 'over',
+      text: '超過 ' + (count - seats) + ' 人',
+      note: '這台坐不下 ' + (count - seats) + ' 個人。請把多的人移到別台，或回行程設定加一台車。'
+    };
+  }
+  if (count === seats) return { level: 'full', text: '剛好坐滿', note: '' };
+  return { level: 'ok', text: '還有 ' + (seats - count) + ' 位', note: '' };
+}
+
 // 一台車：照站點分段，段的大小就是那一站的人數。
 function busSeatBusHtml(bus) {
   const t = busSeatState.trip || {};
   const seats = Number(t.seatsPerBus) || 0;
   const mine = busSeatState.people.filter(p => Number(p.bus) === bus);
-  const full = seats > 0 && mine.length >= seats;
+  const fill = busSeatCarFill(mine.length, seats);
+  // 滿了和超過都不准再搬人進來。
+  const full = fill.level === 'full' || fill.level === 'over';
 
   const stops = ((t.stops || []).slice());
   const used = {};
@@ -14590,11 +14628,12 @@ function busSeatBusHtml(bus) {
       </div>`;
   }).join('');
 
-  return `<div class="bus-seat-car${full ? ' full' : ''}">
+  return `<div class="bus-seat-car ${esc(fill.level)}">
       <div class="bus-seat-car-head">
         <span>🚌 第 ${bus} 台</span>
-        <span>${mine.length}${seats ? ' / ' + seats : ''}${full ? '　已滿' : ''}</span>
+        <span class="bus-seat-fill ${esc(fill.level)}">${mine.length}${seats ? ' / ' + seats : ''}　${esc(fill.text)}</span>
       </div>
+      ${fill.note ? `<div class="bus-seat-overflow">⚠️ ${esc(fill.note)}</div>` : ''}
       ${groups || '<div class="bus-seat-empty">這台還沒有人</div>'}
     </div>`;
 }
